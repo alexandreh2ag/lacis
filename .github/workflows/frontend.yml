@@ -1,0 +1,74 @@
+name: Frontend
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Typecheck, test & end-to-end test front
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lacis
+          POSTGRES_PASSWORD: lacis
+          POSTGRES_DB: lacis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lacis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install
+        run: npm ci
+
+      - name: Generated types up to date
+        run: |
+          npm run codegen
+          git diff --exit-code -- src/graphql
+
+      - name: Unit tests
+        run: npm test
+
+      # The build typechecks; the server of the end-to-end tests embeds it.
+      - name: Build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        env:
+          LACIS_E2E_DATABASE_DSN: postgres://lacis:lacis@localhost:5432/lacis_e2e?sslmode=disable
+        run: npm run e2e
+
+      - name: Upload end-to-end report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            web/e2e/.run/report
+            web/e2e/.run/results
+            web/e2e/.run/server.log

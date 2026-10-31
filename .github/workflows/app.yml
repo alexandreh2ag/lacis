@@ -15,6 +15,10 @@ jobs:
     name: Agent
     uses: ./.github/workflows/agent.yml
 
+  frontend:
+    name: Frontend
+    uses: ./.github/workflows/frontend.yml
+
   server:
     name: Lint, test & build server
     runs-on: ubuntu-latest
