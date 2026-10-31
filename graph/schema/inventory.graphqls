@@ -1,0 +1,290 @@
+"The projects and envs filters take slugs; search matches names case-insensitively."
+input HostFilter {
+  projects: [String!]
+  envs: [String!]
+  status: [HostStatus!]
+  search: String
+}
+
+input AppFilter {
+  projects: [String!]
+  envs: [String!]
+  search: String
+  "A framework, as collected (symfony, laravel…), and its version."
+  framework: VersionConstraint
+  "A runtime (php, node…) and its version."
+  runtime: VersionConstraint
+}
+
+"""
+A framework or a runtime, and a version it compares to, part by part: 7.10 is above 7.9. The
+version of an app is cut to the parts given, so that EQ 7.4 takes 7.4.33 and GT 7.4 starts at
+7.5. No version takes every version.
+"""
+input VersionConstraint {
+  name: String!
+  op: VersionOp = GTE
+  version: String
+}
+
+enum VersionOp {
+  LT
+  LTE
+  EQ
+  GTE
+  GT
+}
+
+"What the inventory of a namespace holds, to filter by."
+type Facets {
+  frameworks: [VersionFacet!]!
+  runtimes: [VersionFacet!]!
+  serviceTypes: [String!]!
+}
+
+"A framework or a runtime the apps use."
+type VersionFacet {
+  name: String!
+  "The versions the apps use, as major.minor, in order."
+  versions: [String!]!
+}
+
+input ServiceFilter {
+  types: [String!]
+  projects: [String!]
+  envs: [String!]
+  search: String
+}
+
+enum HostStatus {
+  ACTIVE
+  "No snapshot for longer than the staleAfter of the namespace."
+  STALE
+  "No snapshot for longer than its inactiveAfter."
+  INACTIVE
+}
+
+type HostList {
+  items: [Host!]!
+  total: Int!
+}
+
+type AppList {
+  items: [App!]!
+  total: Int!
+}
+
+type ServiceList {
+  items: [Service!]!
+  total: Int!
+}
+
+type Host {
+  id: ID!
+  hostname: String!
+  project: Project
+  environment: Environment
+  status: HostStatus!
+  os: OS
+  kernel: String
+  arch: String
+  virtualization: String
+  "CPU, memory and disks, as collected."
+  resources: JSON
+  agentVersion: String
+  firstSeenAt: Time!
+  lastSeenAt: Time!
+  ips: [HostIP!]!
+  runtimes: [Runtime!]!
+  services: [Service!]!
+  webservers: [Webserver!]!
+  apps: [App!]!
+  history(page: PageInput): ChangeEventList!
+}
+
+type OS {
+  id: String!
+  version: String
+  pretty: String
+}
+
+type HostIP {
+  address: String!
+  prefixLength: Int!
+  interface: String
+  defaultRoute: Boolean!
+  network: Network
+}
+
+type Runtime {
+  id: ID!
+  type: String!
+  version: String!
+  path: String!
+  manager: String
+  firstSeenAt: Time!
+}
+
+type Service {
+  id: ID!
+  type: String!
+  instance: String!
+  version: String
+  "Listen addresses, config path, cluster, pools or container."
+  details: JSON
+  host: Host!
+  firstSeenAt: Time!
+  "The links to the service."
+  dependents: [Link!]!
+}
+
+type Webserver {
+  id: ID!
+  type: String!
+  version: String
+  host: Host!
+  "The domains it serves."
+  domains: [String!]!
+  "Its vhosts, routers, services, frontends and backends, as collected."
+  routing: JSON
+  firstSeenAt: Time!
+  "The links to the webserver, from the proxies in front of it."
+  dependents: [Link!]!
+  "The links from the webserver, to the apps it serves and the backends it routes to."
+  links: [Link!]!
+}
+
+type App {
+  id: ID!
+  name: String!
+  path: String!
+  resolvedPath: String
+  role: String!
+  project: Project
+  environment: Environment
+  framework: String
+  frameworkVersion: String
+  runtime: AppRuntime
+  code: AppCode
+  vhosts: [String!]!
+  launchers: JSON
+  info: JSON
+  host: Host!
+  firstSeenAt: Time!
+  dependencies: [Dependency!]!
+  "The links from the app."
+  links: [Link!]!
+  "The links to the app, from the webservers serving it."
+  dependents: [Link!]!
+}
+
+type AppRuntime {
+  type: String!
+  version: String!
+  path: String
+  source: String
+}
+
+"The code deployed: from a deploy info file or the git repository."
+type AppCode {
+  source: String!
+  version: String
+  commit: String
+  branch: String
+  tag: String
+  repository: String
+  pipelineId: String
+  pipelineUrl: String
+  deployedAt: Time
+  deployedBy: String
+}
+
+"A dependency read in the configuration of an app, the secrets left out."
+type Dependency {
+  key: String!
+  scheme: String
+  port: Int
+  path: String
+  "The hosts, IPs or socket it targets."
+  target: JSON
+  "Where it was read."
+  source: JSON
+  unparsed: Boolean!
+}
+
+enum LinkConfidence {
+  EXACT
+  INFERRED
+  AMBIGUOUS
+}
+
+type Link {
+  id: ID!
+  "env, traefik, webserver, launcher or process."
+  source: String!
+  confidence: LinkConfidence!
+  "How it was resolved: socket, loopback, route, hostname, private_ip, public_ip, vhost…"
+  rule: String!
+  "Why a target is external: cdn, public_ip, unknown_private_ip, dns_failed…"
+  reason: String
+  "The dependency it comes from."
+  key: String
+  from: LinkEnd!
+  to: LinkEnd!
+  "Everything known of the resolution."
+  detail: JSON!
+  computedAt: Time!
+}
+
+union LinkEnd = App | Service | Webserver | Host | External
+
+"A target out of the namespace, or one the resolution could not place."
+type External {
+  target: String!
+  reason: String
+}
+
+"The order of a listing; ties are broken by name."
+input HostSort {
+  by: HostSortField!
+  desc: Boolean = false
+}
+
+enum HostSortField {
+  HOSTNAME
+  PROJECT
+  ENV
+  "The address of the default route, else the first."
+  IP
+  OS
+  APPS
+  "Freshest first."
+  STATUS
+  LAST_SEEN
+}
+
+input AppSort {
+  by: AppSortField!
+  desc: Boolean = false
+}
+
+enum AppSortField {
+  NAME
+  PROJECT
+  ENV
+  HOSTNAME
+  "The code deployed: tag or branch."
+  VERSION
+  FRAMEWORK
+}
+
+input ServiceSort {
+  by: ServiceSortField!
+  desc: Boolean = false
+}
+
+enum ServiceSortField {
+  TYPE
+  VERSION
+  HOSTNAME
+}

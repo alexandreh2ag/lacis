@@ -1,0 +1,71 @@
+type Namespace {
+  id: ID!
+  slug: String!
+  name: String!
+  description: String
+  "Seconds without snapshot after which a host is stale, then inactive."
+  staleAfter: Int!
+  inactiveAfter: Int!
+  "Seconds the snapshots are kept."
+  snapshotRetention: Int!
+  "Whether the user may change the metadata of the namespace."
+  canEdit: Boolean!
+  counts: NamespaceCounts!
+  facets: Facets!
+  projects: [Project!]!
+  environments: [Environment!]!
+  networks: [Network!]!
+
+  hosts(filter: HostFilter, sort: HostSort, page: PageInput): HostList!
+  host(id: ID!): Host
+  apps(filter: AppFilter, sort: AppSort, page: PageInput): AppList!
+  app(id: ID!): App
+  services(filter: ServiceFilter, sort: ServiceSort, page: PageInput): ServiceList!
+  service(id: ID!): Service
+  webserver(id: ID!): Webserver
+  history(filter: HistoryFilter, page: PageInput): ChangeEventList!
+}
+
+type NamespaceCounts {
+  projects: Int!
+  environments: Int!
+  hosts: Int!
+  "Hosts without snapshot for longer than staleAfter, but not inactiveAfter."
+  staleHosts: Int!
+  "Hosts without snapshot for longer than inactiveAfter."
+  inactiveHosts: Int!
+  apps: Int!
+  webservers: Int!
+  services: Int!
+  links: Int!
+  "Links to a target out of the namespace or not resolved."
+  externalLinks: Int!
+}
+
+type Project {
+  id: ID!
+  slug: String!
+  name: String!
+  description: String
+}
+
+type Environment {
+  id: ID!
+  slug: String!
+  name: String!
+  sortOrder: Int!
+}
+
+type Network {
+  id: ID!
+  slug: String!
+  name: String!
+  kind: String!
+  description: String
+  "The ranges of the network; a network split from another shares its ranges."
+  cidrs: [String!]!
+  "The network this one was split from by hand: two networks on the same range."
+  splitFrom: Network
+  "The hosts with an IP in the network, by hostname."
+  hosts: [Host!]!
+}

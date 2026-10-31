@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "agent": { "version": "0.1.0", "os": "linux", "arch": "amd64" },
+  "collected_at": "2026-10-22T10:00:00Z",
+  "duration_ms": 4210,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-client-staging-1",
+    "labels": { "namespace": "acme", "project": "client", "env": "staging", "index": "1" },
+    "os": { "id": "debian", "version": "12", "pretty": "Debian GNU/Linux 12 (bookworm)" },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": { "model": "AMD EPYC 7543P", "visible_cores": 48, "effective_cores": 4, "source": "cgroup" },
+    "memory_mb": { "visible": 257000, "effective": 8192, "source": "cgroup" },
+    "disks": [{ "mount": "/", "size_gb": 64 }],
+    "interfaces": [{ "name": "eth0", "ips": ["10.0.1.12/24"], "default_route": true },
+      { "name": "eth1", "ips": ["203.0.113.10/32"] }]
+  },
+  "runtimes": [
+    { "type": "php", "version": "8.2.24", "path": "/usr/bin/php8.2" },
+    { "type": "node", "version": "20.11.1", "path": "/home/deploy/.nvm/versions/node/v20.11.1/bin/node", "manager": "nvm" }
+  ],
+  "services": [
+    {
+      "type": "php-fpm", "version": "8.2.24",
+      "pools": [{ "name": "www", "listen": "unix:/run/php/php8.2-fpm.sock", "user": "www-data" }]
+    },
+    { "type": "redis", "version": "7.0.15", "listen": ["127.0.0.1:6379"] }
+  ],
+  "webservers": [
+    {
+      "type": "nginx", "version": "1.22.1",
+      "vhosts": [{
+        "server_names": ["staging.client.fr"],
+        "listen": ["0.0.0.0:80"],
+        "root": "/var/www/client/current/public",
+        "upstreams": ["unix:/run/php/php8.2-fpm.sock"]
+      }]
+    }
+  ],
+  "apps": [
+    {
+      "path": "/var/www/client/current",
+      "resolved_path": "/var/www/client/releases/42",
+      "name": "api",
+      "role": "web",
+      "project": "client",
+      "env": "staging",
+      "framework": { "name": "symfony", "version": "6.4.12" },
+      "runtime": { "type": "php", "version": "8.2.24", "source": "fpm_pool" },
+      "code": { "source": "deploy_info", "version": "v2.3.1", "commit": "a1b2c3d", "branch": "main", "deployed_at": "2026-10-21T16:02:00Z" },
+      "vhosts": ["staging.client.fr"],
+      "launchers": [],
+      "dependencies": [
+        {
+          "key": "DATABASE_URL",
+          "source": { "file": ".env.local", "line": 12 },
+          "scheme": "postgresql", "port": 5432, "path": "client_staging",
+          "target": { "kind": "ip", "value": "10.0.1.20" }
+        },
+        {
+          "key": "REDIS_URL",
+          "source": { "file": ".env.local", "line": 15 },
+          "scheme": "redis", "port": 6379,
+          "target": { "kind": "name", "value": "redis.internal", "resolved": ["10.0.1.21"], "resolver": "hosts" }
+        },
+        {
+          "key": "API_URL",
+          "source": { "file": ".env.prod.local", "line": 4 },
+          "scheme": "https", "port": 443,
+          "target": { "kind": "name", "value": "api.client.fr", "resolved": ["104.16.12.3"], "resolver": "dns" }
+        },
+        { "key": "LEGACY_DSN", "source": { "file": ".env", "line": 30 }, "unparsed": true }
+      ]
+    }
+  ],
+  "collector_errors": [{ "collector": "envfiles", "error": "/var/www/site/current/.env.local.php: parse error" }],
+  "collectors": [
+    { "name": "webservers.nginx", "status": "ok", "duration_ms": 120 },
+    { "name": "webservers.apache", "status": "skipped" },
+    { "name": "envfiles", "status": "error", "duration_ms": 40 }
+  ]
+}

@@ -1,0 +1,453 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-shop-prod-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "shop",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "12",
+      "pretty": "Debian GNU/Linux 12 (bookworm)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 4,
+      "effective_cores": 4,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 8192,
+      "effective": 8192,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 60
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.1.21/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [
+    {
+      "type": "node",
+      "version": "22.14.0",
+      "path": "/var/lib/nvm/versions/node/v22.14.0/bin/node",
+      "manager": "nvm"
+    },
+    {
+      "type": "php",
+      "version": "8.3.14",
+      "path": "/usr/bin/php8.3"
+    }
+  ],
+  "services": [
+    {
+      "type": "php-fpm",
+      "version": "8.3.14",
+      "instance": "8.3",
+      "listen": [
+        "unix:/run/php/shop-api.sock"
+      ],
+      "config_path": "/etc/php/8.3/fpm/php-fpm.conf",
+      "pools": [
+        {
+          "name": "shop-api",
+          "listen": "unix:/run/php/shop-api.sock",
+          "user": "web"
+        }
+      ]
+    }
+  ],
+  "webservers": [
+    {
+      "type": "nginx",
+      "version": "1.22.1",
+      "vhosts": [
+        {
+          "listen": [
+            "0.0.0.0:80",
+            "[::]:80"
+          ],
+          "config_file": "/etc/nginx/sites-enabled/0-default"
+        },
+        {
+          "server_names": [
+            "api.shop.acme.example"
+          ],
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "root": "/home/web/var/www/shop/api/production/www/public",
+          "upstreams": [
+            "unix:/run/php/shop-api.sock"
+          ],
+          "config_file": "/etc/nginx/sites-enabled/shop-api.conf"
+        },
+        {
+          "server_names": [
+            "shop.acme.example",
+            "www.shop.acme.example"
+          ],
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "root": "/var/www/html",
+          "upstreams": [
+            "http://127.0.0.1:3000"
+          ],
+          "config_file": "/etc/nginx/sites-enabled/shop-front.conf"
+        }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "path": "/home/web/var/www/shop/api/production/www",
+      "resolved_path": "/home/web/builds/shop-api/production/2-4-0/www",
+      "name": "shop-api",
+      "role": "web",
+      "project": "shop",
+      "env": "production",
+      "framework": {
+        "name": "symfony",
+        "version": "7.2.6"
+      },
+      "runtime": {
+        "type": "php",
+        "version": "8.3.14",
+        "source": "fpm_pool"
+      },
+      "code": {
+        "source": "deploy_info",
+        "version": "v2.4.0",
+        "commit": "3f2a9c1",
+        "branch": "main",
+        "repository": "https://git.acme.example/shop/api.git",
+        "deployed_at": "2026-10-20T09:12:00Z"
+      },
+      "vhosts": [
+        "api.shop.acme.example"
+      ],
+      "launchers": [
+        {
+          "type": "supervisor",
+          "name": "shop-api-consumer_async",
+          "role": "worker",
+          "command": "php8.3 bin/console messenger:consume async --time-limit=300",
+          "directory": "/home/web/var/www/shop/api/production/www",
+          "user": "web"
+        },
+        {
+          "type": "supervisor",
+          "name": "shop-api-consumer_orders",
+          "role": "worker",
+          "command": "php8.3 bin/console messenger:consume orders --time-limit=300",
+          "directory": "/home/web/var/www/shop/api/production/www",
+          "user": "web"
+        },
+        {
+          "type": "supervisor",
+          "name": "shop-api-cron",
+          "role": "worker",
+          "command": "gtask schedule start -c .reflet/gtask.yml",
+          "directory": "/home/web/var/www/shop/api/production/www",
+          "user": "web"
+        }
+      ],
+      "dependencies": [
+        {
+          "key": "DATABASE_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 3
+          },
+          "scheme": "postgresql",
+          "port": 5432,
+          "path": "shop_production",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.50"
+          }
+        },
+        {
+          "key": "ELASTICSEARCH_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 5
+          },
+          "scheme": "http",
+          "port": 9200,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.55"
+          }
+        },
+        {
+          "key": "MAILER_DSN",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 17
+          },
+          "scheme": "smtp",
+          "port": 25,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.90"
+          }
+        },
+        {
+          "key": "MESSENGER_TRANSPORT_DSN",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 7
+          },
+          "scheme": "amqp",
+          "port": 5672,
+          "path": "messages",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.60"
+          }
+        },
+        {
+          "key": "MONGODB_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 9
+          },
+          "scheme": "mongodb",
+          "port": 27017,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.70"
+          }
+        },
+        {
+          "key": "MONGODB_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 9
+          },
+          "scheme": "mongodb",
+          "port": 27017,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.71"
+          }
+        },
+        {
+          "key": "MONGODB_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 9
+          },
+          "scheme": "mongodb",
+          "port": 27017,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.72"
+          }
+        },
+        {
+          "key": "REDIS_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 11
+          },
+          "scheme": "redis",
+          "port": 6379,
+          "path": "0",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.61"
+          }
+        },
+        {
+          "key": "S3_ENDPOINT_URL",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 13
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "s3.eu-west-3.amazonaws.com",
+            "resolved": [
+              "52.95.155.20",
+              "52.95.156.8"
+            ],
+            "resolver": "dns"
+          }
+        },
+        {
+          "key": "SENTRY_DSN",
+          "source": {
+            "file": "/home/web/builds/shop-api/production/2-4-0/www/.env.local",
+            "line": 15
+          },
+          "scheme": "https",
+          "port": 443,
+          "path": "4507",
+          "target": {
+            "kind": "name",
+            "value": "o1.ingest.sentry.io",
+            "resolved": [
+              "34.120.195.249"
+            ],
+            "resolver": "dns"
+          }
+        }
+      ],
+      "info": {
+        "APP_ENV": "prod"
+      }
+    },
+    {
+      "path": "/home/web/builds/shop-front/production/1-9-2/www",
+      "name": "shop-front",
+      "role": "web",
+      "project": "shop",
+      "env": "production",
+      "framework": {
+        "name": "next",
+        "version": "15.5.24"
+      },
+      "runtime": {
+        "type": "node",
+        "version": "22.14.0",
+        "path": "/var/lib/nvm/versions/node/v22.14.0/bin/node",
+        "source": "process"
+      },
+      "code": {
+        "source": "deploy_info",
+        "version": "v1.9.2",
+        "commit": "9be41d0",
+        "repository": "https://git.acme.example/shop/front.git"
+      },
+      "vhosts": [
+        "shop.acme.example",
+        "www.shop.acme.example"
+      ],
+      "launchers": [
+        {
+          "type": "supervisor",
+          "name": "shop-front-cron",
+          "role": "worker",
+          "command": "gtask schedule start --tick 5m -c .reflet/gtask.yml",
+          "directory": "/home/web/var/www/shop/front/production/www",
+          "user": "web"
+        },
+        {
+          "type": "supervisor",
+          "name": "shop-front-nextjs_start",
+          "role": "web",
+          "command": "/var/lib/nvm/nvm-exec ./node_modules/.bin/next start",
+          "directory": "/home/web/var/www/shop/front/production/www",
+          "user": "web"
+        }
+      ],
+      "dependencies": [
+        {
+          "key": "API_URL",
+          "source": {
+            "file": "/home/web/builds/shop-front/production/1-9-2/www/.env.local",
+            "line": 1
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "api.shop.acme.example",
+            "resolved": [
+              "203.0.113.10"
+            ],
+            "resolver": "dns"
+          }
+        },
+        {
+          "key": "NEXT_PUBLIC_MEDIA_URL",
+          "source": {
+            "file": "/home/web/builds/shop-front/production/1-9-2/www/.env.local",
+            "line": 3
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "media.acme.example",
+            "resolved": [
+              "104.16.132.229",
+              "104.16.133.229"
+            ],
+            "resolver": "dns"
+          }
+        }
+      ],
+      "info": {
+        "NODE_ENV": "production"
+      }
+    }
+  ],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

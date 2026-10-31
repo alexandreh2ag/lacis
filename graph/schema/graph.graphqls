@@ -1,0 +1,160 @@
+extend type Namespace {
+  """
+  The graph of the namespace at a level, as the links were last computed. The projects,
+  envs and hosts filters select nodes; the nodes linked to them are kept, not selected.
+  """
+  graph(level: GraphLevel!, filter: GraphFilter): Graph!
+  """
+  What depends on a node of the graph of the same level and filter, or what it needs, as far as
+  the links go. Through a webserver, only the routes of the names concerned are followed: an app
+  calling a production proxy for a staging domain does not depend on its production backends.
+  """
+  impact(level: GraphLevel!, filter: GraphFilter, node: String!, direction: ImpactDirection!): GraphImpact!
+}
+
+enum ImpactDirection {
+  "What stops working when the node does."
+  DEPENDENTS
+  "What the node needs to work."
+  NEEDS
+}
+
+type GraphImpact {
+  "The nodes reached, the target left out."
+  nodes: [GraphImpactNode!]!
+  "The ids of the edges walked."
+  edges: [String!]!
+}
+
+type GraphImpactNode {
+  id: String!
+  "Its distance to the target: 1 for a direct neighbour."
+  level: Int!
+}
+
+enum GraphLevel {
+  "A node per project and env, the external targets of an env merged."
+  PROJECT
+  "A node per host, the similar hosts stacked, the external targets of an env merged."
+  HOST
+  "Apps, services and proxies grouped by host, the local webserver and php-fpm folded into the apps."
+  APP
+}
+
+input GraphFilter {
+  "Slugs."
+  projects: [String!]
+  "Slugs."
+  envs: [String!]
+  "Hostnames; a host named leaves its stack."
+  hosts: [String!]
+  "The hosts of these statuses and their content; ACTIVE and STALE by default."
+  status: [HostStatus!]
+  "The links of these confidences; all by default."
+  confidences: [LinkConfidence!]
+  "Whether the external targets show."
+  externals: Boolean = true
+  """
+  Project, host or stack nodes to draw with their content, at the levels of the projects and the
+  hosts: their apps, services, webservers and runtimes, those of the same kind and name merged, in
+  the group of the same id.
+  """
+  expand: [String!]
+}
+
+type Graph {
+  level: GraphLevel!
+  nodes: [GraphNode!]!
+  edges: [GraphEdge!]!
+  "The hosts boxing the nodes at the level of the apps; the content of the expanded nodes."
+  groups: [GraphGroup!]!
+}
+
+enum GraphNodeKind {
+  PROJECT
+  HOST
+  APP
+  SERVICE
+  "A webserver left a node: a proxy routing to other hosts."
+  WEBSERVER
+  "A runtime of a host, only in an expanded node."
+  RUNTIME
+  EXTERNAL
+}
+
+type GraphNode {
+  "Stable across requests: the id of the edges and groups that name it."
+  id: String!
+  kind: GraphNodeKind!
+  label: String!
+  "The version of a service, the framework of an app, the reason of an external target, the versions of a stack."
+  detail: String
+  "The hostname of an app, a service, a webserver or a host."
+  hostname: String
+  project: String
+  env: String
+  "What a project, host or stack holds: app, proxy or service."
+  role: String
+  "The code deployed of an app: a tag or a branch."
+  version: String
+  "Its technologies, the main one first: the framework of an app then what it folds, the type of a service."
+  techs: [String!]!
+  "The hosts of a project, a stack or an expanded item, the targets of merged externals."
+  count: Int!
+  "The apps of a project, a host or a stack."
+  apps: Int!
+  "The hostnames of a project or a stack, the targets of merged externals."
+  members: [String!]!
+  "False for a node kept only for being linked to a selected one."
+  selected: Boolean!
+  """
+  The app, service, webserver or host it is, the first deployment of an item on several hosts; null
+  for a project, a stack or merged externals.
+  """
+  entity: LinkEnd
+  "The hosts it stands for."
+  hosts: [Host!]!
+  "The least fresh status of its hosts; null without host."
+  status: HostStatus
+  "The apps of a stack or of an expanded item deployed in several versions."
+  divergences: [GraphDivergence!]!
+  "A node drawn with its content: the group of its id."
+  expanded: Boolean!
+}
+
+type GraphDivergence {
+  app: String!
+  hosts: [GraphDeployment!]!
+}
+
+type GraphDeployment {
+  hostname: String!
+  version: String
+  commit: String
+}
+
+type GraphEdge {
+  "<from>→<to>."
+  id: String!
+  from: String!
+  to: String!
+  "env, traefik, webserver…, or mixed."
+  source: String!
+  "The weakest confidence of the links it merges."
+  confidence: LinkConfidence!
+  rule: String!
+  "Dependency keys or domains routed."
+  labels: [String!]!
+  "The number of links it merges."
+  count: Int!
+  "An edge between two envs."
+  crossEnv: Boolean!
+}
+
+type GraphGroup {
+  id: String!
+  label: String!
+  project: String
+  env: String
+  nodes: [String!]!
+}

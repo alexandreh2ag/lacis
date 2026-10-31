@@ -1,0 +1,28 @@
+input HistoryFilter {
+  hostname: String
+  "host, runtime, service, webserver, app or link."
+  entityType: String
+  since: Time
+  "Lists the events in the order they occurred; the latest first otherwise."
+  oldestFirst: Boolean = false
+}
+
+type ChangeEventList {
+  items: [ChangeEvent!]!
+  "Whether more events follow in that order."
+  hasMore: Boolean!
+}
+
+"A change of the inventory. A link event names the app or webserver it starts from."
+type ChangeEvent {
+  id: Int!
+  occurredAt: Time!
+  hostname: String
+  entityType: String!
+  entityId: ID
+  "added, removed or changed."
+  kind: String!
+  "The fields naming the entity and the fields that changed."
+  before: JSON
+  after: JSON
+}

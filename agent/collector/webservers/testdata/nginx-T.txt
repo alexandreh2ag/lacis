@@ -1,0 +1,96 @@
+# configuration file /etc/nginx/nginx.conf:
+user www-data;
+worker_processes auto;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+	worker_connections 768;
+}
+
+http {
+	sendfile on;
+	include /etc/nginx/mime.types;
+	log_format main '$remote_addr - "$request" {braces in quotes}';
+
+	upstream front_nodes {
+		server 10.0.1.31:3000 weight=2;
+		server 10.0.1.32:3000;
+		keepalive 16;
+	}
+
+	include /etc/nginx/conf.d/*.conf;
+	include /etc/nginx/sites-enabled/*;
+}
+
+# configuration file /etc/nginx/modules-enabled/50-mod-stream.conf:
+load_module modules/ngx_stream_module.so;
+
+# configuration file /etc/nginx/mime.types:
+types {
+    text/html  html htm;
+}
+
+# configuration file /etc/nginx/sites-enabled/client.conf:
+# Symfony API, PHP-FPM
+server {
+	listen 443 ssl http2;
+	listen [::]:443 ssl http2;
+	server_name staging.client.fr www.staging.client.fr;
+	root /var/www/client/current/public;
+
+	location / {
+		try_files $uri /index.php$is_args$args;
+	}
+	location ~ ^/index\.php(/|$) {
+		fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+		include fastcgi_params;
+	}
+}
+
+server {
+	listen 80;
+	server_name staging.client.fr;
+	return 301 https://$host$request_uri;
+}
+
+# configuration file /etc/nginx/sites-enabled/front:
+server {
+	listen 127.0.0.1:8080;
+	server_name "front.client.fr";
+	set $PORT_SIMU 3010;
+
+	location /api/ {
+		proxy_pass http://127.0.0.1:8000/api/;
+	}
+	location / {
+		root /var/www/front/current/dist;
+		if ($http_upgrade) {
+			proxy_pass http://front_nodes;
+		}
+	}
+	location /ws {
+		proxy_pass http://unix:/run/front.sock:/ws;
+	}
+	location /dyn {
+		proxy_pass http://${backend}$request_uri;
+	}
+	location /simu {
+		proxy_pass http://127.0.0.1:$PORT_SIMU;
+	}
+}
+
+# configuration file /etc/nginx/sites-enabled/default:
+server {
+	listen *:8081 default_server;
+	server_name _;
+	location / { uwsgi_pass 127.0.0.1:3031; }
+}
+
+# configuration file /etc/nginx/conf.d/status.conf:
+server {
+	listen localhost;
+	location /nginx_status { stub_status; }
+}
+
+# configuration file /etc/nginx/fastcgi_params:
+fastcgi_param  QUERY_STRING  $query_string;

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "@fontsource-variable/hanken-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./tokens.css";
+@import "./components.css";
+@import "./graph.css";
+
+/* Tailwind utilities on the Lacis tokens: bg-surface-raised, text-ink-muted, border-border… */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-brand: var(--brand);
+  --color-on-brand: var(--on-brand);
+  --color-brand-tint: var(--brand-tint);
+  --color-focus-ring: var(--focus-ring);
+  --color-kind-app: var(--kind-app);
+  --color-kind-app-tint: var(--kind-app-tint);
+  --color-kind-service: var(--kind-service);
+  --color-kind-service-tint: var(--kind-service-tint);
+  --color-kind-proxy: var(--kind-proxy);
+  --color-kind-proxy-tint: var(--kind-proxy-tint);
+  --color-kind-host: var(--kind-host);
+  --color-kind-host-tint: var(--kind-host-tint);
+  --color-kind-external: var(--kind-external);
+  --color-status-stale: var(--status-stale);
+  --color-status-stale-tint: var(--status-stale-tint);
+  --color-status-inactive: var(--status-inactive);
+  --color-status-ok: var(--status-ok);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-edge: var(--edge);
+  --color-edge-cross-env: var(--edge-cross-env);
+  --color-link-1: var(--link-1);
+  --color-link-2: var(--link-2);
+  --color-link-3: var(--link-3);
+  --color-link-4: var(--link-4);
+  --color-link-5: var(--link-5);
+  --color-link-6: var(--link-6);
+  --color-link-7: var(--link-7);
+  --color-link-8: var(--link-8);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --shadow-panel: var(--shadow-panel);
+  --shadow-tooltip: var(--shadow-tooltip);
+}
+
+html, body, #root { height: 100%; }
+
+/* Links: in the brand color and underlined, so that what opens a page
+   stands out from the text; buttons and navigation set their own. */
+@layer base {
+  a { color: var(--brand); font-weight: 500; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+  a:hover { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
+}
+
+/* A button that reads as a link: it selects rather than opens a page. */
+@layer components {
+  .lc-linkbtn { padding: 0; border: 0; background: transparent; font: inherit; color: var(--brand); font-weight: 500; cursor: pointer;
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+  .lc-linkbtn:hover { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
+}

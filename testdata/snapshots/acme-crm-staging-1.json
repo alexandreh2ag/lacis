@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-crm-staging-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "crm",
+      "env": "staging"
+    },
+    "os": {
+      "id": "debian",
+      "version": "12",
+      "pretty": "Debian GNU/Linux 12 (bookworm)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 2,
+      "effective_cores": 2,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 4096,
+      "effective": 4096,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 40
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.2.31/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [
+    {
+      "type": "php",
+      "version": "8.2.29",
+      "path": "/usr/bin/php8.2"
+    }
+  ],
+  "services": [
+    {
+      "type": "php-fpm",
+      "version": "8.2.29",
+      "instance": "8.2",
+      "listen": [
+        "unix:/run/php/crm-api.sock"
+      ],
+      "config_path": "/etc/php/8.2/fpm/php-fpm.conf",
+      "pools": [
+        {
+          "name": "crm-api",
+          "listen": "unix:/run/php/crm-api.sock",
+          "user": "web"
+        }
+      ]
+    },
+    {
+      "type": "redis",
+      "version": "7.4.1",
+      "instance": "crm-cache",
+      "listen": [
+        "127.0.0.1:6380"
+      ],
+      "container": {
+        "id": "5e8a1c7d2b90",
+        "name": "crm-cache",
+        "image": "redis:7.4-alpine",
+        "ports": [
+          "127.0.0.1:6380->6379/tcp"
+        ],
+        "networks": [
+          "crm_default"
+        ]
+      }
+    }
+  ],
+  "webservers": [
+    {
+      "type": "nginx",
+      "version": "1.22.1",
+      "vhosts": [
+        {
+          "server_names": [
+            "crm.staging.acme.example"
+          ],
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "root": "/home/web/var/www/crm/api/staging/www/public",
+          "upstreams": [
+            "crmfpm"
+          ],
+          "config_file": "/etc/nginx/sites-enabled/crm.conf"
+        }
+      ],
+      "upstreams": [
+        {
+          "name": "crmfpm",
+          "servers": [
+            "unix:/run/php/crm-api.sock"
+          ]
+        }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "path": "/home/web/var/www/crm/api/staging/www",
+      "resolved_path": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www",
+      "name": "crm-api",
+      "role": "web",
+      "project": "crm",
+      "env": "staging",
+      "framework": {
+        "name": "symfony",
+        "version": "6.4.39"
+      },
+      "runtime": {
+        "type": "php",
+        "version": "8.2.29",
+        "source": "fpm_pool"
+      },
+      "code": {
+        "source": "git",
+        "version": "v5.2.0-rc.1",
+        "commit": "0b7c4d2",
+        "tag": "v5.2.0-rc.1",
+        "repository": "https://git.acme.example/crm/api.git"
+      },
+      "vhosts": [
+        "crm.staging.acme.example"
+      ],
+      "launchers": [
+        {
+          "type": "supervisor",
+          "name": "crm-api-consumer_sync",
+          "role": "worker",
+          "command": "php8.2 bin/console messenger:consume sync --time-limit=300",
+          "directory": "/home/web/var/www/crm/api/staging/www",
+          "user": "web"
+        },
+        {
+          "type": "supervisor",
+          "name": "crm-api-consumer_mail",
+          "role": "worker",
+          "command": "php8.2 bin/console messenger:consume mail --time-limit=300",
+          "directory": "/home/web/var/www/crm/api/staging/www",
+          "user": "web"
+        }
+      ],
+      "dependencies": [
+        {
+          "key": "DATABASE_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 3
+          },
+          "scheme": "postgresql",
+          "port": 5432,
+          "path": "crm_staging",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.2.50"
+          }
+        },
+        {
+          "key": "ELASTICSEARCH_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 5
+          },
+          "scheme": "http",
+          "port": 9200,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.2.55"
+          }
+        },
+        {
+          "key": "LEGACY_DSN",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 23
+          },
+          "unparsed": true
+        },
+        {
+          "key": "MESSENGER_TRANSPORT_DSN",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 7
+          },
+          "scheme": "amqp",
+          "port": 5672,
+          "path": "messages",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.2.60"
+          }
+        },
+        {
+          "key": "MONGODB_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 9
+          },
+          "scheme": "mongodb",
+          "port": 27017,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.2.70"
+          }
+        },
+        {
+          "key": "PARTNER_API_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 21
+          },
+          "scheme": "https",
+          "port": 443,
+          "path": "v1",
+          "target": {
+            "kind": "name",
+            "value": "api.partner.example",
+            "resolver": "failed"
+          }
+        },
+        {
+          "key": "REDIS_CACHE_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 19
+          },
+          "scheme": "redis",
+          "port": 6380,
+          "target": {
+            "kind": "ip",
+            "value": "127.0.0.1"
+          }
+        },
+        {
+          "key": "REDIS_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 11
+          },
+          "scheme": "redis",
+          "port": 6379,
+          "path": "0",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.2.61"
+          }
+        },
+        {
+          "key": "S3_ENDPOINT_URL",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 13
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "s3.eu-west-3.amazonaws.com",
+            "resolved": [
+              "52.95.155.20",
+              "52.95.156.8"
+            ],
+            "resolver": "dns"
+          }
+        },
+        {
+          "key": "SENTRY_DSN",
+          "source": {
+            "file": "/home/web/builds/crm-api/staging/5-2-0-rc-1/www/.env.local",
+            "line": 15
+          },
+          "scheme": "https",
+          "port": 443,
+          "path": "4507",
+          "target": {
+            "kind": "name",
+            "value": "o1.ingest.sentry.io",
+            "resolved": [
+              "34.120.195.249"
+            ],
+            "resolver": "dns"
+          }
+        }
+      ],
+      "info": {
+        "APP_ENV": "prod"
+      }
+    }
+  ],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "docker",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

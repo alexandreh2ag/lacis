@@ -1,0 +1,45 @@
+name: Agent
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Lint, test & build agent module
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+
+      - name: Generate mocks
+        working-directory: .
+        run: ./bin/mock.sh
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15
+          working-directory: agent
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Build amd64 & arm64
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -o lacis-agent-$arch .
+          done
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-agent
+          path: agent/coverage.out

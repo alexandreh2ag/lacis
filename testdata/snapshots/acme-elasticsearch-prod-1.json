@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-elasticsearch-prod-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "elasticsearch",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "13",
+      "pretty": "Debian GNU/Linux 13 (bookworm)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 4,
+      "effective_cores": 4,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 16384,
+      "effective": 16384,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 100
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.1.55/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [
+    {
+      "type": "java",
+      "version": "22.0.2",
+      "path": "/usr/share/elasticsearch/jdk/bin/java"
+    }
+  ],
+  "services": [
+    {
+      "type": "elasticsearch",
+      "version": "8.15.0",
+      "listen": [
+        "[::]:9200",
+        "[::]:9300"
+      ]
+    }
+  ],
+  "webservers": [],
+  "apps": [],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "skipped"
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "skipped"
+    }
+  ],
+  "collector_errors": []
+}

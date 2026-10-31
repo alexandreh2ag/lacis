@@ -1,0 +1,274 @@
+"""
+Refuses the field unless the user holds the permission on a resource belonging to no namespace.
+"""
+directive @canGlobal(resource: GlobalResource!, action: PermissionAction!) on FIELD_DEFINITION
+
+"What belongs to no namespace."
+enum GlobalResource {
+  "Creating and deleting namespaces."
+  NAMESPACES
+  "Enrollment tokens and the agents they enrolled."
+  TOKENS
+  USERS
+  ROLES
+  "The logos of the technologies."
+  ICONS
+  "The scheduled tasks and their runs."
+  TASKS
+}
+
+"A resource a role grants on namespaces; ALL is every one."
+enum NamespaceGrant {
+  INVENTORY
+  METADATA
+  ALL
+}
+
+"A resource a role grants out of the namespaces; ALL is every one."
+enum GlobalGrant {
+  NAMESPACES
+  TOKENS
+  USERS
+  ROLES
+  ICONS
+  TASKS
+  ALL
+}
+
+"An action a role grants; ALL is every one. Write does not imply read."
+enum GrantAction {
+  READ
+  WRITE
+  ALL
+}
+
+extend type Query {
+  "What the user may do in the administration."
+  access: Access!
+  users: [Account!]! @canGlobal(resource: USERS, action: READ)
+  roles: [Role!]! @canGlobal(resource: ROLES, action: READ)
+  "The roles to give users, by code."
+  roleChoices: [RoleRef!]! @canGlobal(resource: USERS, action: READ)
+  "Every namespace, to grant permissions on, by slug."
+  namespaceChoices: [NamespaceRef!]! @canGlobal(resource: ROLES, action: READ)
+  enrollmentTokens: [EnrollmentToken!]! @canGlobal(resource: TOKENS, action: READ)
+  agents: [Agent!]! @canGlobal(resource: TOKENS, action: READ)
+  "The logos uploaded for technologies; the front shows them in place of its own."
+  techIcons: [TechIcon!]!
+  "The technologies the inventory holds, to give a logo to."
+  technologies: [String!]! @canGlobal(resource: ICONS, action: READ)
+  "The scheduled tasks, with their last runs."
+  tasks: [Task!]! @canGlobal(resource: TASKS, action: READ)
+  "The jobs of any kind failed: retrying, or discarded after their last attempt; newest first."
+  taskFailures(limit: Int = 20): [TaskRun!]! @canGlobal(resource: TASKS, action: READ)
+}
+
+type Task {
+  "purge_snapshots, purge_removed_entities, purge_expired_tokens, detect_token_conflicts or purge_inactive_hosts."
+  kind: String!
+  "Its cron schedule from workers.schedules; null when only run by hand."
+  schedule: String
+  nextRunAt: Time
+  "Its last runs, newest first."
+  runs: [TaskRun!]!
+}
+
+type TaskRun {
+  "The id of its River job."
+  id: String!
+  kind: String!
+  "As River gives it: available, scheduled, running, retryable, completed, discarded, cancelled."
+  state: String!
+  attempt: Int!
+  maxAttempts: Int!
+  createdAt: Time!
+  attemptedAt: Time
+  finalizedAt: Time
+  "The error of each failed attempt, oldest first."
+  errors: [String!]!
+  "What the run changed, e.g. {\"snapshots\": 12}."
+  output: JSON
+}
+
+"""
+The logo uploaded for a technology, served at url: icons/{tech}?v={version}. It is uploaded with
+PUT icons/{tech} (multipart, field file) and removed with DELETE icons/{tech}, both needing icons
+write.
+"""
+type TechIcon {
+  tech: String!
+  url: String!
+  updatedAt: Time!
+  "The username of who uploaded it; null once deleted."
+  updatedBy: String
+}
+
+type Access {
+  users: Rights!
+  roles: Rights!
+  tokens: Rights!
+  icons: Rights!
+  tasks: Rights!
+}
+
+type Rights {
+  read: Boolean!
+  write: Boolean!
+}
+
+"A user, as the administration sees it."
+type Account {
+  id: ID!
+  username: String!
+  firstName: String
+  lastName: String
+  "Whether the user signs in with a password."
+  local: Boolean!
+  "Whether the user signs in with SSO."
+  oidc: Boolean!
+  createdAt: Time!
+  roles: [RoleRef!]!
+}
+
+type RoleRef {
+  id: ID!
+  code: String!
+  description: String
+}
+
+type NamespaceRef {
+  id: ID!
+  slug: String!
+  name: String!
+}
+
+type Role {
+  id: ID!
+  code: String!
+  description: String
+  "The admin role: it keeps every permission and cannot be deleted."
+  builtin: Boolean!
+  createdAt: Time!
+  "How many users hold the role, out of the OIDC groups."
+  users: Int!
+  oidcGroups: [String!]!
+  permissions: [NamespacePermission!]!
+  globalPermissions: [GlobalPermission!]!
+}
+
+type NamespacePermission {
+  "Null for every namespace."
+  namespace: NamespaceRef
+  resource: NamespaceGrant!
+  action: GrantAction!
+}
+
+type GlobalPermission {
+  resource: GlobalGrant!
+  action: GrantAction!
+}
+
+type EnrollmentToken {
+  id: ID!
+  label: String
+  createdAt: Time!
+  "Null when it never expires."
+  expiresAt: Time
+  revokedAt: Time
+  "How many agents it enrolled."
+  agents: Int!
+}
+
+type CreatedEnrollmentToken {
+  token: EnrollmentToken!
+  "The token to give to the agents: it is shown once, only its hash is kept."
+  secret: String!
+}
+
+type Agent {
+  id: ID!
+  createdAt: Time!
+  lastSeenAt: Time
+  revokedAt: Time
+  "The label of the token that enrolled it."
+  tokenLabel: String
+  "Null until its first snapshot."
+  host: AgentHost
+  "When two machines were found sharing its token, a cloned host; null otherwise."
+  conflictAt: Time
+  "The hostnames its snapshots alternate between."
+  conflictHostnames: [String!]
+}
+
+type AgentHost {
+  id: ID!
+  hostname: String!
+  namespace: String!
+}
+
+extend type Mutation {
+  createUser(input: CreateUserInput!): Account! @canGlobal(resource: USERS, action: WRITE)
+  "A new password ends the other sessions of the user; SSO users have none."
+  updateUser(id: ID!, input: UpdateUserInput!): Account! @canGlobal(resource: USERS, action: WRITE)
+  "Gives the user exactly these roles; the last user holding admin keeps it."
+  setUserRoles(id: ID!, roles: [ID!]!): Account! @canGlobal(resource: USERS, action: WRITE)
+  "Deletes a user but oneself, and its sessions; the last user holding admin stays."
+  deleteUser(id: ID!): Boolean! @canGlobal(resource: USERS, action: WRITE)
+
+  createRole(input: RoleInput!): Role! @canGlobal(resource: ROLES, action: WRITE)
+  updateRole(id: ID!, input: RoleInput!): Role! @canGlobal(resource: ROLES, action: WRITE)
+  "Deletes a role but admin, and takes it from its users."
+  deleteRole(id: ID!): Boolean! @canGlobal(resource: ROLES, action: WRITE)
+
+  "ttl is the lifetime in seconds; 0 never expires."
+  createEnrollmentToken(label: String, ttl: Int!): CreatedEnrollmentToken! @canGlobal(resource: TOKENS, action: WRITE)
+  "The agents it enrolled stay."
+  revokeEnrollmentToken(id: ID!): EnrollmentToken! @canGlobal(resource: TOKENS, action: WRITE)
+  "Its snapshots are refused from now on, and it stops; its host stays until deleted."
+  revokeAgent(id: ID!): Agent! @canGlobal(resource: TOKENS, action: WRITE)
+
+  "Runs the scheduled task now; a run waiting or running already is returned instead."
+  runTask(kind: String!): TaskRun! @canGlobal(resource: TASKS, action: WRITE)
+  "Runs a failed job again."
+  retryTaskRun(id: String!): TaskRun! @canGlobal(resource: TASKS, action: WRITE)
+}
+
+input CreateUserInput {
+  username: String!
+  "8 characters at least."
+  password: String!
+  firstName: String
+  lastName: String
+  roles: [ID!]
+}
+
+"A field left out stays; a name set empty is cleared."
+input UpdateUserInput {
+  firstName: String
+  lastName: String
+  password: String
+}
+
+input RoleInput {
+  code: String!
+  description: String
+  oidcGroups: [String!]
+  """
+  With globalPermissions, they replace the permissions of the role; both left out, they stay. The
+  admin role keeps every permission: it takes neither.
+  """
+  permissions: [NamespacePermissionInput!]
+  globalPermissions: [GlobalPermissionInput!]
+}
+
+input NamespacePermissionInput {
+  "Null for every namespace."
+  namespace: ID
+  resource: NamespaceGrant!
+  action: GrantAction!
+}
+
+input GlobalPermissionInput {
+  resource: GlobalGrant!
+  action: GrantAction!
+}

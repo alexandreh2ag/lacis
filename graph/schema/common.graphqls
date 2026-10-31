@@ -1,0 +1,28 @@
+"An instant, in RFC 3339."
+scalar Time
+"Any JSON value, as the agent collected it."
+scalar JSON
+
+type Query {
+  "The user of the session."
+  me: User!
+  "The namespaces the user may read, by name."
+  namespaces: [Namespace!]!
+  "The namespace of this slug; null when unknown or not readable."
+  namespace(slug: String!): Namespace
+}
+
+"A page of a listing: limit is capped at 500."
+input PageInput {
+  limit: Int = 50
+  offset: Int = 0
+}
+
+type User {
+  id: ID!
+  username: String!
+  firstName: String
+  lastName: String
+  "The namespaces the user may change the metadata of are told by Namespace.canEdit."
+  isAdmin: Boolean!
+}

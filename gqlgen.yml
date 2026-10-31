@@ -1,0 +1,159 @@
+# gqlgen configuration
+# https://gqlgen.com/config/
+
+schema:
+  - graph/schema/*.graphqls
+
+exec:
+  filename: graph/generated.go
+  package: graph
+
+model:
+  filename: graph/models_gen.go
+  package: graph
+
+resolver:
+  layout: follow-schema
+  dir: graph/resolver
+  package: resolver
+  filename_template: "{name}.resolvers.go"
+
+omit_slice_element_pointers: true
+
+models:
+  ID:
+    model:
+      - github.com/alexandreh2ag/lacis/graph/scalar.UUID
+      - github.com/99designs/gqlgen/graphql.ID
+  Time:
+    model: github.com/99designs/gqlgen/graphql.Time
+  JSON:
+    model: github.com/alexandreh2ag/lacis/graph/scalar.JSON
+
+  User:
+    model: github.com/alexandreh2ag/lacis/model.User
+  Namespace:
+    model: github.com/alexandreh2ag/lacis/model.Namespace
+    fields:
+      staleAfter:
+        resolver: true
+      inactiveAfter:
+        resolver: true
+      snapshotRetention:
+        resolver: true
+  Project:
+    model: github.com/alexandreh2ag/lacis/model.Project
+  Environment:
+    model: github.com/alexandreh2ag/lacis/model.Environment
+  Network:
+    model: github.com/alexandreh2ag/lacis/model.Network
+  Host:
+    model: github.com/alexandreh2ag/lacis/model.Host
+    fields:
+      os:
+        resolver: true
+      project:
+        resolver: true
+      environment:
+        resolver: true
+  HostIP:
+    model: github.com/alexandreh2ag/lacis/model.HostIP
+  Runtime:
+    model: github.com/alexandreh2ag/lacis/model.Runtime
+  Service:
+    model: github.com/alexandreh2ag/lacis/model.Service
+  Webserver:
+    model: github.com/alexandreh2ag/lacis/model.Webserver
+  App:
+    model: github.com/alexandreh2ag/lacis/model.App
+    fields:
+      runtime:
+        resolver: true
+      code:
+        resolver: true
+      vhosts:
+        resolver: true
+      project:
+        resolver: true
+      environment:
+        resolver: true
+  Dependency:
+    model: github.com/alexandreh2ag/lacis/model.AppDependency
+  Link:
+    model: github.com/alexandreh2ag/lacis/model.Link
+    fields:
+      confidence:
+        resolver: true
+  LinkEnd:
+    model: github.com/alexandreh2ag/lacis/graph/union.LinkEnd
+  ChangeEvent:
+    model: github.com/alexandreh2ag/lacis/repository.ChangeEventRow
+
+  Account:
+    model: github.com/alexandreh2ag/lacis/service.Account
+  RoleRef:
+    model: github.com/alexandreh2ag/lacis/model.Role
+  NamespaceRef:
+    model: github.com/alexandreh2ag/lacis/model.Namespace
+  Role:
+    model: github.com/alexandreh2ag/lacis/service.RoleDetail
+    fields:
+      permissions:
+        fieldName: Namespace
+      globalPermissions:
+        fieldName: Global
+  NamespacePermission:
+    model: github.com/alexandreh2ag/lacis/service.NamespaceGrant
+  GlobalPermission:
+    model: github.com/alexandreh2ag/lacis/model.GlobalPermission
+  NamespaceGrant:
+    model: github.com/alexandreh2ag/lacis/model.Resource
+    enum_values:
+      INVENTORY:
+        value: github.com/alexandreh2ag/lacis/model.ResourceInventory
+      METADATA:
+        value: github.com/alexandreh2ag/lacis/model.ResourceMetadata
+      ALL:
+        value: github.com/alexandreh2ag/lacis/model.ResourceAll
+  GlobalGrant:
+    model: github.com/alexandreh2ag/lacis/model.Resource
+    enum_values:
+      NAMESPACES:
+        value: github.com/alexandreh2ag/lacis/model.ResourceNamespaces
+      TOKENS:
+        value: github.com/alexandreh2ag/lacis/model.ResourceTokens
+      USERS:
+        value: github.com/alexandreh2ag/lacis/model.ResourceUsers
+      ROLES:
+        value: github.com/alexandreh2ag/lacis/model.ResourceRoles
+      ICONS:
+        value: github.com/alexandreh2ag/lacis/model.ResourceIcons
+      TASKS:
+        value: github.com/alexandreh2ag/lacis/model.ResourceTasks
+      ALL:
+        value: github.com/alexandreh2ag/lacis/model.ResourceAll
+  GrantAction:
+    model: github.com/alexandreh2ag/lacis/model.Action
+    enum_values:
+      READ:
+        value: github.com/alexandreh2ag/lacis/model.ActionRead
+      WRITE:
+        value: github.com/alexandreh2ag/lacis/model.ActionWrite
+      ALL:
+        value: github.com/alexandreh2ag/lacis/model.ActionAll
+  EnrollmentToken:
+    model: github.com/alexandreh2ag/lacis/service.EnrollmentTokenDetail
+  Agent:
+    model: github.com/alexandreh2ag/lacis/repository.AgentRow
+  TechIcon:
+    model: github.com/alexandreh2ag/lacis/service.TechIconInfo
+    fields:
+      updatedBy:
+        fieldName: UpdatedByName
+  Task:
+    model: github.com/alexandreh2ag/lacis/service.Task
+  TaskRun:
+    model: github.com/alexandreh2ag/lacis/service.TaskRun
+    fields:
+      id:
+        resolver: true

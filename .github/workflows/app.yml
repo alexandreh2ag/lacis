@@ -1,0 +1,68 @@
+name: App
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  common:
+    name: Common
+    uses: ./.github/workflows/common.yml
+
+  agent:
+    name: Agent
+    uses: ./.github/workflows/agent.yml
+
+  server:
+    name: Lint, test & build server
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lacis
+          POSTGRES_PASSWORD: lacis
+          POSTGRES_DB: lacis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lacis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Generate mocks
+        run: ./bin/mock.sh
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15
+          args: --build-tags integration
+
+      - name: Test
+        env:
+          LACIS_TEST_DATABASE_DSN: postgres://lacis:lacis@localhost:5432/lacis?sslmode=disable
+        run: go test -race -tags integration -coverprofile=coverage.out ./...
+
+      - name: Build amd64 & arm64
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -o lacis-server-$arch .
+          done
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-server
+          path: coverage.out

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-redis-prod-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "redis",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "12",
+      "pretty": "Debian GNU/Linux 12 (bookworm)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 2,
+      "effective_cores": 2,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 4096,
+      "effective": 4096,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 50
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.1.61/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [],
+  "services": [
+    {
+      "type": "redis",
+      "version": "7.2.5",
+      "listen": [
+        "0.0.0.0:6379"
+      ]
+    }
+  ],
+  "webservers": [],
+  "apps": [],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "skipped"
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "skipped"
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "skipped"
+    }
+  ],
+  "collector_errors": []
+}

@@ -1,0 +1,74 @@
+"""
+Refuses the field unless the user holds the permission in the namespace its namespace argument
+names: an unreadable namespace reads as unknown, a readable one without the permission as forbidden.
+"""
+directive @can(resource: PermissionResource!, action: PermissionAction!) on FIELD_DEFINITION
+
+enum PermissionResource {
+  "What the agents collect: hosts and their content."
+  INVENTORY
+  "What people say of it: names, descriptions, order of the envs, thresholds."
+  METADATA
+}
+
+enum PermissionAction {
+  READ
+  WRITE
+}
+
+"""
+The mutations change the metadata, never what the agents collect, but the deletion of a host
+gone. A field left out stays; a description set empty is cleared.
+"""
+type Mutation {
+  updateNamespace(namespace: String!, input: NamespaceInput!): Namespace! @can(resource: METADATA, action: WRITE)
+  updateProject(namespace: String!, slug: String!, input: ProjectInput!): Project! @can(resource: METADATA, action: WRITE)
+  updateEnvironment(namespace: String!, slug: String!, input: EnvironmentInput!): Environment!
+    @can(resource: METADATA, action: WRITE)
+  "Orders the envs as slugs, which names each env of the namespace once."
+  reorderEnvironments(namespace: String!, slugs: [String!]!): [Environment!]! @can(resource: METADATA, action: WRITE)
+  updateNetwork(namespace: String!, slug: String!, input: NetworkInput!): Network! @can(resource: METADATA, action: WRITE)
+  """
+  Creates the private network name, split from the network of the slug, and moves the hosts
+  into it: two networks on the same range, which the IPs alone cannot tell apart. The hosts
+  stay there across their snapshots, and the links are computed again.
+  """
+  splitNetwork(namespace: String!, slug: String!, name: String!, hosts: [ID!]!): Network!
+    @can(resource: METADATA, action: WRITE)
+  "Moves hosts into the network of the slug, from the network it was split from or another split from it."
+  moveHostsToNetwork(namespace: String!, slug: String!, hosts: [ID!]!): Network! @can(resource: METADATA, action: WRITE)
+  "Removes a network split by hand: its hosts go back to the network it was split from."
+  deleteNetwork(namespace: String!, slug: String!): Boolean! @can(resource: METADATA, action: WRITE)
+  """
+  Removes a stale or inactive host with its content and snapshots, and computes the links
+  again; an active host is refused, its next snapshot would bring it back.
+  """
+  deleteHost(namespace: String!, id: ID!): Boolean! @can(resource: INVENTORY, action: WRITE)
+}
+
+input NamespaceInput {
+  name: String
+  description: String
+  "Seconds without snapshot after which a host is stale; a minute at least."
+  staleAfter: Int
+  "Seconds after which it is inactive; longer than staleAfter."
+  inactiveAfter: Int
+  "Seconds the snapshots are kept."
+  snapshotRetention: Int
+}
+
+input ProjectInput {
+  name: String
+  description: String
+}
+
+input EnvironmentInput {
+  name: String
+}
+
+input NetworkInput {
+  name: String
+  description: String
+  "private or public."
+  kind: String
+}
