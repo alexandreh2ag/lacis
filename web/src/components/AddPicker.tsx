@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { useT } from '@/i18n'
 import { PickerShown } from './MultiPicker'
 
 export interface PickItem {
@@ -18,6 +19,7 @@ export function AddPicker({ label, placeholder, items, selected, onChange, empty
   onChange: (ids: string[]) => void
   empty: string
 }) {
+  const t = useT()
   const id = useId()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -73,27 +75,27 @@ export function AddPicker({ label, placeholder, items, selected, onChange, empty
                   onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); pick(item) }}>
                   <span className="lc-mono">{item.label}</span>
                   {item.detail ? <span className="lc-muted truncate text-[12.5px]">{item.detail}</span> : null}
-                  <span className="lc-addpick__add" aria-hidden="true">Ajouter</span>
+                  <span className="lc-addpick__add" aria-hidden="true">{t.components.addPicker.add}</span>
                 </li>
               ))}
             </ul>
-            {found.length === 0 ? <span className="lc-muted px-2 py-1.5 text-[13px]">{free.length ? 'Aucun ne correspond.' : 'Tous sont ajoutés.'}</span> : null}
+            {found.length === 0 ? <span className="lc-muted px-2 py-1.5 text-[13px]">{free.length ? t.components.noneMatch : t.components.addPicker.allAdded}</span> : null}
             {found.length > PickerShown ? (
-              <span className="lc-muted px-2 py-1 text-[12.5px]" role="status">{PickerShown} affichés sur {found.length} : affinez la recherche.</span>
+              <span className="lc-muted px-2 py-1 text-[12.5px]" role="status">{t.components.shown(PickerShown, found.length)}</span>
             ) : null}
           </div>
         ) : null}
       </div>
       {added.length ? (
-        <ul className="lc-order" aria-label={`${label} ajoutés`}>
+        <ul className="lc-order" aria-label={t.components.addPicker.added(label)}>
           {added.map((item) => (
             <li key={item.id}>
               <span className="flex min-w-0 flex-1 flex-col leading-[18px]">
                 <span className="lc-mono font-semibold">{item.label}</span>
                 {item.detail ? <span className="lc-muted truncate text-[12.5px]">{item.detail}</span> : null}
               </span>
-              <button type="button" className="lc-btn lc-btn--small lc-btn--danger" aria-label={`Retirer ${item.label}`}
-                onClick={() => onChange(selected.filter((x) => x !== item.id))}>Retirer</button>
+              <button type="button" className="lc-btn lc-btn--small lc-btn--danger" aria-label={t.components.remove(item.label)}
+                onClick={() => onChange(selected.filter((x) => x !== item.id))}>{t.components.addPicker.removeButton}</button>
             </li>
           ))}
         </ul>

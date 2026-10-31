@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useParams } from 'react-router'
 import { canAdminister } from '@/pages/admin/Admin'
 import { useSession, useLogout } from '@/session'
 import { useState } from 'react'
+import { langs, useLang, useT } from '@/i18n'
 import { useTheme, type Theme } from '@/lib/theme'
 import { NamespacePicker } from './NamespacePicker'
 
@@ -16,20 +17,9 @@ export function Logo({ size = 22 }: { size?: number }) {
   )
 }
 
-const themes: { value: Theme; label: string }[] = [
-  { value: 'system', label: 'Système' },
-  { value: 'light', label: 'Clair' },
-  { value: 'dark', label: 'Sombre' },
-]
+const themes: Theme[] = ['system', 'light', 'dark']
 
-const sections = [
-  { to: 'graph', label: 'Graphe' },
-  { to: 'projects', label: 'Projets' },
-  { to: 'hosts', label: 'Hosts' },
-  { to: 'apps', label: 'Apps' },
-  { to: 'services', label: 'Services' },
-  { to: 'history', label: 'Historique' },
-]
+const sections = ['graph', 'projects', 'hosts', 'apps', 'services', 'history'] as const
 
 export function TopBar() {
   const { ns } = useParams()
@@ -37,6 +27,8 @@ export function TopBar() {
   const logout = useLogout()
   const [menu, setMenu] = useState(false)
   const [theme, setTheme] = useTheme()
+  const t = useT()
+  const language = useLang()
   const { username, firstName, lastName } = session.me
   const canEdit = session.namespaces.some((n) => n.slug === ns && n.canEdit)
   const fullName = [firstName, lastName].filter(Boolean).join(' ')
@@ -54,8 +46,8 @@ export function TopBar() {
         </>
       ) : null}
       {ns ? (
-        <nav aria-label="Sections" className="flex gap-0.5 text-[13.5px]">
-          {[...sections, ...(canEdit ? [{ to: 'settings', label: 'Paramètres' }] : [])].map((s) => (
+        <nav aria-label={t.common.nav.sections} className="flex gap-0.5 text-[13.5px]">
+          {[...sections, ...(canEdit ? ['settings' as const] : [])].map((s) => ({ to: s, label: t.common.nav[s] })).map((s) => (
             <NavLink key={s.to} to={`/${ns}/${s.to}`}
               className={({ isActive }) => 'rounded-sm px-2.5 py-1.5 font-medium no-underline ' +
                 (isActive ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:text-ink')}>
@@ -67,7 +59,7 @@ export function TopBar() {
       <span className="flex-1" />
       <div className="relative">
         <button type="button" className="grid size-8 place-items-center rounded-full bg-kind-host-tint text-xs font-semibold text-ink"
-          aria-haspopup="menu" aria-expanded={menu} aria-label={`Compte de ${name}`} onClick={() => setMenu(!menu)}>
+          aria-haspopup="menu" aria-expanded={menu} aria-label={t.common.account.of(name)} onClick={() => setMenu(!menu)}>
           {initials}
         </button>
         {menu ? (
@@ -77,20 +69,30 @@ export function TopBar() {
               <span className="lc-muted font-mono text-[12.5px]">{username}{session.me.isAdmin ? ' · admin' : ''}</span>
             </div>
             <div className="lc-panel__section">
-              <span className="lc-label">Thème</span>
-              <div className="lc-zoom self-start" role="group" aria-label="Thème">
-                {themes.map((t) => (
-                  <button key={t.value} type="button" aria-pressed={theme === t.value} onClick={() => setTheme(t.value)}>{t.label}</button>
+              <span className="lc-label">{t.common.account.theme}</span>
+              <div className="lc-zoom self-start" role="group" aria-label={t.common.account.theme}>
+                {themes.map((th) => (
+                  <button key={th} type="button" aria-pressed={theme === th} onClick={() => setTheme(th)}>{t.common.account.themes[th]}</button>
+                ))}
+              </div>
+            </div>
+            <div className="lc-panel__section">
+              <span className="lc-label">{t.common.account.language}</span>
+              <div className="lc-zoom self-start" role="group" aria-label={t.common.account.language}>
+                {([null, ...langs] as const).map((l) => (
+                  <button key={l ?? 'auto'} type="button" aria-pressed={language.picked === l} onClick={() => language.pick(l)}>
+                    {t.common.account.languages[l ?? 'auto']}
+                  </button>
                 ))}
               </div>
             </div>
             {canAdminister(session.access) ? (
               <div className="lc-panel__section">
-                <Link role="menuitem" to="/admin" className="lc-btn no-underline" onClick={() => setMenu(false)}>Administration</Link>
+                <Link role="menuitem" to="/admin" className="lc-btn no-underline" onClick={() => setMenu(false)}>{t.common.account.administration}</Link>
               </div>
             ) : null}
             <div className="lc-panel__section">
-              <button role="menuitem" type="button" className="lc-btn" onClick={() => void logout()}>Se déconnecter</button>
+              <button role="menuitem" type="button" className="lc-btn" onClick={() => void logout()}>{t.common.account.logout}</button>
             </div>
           </div>
         ) : null}

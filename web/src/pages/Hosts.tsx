@@ -6,6 +6,7 @@ import { chipsField, FilterBar, pickerField } from '@/components/FilterBar'
 import { envOptions, Pager, SearchInput, SortHeader, StatusBadge, statusOptions, useListParams } from '@/components/Listing'
 import { graphql } from '@/graphql'
 import type { HostSortField, HostStatus } from '@/graphql/graphql'
+import { useT } from '@/i18n'
 import { ago } from '@/lib/format'
 
 const HostsDoc = graphql(`
@@ -30,12 +31,14 @@ const HostsDoc = graphql(`
   }
 `)
 
-const columns: [HostSortField, string, boolean?][] = [
-  ['HOSTNAME', 'Host'], ['PROJECT', 'Projet'], ['ENV', 'Env'], ['IP', 'IP'], ['OS', 'OS'],
-]
 
 export function Hosts() {
   const { ns = '' } = useParams()
+  const t = useT()
+  const ts = t.pages.shared
+  const columns: [HostSortField, string][] = [
+    ['HOSTNAME', ts.host], ['PROJECT', ts.project], ['ENV', ts.env], ['IP', t.pages.host.ip], ['OS', t.pages.host.os],
+  ]
   const l = useListParams({ sort: 'HOSTNAME' })
   const envs = l.list('env')
   const statuses = l.list('status') as HostStatus[]
@@ -46,26 +49,26 @@ export function Hosts() {
   const list = data?.namespace?.hosts
   const onSort = (by: string) => l.toggleSort(by, l.sort, l.desc)
   return (
-    <Page title="Hosts">
+    <Page title={t.common.nav.hosts}>
       <FilterBar
-        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder="Chercher un hostname, une IP, une version" />}
+        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder={t.pages.hosts.search} />}
         fields={[
-          chipsField({ label: 'Environnement', short: 'Env', options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
-          pickerField({ label: 'Projet', choose: 'Choisir un projet', options: (data?.namespace?.projects ?? []).map((p) => p.slug), selected: projects, onChange: (v) => l.set({ project: v }) }),
-          chipsField({ label: 'Statut', options: statusOptions, selected: statuses, onChange: (v) => l.set({ status: v }) }),
+          chipsField({ label: ts.environment, short: ts.env, options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
+          pickerField({ label: ts.project, choose: ts.chooseProject, options: (data?.namespace?.projects ?? []).map((p) => p.slug), selected: projects, onChange: (v) => l.set({ project: v }) }),
+          chipsField({ label: ts.status, options: statusOptions, selected: statuses, onChange: (v) => l.set({ status: v }) }),
         ]}
         onClearAll={() => l.set({ env: null, project: null, status: null })}
-        count={list ? `${list.total} hosts` : ''}
+        count={list ? ts.hosts(list.total) : ''}
       />
-      {error ? <p role="alert">Le listing n'a pas pu être chargé : {error.message}</p> : null}
+      {error ? <p role="alert">{t.pages.hosts.failed(error.message)}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="lc-table">
           <thead>
             <tr>
               {columns.map(([by, label]) => <SortHeader key={by} label={label} by={by} sort={l.sort} desc={l.desc} onSort={onSort} />)}
-              <th>Webserver et services</th>
-              <SortHeader label="Apps" by="APPS" sort={l.sort} desc={l.desc} onSort={onSort} num />
-              <SortHeader label="Statut" by="STATUS" sort={l.sort} desc={l.desc} onSort={onSort} />
+              <th>{ts.webserversAndServices}</th>
+              <SortHeader label={t.common.nav.apps} by="APPS" sort={l.sort} desc={l.desc} onSort={onSort} num />
+              <SortHeader label={ts.status} by="STATUS" sort={l.sort} desc={l.desc} onSort={onSort} />
             </tr>
           </thead>
           <tbody>
@@ -80,14 +83,14 @@ export function Hosts() {
                   {[...h.webservers.map((w) => `${w.type} ${w.version ?? ''}`), ...h.services.map((s) => `${s.type} ${s.version ?? ''}`)].map((s) => s.trim()).join(', ')}
                 </td>
                 <td className="lc-num">{h.apps.length}</td>
-                <td><StatusBadge status={h.status} lastSeen={`Dernier snapshot ${ago(h.lastSeenAt)}`} /></td>
+                <td><StatusBadge status={h.status} lastSeen={ts.lastSnapshot(ago(h.lastSeenAt))} /></td>
               </tr>
             ))}
-            {!loading && list?.items.length === 0 ? <tr><td colSpan={8} className="text-ink-muted">Aucun host ne correspond.</td></tr> : null}
+            {!loading && list?.items.length === 0 ? <tr><td colSpan={8} className="text-ink-muted">{t.pages.hosts.none}</td></tr> : null}
           </tbody>
         </table>
       </div>
-      {list ? <Pager page={l.page} size={l.size} total={list.total} noun="hosts" onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
+      {list ? <Pager page={l.page} size={l.size} total={list.total} noun={ts.nouns.hosts} onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
     </Page>
   )
 }

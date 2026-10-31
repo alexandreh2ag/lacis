@@ -9,6 +9,7 @@ import { Pager, SearchInput, SortHeader, useListParams } from '@/components/List
 import { projectRows, ProjectsTable } from './Projects'
 import { graphql } from '@/graphql'
 import type { NamespacesQuery } from '@/graphql/graphql'
+import { useT } from '@/i18n'
 
 const HomeDoc = graphql(`
   query Home($ns: String!) {
@@ -52,6 +53,8 @@ const namespaceSorts: Record<string, (n: NamespaceRow) => string | number> = {
 // NamespaceIndex lists the namespaces the user may read.
 export function NamespaceIndex() {
   const { data, error } = useQuery(NamespacesDoc)
+  const t = useT()
+  const tn = t.pages.namespaces
   const l = useListParams({ sort: 'name' })
   const all = data?.namespaces ?? []
   const filters = l.list('only')
@@ -70,34 +73,34 @@ export function NamespaceIndex() {
   const head = (label: string, by: string, num = true) => <SortHeader label={label} by={by} sort={l.sort} desc={l.desc} onSort={onSort} num={num} />
   const attention = all.filter((n) => n.counts.staleHosts + n.counts.inactiveHosts > 0).length
   return (
-    <Page title="Namespaces">
-      {error ? <p role="alert">Les namespaces n'ont pas pu être chargés : {error.message}</p> : null}
-      {data && all.length === 0 ? <p className="lc-muted">Aucun namespace ne vous est ouvert. Demandez un rôle à un administrateur.</p> : null}
+    <Page title={tn.title}>
+      {error ? <p role="alert">{tn.failed(error.message)}</p> : null}
+      {data && all.length === 0 ? <p className="lc-muted">{tn.noneOpen}</p> : null}
       {all.length > 0 ? (
         <>
           <FilterBar
-            search={<SearchInput value={l.q} onChange={(v) => l.set({ q: v })} placeholder="Chercher un namespace, une description" />}
+            search={<SearchInput value={l.q} onChange={(v) => l.set({ q: v })} placeholder={tn.search} />}
             fields={[
-              chipsField({ label: 'État des hosts', short: 'Hosts', options: [{ value: 'attention', label: 'stale ou inactifs', count: attention }],
+              chipsField({ label: tn.hostState, short: tn.hostStateShort, options: [{ value: 'attention', label: tn.attention, count: attention }],
                 selected: filters.filter((f) => f === 'attention'), onChange: (v) => l.set({ only: [...v, ...filters.filter((f) => f !== 'attention')] }) }),
-              chipsField({ label: 'Mes droits', short: 'Droits', options: [{ value: 'editable', label: 'modifiables', count: all.filter((n) => n.canEdit).length }],
+              chipsField({ label: tn.rights, short: tn.rightsShort, options: [{ value: 'editable', label: tn.editable, count: all.filter((n) => n.canEdit).length }],
                 selected: filters.filter((f) => f === 'editable'), onChange: (v) => l.set({ only: [...v, ...filters.filter((f) => f !== 'editable')] }) }),
             ]}
             onClearAll={() => l.set({ only: null })}
-            count={`${list.length} namespaces`}
+            count={tn.count(list.length)}
           />
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="lc-table">
               <thead><tr>
-                {head('Namespace', 'name', false)}
-                {head('Projets', 'projects')}
-                {head('Envs', 'environments')}
-                {head('Hosts', 'hosts')}
-                {head('Stale / inactifs', 'stale')}
-                {head('Apps', 'apps')}
-                {head('Webservers', 'webservers')}
-                {head('Services', 'services')}
-                {head('Liens', 'links')}
+                {head(tn.columns.namespace, 'name', false)}
+                {head(tn.columns.projects, 'projects')}
+                {head(tn.columns.envs, 'environments')}
+                {head(tn.columns.hosts, 'hosts')}
+                {head(tn.columns.stale, 'stale')}
+                {head(tn.columns.apps, 'apps')}
+                {head(tn.columns.webservers, 'webservers')}
+                {head(tn.columns.services, 'services')}
+                {head(tn.columns.links, 'links')}
               </tr></thead>
               <tbody>
                 {list.slice((l.page - 1) * l.size, l.page * l.size).map((n) => (
@@ -112,8 +115,8 @@ export function NamespaceIndex() {
                     <td className="lc-num">{n.counts.environments}</td>
                     <td className="lc-num">{n.counts.hosts}</td>
                     <td className="lc-num">
-                      {n.counts.staleHosts ? <span className="lc-badge lc-badge--stale">{n.counts.staleHosts} stale</span> : null}
-                      {n.counts.inactiveHosts ? <span className="lc-badge lc-badge--inactive ml-1.5">{n.counts.inactiveHosts} inactifs</span> : null}
+                      {n.counts.staleHosts ? <span className="lc-badge lc-badge--stale">{tn.staleCount(n.counts.staleHosts)}</span> : null}
+                      {n.counts.inactiveHosts ? <span className="lc-badge lc-badge--inactive ml-1.5">{tn.inactiveCount(n.counts.inactiveHosts)}</span> : null}
                       {!n.counts.staleHosts && !n.counts.inactiveHosts ? <span className="text-ink-muted">0</span> : null}
                     </td>
                     <td className="lc-num">{n.counts.apps}</td>
@@ -125,11 +128,11 @@ export function NamespaceIndex() {
               </tbody>
             </table>
           </div>
-          {list.length === 0 ? <p className="lc-muted m-0">Aucun namespace ne correspond.</p> : null}
-          <Pager page={l.page} size={l.size} total={list.length} noun="namespaces" onPage={l.setPage} onSize={(v) => l.set({ size: String(v) })} />
+          {list.length === 0 ? <p className="lc-muted m-0">{tn.none}</p> : null}
+          <Pager page={l.page} size={l.size} total={list.length} noun={t.pages.shared.nouns.namespaces} onPage={l.setPage} onSize={(v) => l.set({ size: String(v) })} />
         </>
       ) : null}
-      {!data && !error ? <span className="lc-muted">Chargement…</span> : null}
+      {!data && !error ? <span className="lc-muted">{t.pages.shared.loading}</span> : null}
     </Page>
   )
 }
@@ -137,22 +140,24 @@ export function NamespaceIndex() {
 export function Home() {
   const { ns = '' } = useParams()
   const { data, error } = useQuery(HomeDoc, { variables: { ns } })
+  const t = useT()
+  const th = t.pages.home
   const n = data?.namespace
   const rows = useMemo(() => (n ? projectRows(n.graph) : []), [n])
-  if (error) return <Page title={ns}><p role="alert">Le namespace n'a pas pu être chargé : {error.message}</p></Page>
-  if (data && !n) return <Page title="Namespace introuvable"><Link to="/">Voir les namespaces</Link></Page>
-  if (!n) return <Page title={ns}><span className="lc-muted">Chargement…</span></Page>
+  if (error) return <Page title={ns}><p role="alert">{th.failed(error.message)}</p></Page>
+  if (data && !n) return <Page title={th.notFound}><Link to="/">{th.seeNamespaces}</Link></Page>
+  if (!n) return <Page title={ns}><span className="lc-muted">{t.pages.shared.loading}</span></Page>
 
   const stale = n.hosts.items.filter((h) => h.status === 'STALE').length
   const inactive = n.hosts.items.filter((h) => h.status === 'INACTIVE').length
   const tiles = [
-    ['Hosts', n.counts.hosts, `${n.counts.hosts - stale - inactive} actifs${stale ? ` · ${stale} stale` : ''}${inactive ? ` · ${inactive} inactifs` : ''}`],
-    ['Apps', n.counts.apps, `${rows.filter((r) => r.apps > 0).length} projets avec apps`],
-    ['Services', n.counts.services, ''],
-    ['Liens', n.counts.links, `${n.counts.externalLinks} vers l'extérieur`],
+    [th.tiles.hosts, n.counts.hosts, th.active(n.counts.hosts - stale - inactive) + (stale ? th.stale(stale) : '') + (inactive ? th.inactive(inactive) : '')],
+    [th.tiles.apps, n.counts.apps, th.projectsWithApps(rows.filter((r) => r.apps > 0).length)],
+    [th.tiles.services, n.counts.services, ''],
+    [th.tiles.links, n.counts.links, th.external(n.counts.externalLinks)],
   ] as const
   return (
-    <Page title={n.name} meta={<>Namespace <Copyable value={n.slug} />{n.description ? ` · ${n.description}` : ''}</>}>
+    <Page title={n.name} meta={<>{th.namespace} <Copyable value={n.slug} />{n.description ? ` · ${n.description}` : ''}</>}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map(([k, v, s]) => (
           <div key={k} className="flex flex-col gap-1 rounded-lg border border-border bg-surface-raised p-4">
@@ -164,12 +169,12 @@ export function Home() {
       </div>
       <div className="flex flex-wrap items-start gap-6">
         <section className="flex min-w-0 flex-[2_1_560px] flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4">
-          <div className="flex items-center"><h2 className="title m-0 flex-1">Projets</h2><Link className="lc-btn lc-btn--primary no-underline" to={`/${ns}/graph`}>Ouvrir le graphe</Link></div>
+          <div className="flex items-center"><h2 className="title m-0 flex-1">{th.projects}</h2><Link className="lc-btn lc-btn--primary no-underline" to={`/${ns}/graph`}>{th.openGraph}</Link></div>
           <ProjectsTable ns={ns} rows={rows} environments={n.environments} />
         </section>
         <section className="flex flex-[1_1_360px] flex-col gap-3.5 rounded-lg border border-border bg-surface-raised p-4">
-          <div className="flex items-center"><h2 className="title m-0 flex-1">Derniers changements</h2><Link to={`/${ns}/history`} className="text-[13px]">Tout l'historique</Link></div>
-          {n.history.items.length === 0 ? <span className="lc-muted">Aucun changement encore.</span> : null}
+          <div className="flex items-center"><h2 className="title m-0 flex-1">{th.latestChanges}</h2><Link to={`/${ns}/history`} className="text-[13px]">{th.allHistory}</Link></div>
+          {n.history.items.length === 0 ? <span className="lc-muted">{th.noChangeYet}</span> : null}
           {n.history.items.map((e) => <HistoryEvent key={e.id} event={e} />)}
         </section>
       </div>

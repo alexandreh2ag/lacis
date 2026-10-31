@@ -4,7 +4,8 @@ import { Link } from 'react-router'
 import { CopyButton } from '@/components/Copy'
 import { Glyph } from '@/components/Icon'
 import { StatusBadge } from '@/components/Listing'
-import { ago } from '@/lib/format'
+import { useT } from '@/i18n'
+import { ago, plural } from '@/lib/format'
 import { kindOf, title } from './kinds'
 import type { GNode } from './query'
 import { ZONE_PAD, type RowKey, type Zone } from './zones'
@@ -24,10 +25,6 @@ export function pageOf(ns: string, n: GNode, row?: RowKey): string {
   return n.project ? `/${ns}/projects/${encodeURIComponent(n.project)}?tab=hosts` : `/${ns}/hosts/${n.hosts[0]?.id ?? ''}`
 }
 
-function plural(n: number, word: string) {
-  return `${n} ${word}${n > 1 ? 's' : ''}`
-}
-
 // Header tells what the zone is: the project or the host, its state, and
 // where to read more.
 function Header({ zone, ns, other, onClose }: ZoneData) {
@@ -38,35 +35,36 @@ function Header({ zone, ns, other, onClose }: ZoneData) {
   const first = diverging[0]?.divergences[0]
   const ip = host?.ips.find((i) => i.defaultRoute) ?? host?.ips[0]
   const lastSeen = n.hosts.map((h) => h.lastSeenAt).sort()[0]
+  const t = useT()
   return (
     <div className="lc-zone__head">
       <div className="flex items-center gap-2.5">
         <span className={`lc-node__icon lc-node--${kindOf(n)}`} style={{ width: 28, height: 28 }}><Glyph kind={kindOf(n)} /></span>
         <span className={n.kind === 'HOST' ? 'font-mono text-[14px] font-semibold' : 'heading'}>{title(n)}</span>
         {n.kind === 'HOST' && host ? <span className="nodrag -ml-2"><CopyButton value={host.hostname} /></span> : null}
-        <span className="lc-muted text-[12.5px]">{[n.kind === 'PROJECT' ? 'projet' : n.hosts.length > 1 ? `${n.hosts.length} hosts` : 'host', n.kind === 'HOST' ? n.project : null, n.env].filter(Boolean).join(' · ')}</span>
+        <span className="lc-muted text-[12.5px]">{[n.kind === 'PROJECT' ? t.graph.zone.project : n.hosts.length > 1 ? t.graph.zone.hosts(n.hosts.length) : t.graph.zone.host, n.kind === 'HOST' ? n.project : null, n.env].filter(Boolean).join(' · ')}</span>
         {n.status ? <StatusBadge status={n.status} /> : null}
         <span className="flex-1" />
-        <button type="button" className="lc-btn lc-btn--ghost nodrag h-[26px]" onClick={onClose}>Replier</button>
+        <button type="button" className="lc-btn lc-btn--ghost nodrag h-[26px]" onClick={onClose}>{t.graph.zone.close}</button>
       </div>
       <span className="lc-zone__line">
-        {host ? [host.os?.pretty, ip?.address].filter(Boolean).join(' · ') : `${plural(n.hosts.length, 'host')} : ${n.members.join(', ')}`}
+        {host ? [host.os?.pretty, ip?.address].filter(Boolean).join(' · ') : t.graph.zone.members(n.hosts.length, n.members.join(', '))}
         {apps ? ` · ${plural(apps.total, 'app')}` : ''}
       </span>
       {first ? (
         <span className="lc-badge lc-badge--stale self-start">
-          {first.app} : {first.hosts.map((h) => `${h.version || h.commit?.slice(0, 7) || '?'} sur ${h.hostname}`).join(', ')}
-          {diverging.length > 1 ? ` · ${diverging.length - 1} autre${diverging.length > 2 ? 's' : ''}` : ''}
+          {first.app} : {first.hosts.map((h) => t.graph.zone.on(h.version || h.commit?.slice(0, 7) || '?', h.hostname)).join(', ')}
+          {diverging.length > 1 ? t.graph.zone.others(diverging.length - 1) : ''}
         </span>
       ) : (
         <span className="lc-zone__line">
-          {host?.agentVersion ? `Agent ${host.agentVersion} · ` : ''}{lastSeen ? `dernier snapshot ${ago(lastSeen)}` : ''}
+          {host?.agentVersion ? t.graph.zone.agent(host.agentVersion) : ''}{lastSeen ? t.graph.zone.lastSnapshot(ago(lastSeen)) : ''}
         </span>
       )}
       <span className="nodrag flex gap-3.5 text-[12.5px]">
-        <Link to={pageOf(ns, n)}>{n.kind === 'PROJECT' ? 'Fiche du projet' : 'Fiche du host'}</Link>
+        <Link to={pageOf(ns, n)}>{n.kind === 'PROJECT' ? t.graph.zone.projectPage : t.graph.zone.hostPage}</Link>
         {other ? <Link to={other.to}>{other.label}</Link> : null}
-        <Link to={`/${ns}/history`}>Historique</Link>
+        <Link to={`/${ns}/history`}>{t.graph.zone.history}</Link>
       </span>
     </div>
   )
@@ -77,11 +75,12 @@ function Header({ zone, ns, other, onClose }: ZoneData) {
 // nodes of their own, children of the zone.
 export const ZoneNode = memo(function ZoneNode({ data }: NodeProps) {
   const d = data as ZoneData
+  const t = useT()
   return (
     <div className="lc-zone" style={{ width: d.zone.width, height: d.zone.height }}>
       <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
       <Header {...d} />
-      {d.zone.rows.length === 0 ? <span className="lc-muted absolute text-[13px]" style={{ left: ZONE_PAD, top: d.zone.height - 60 }}>Aucun contenu collecté.</span> : null}
+      {d.zone.rows.length === 0 ? <span className="lc-muted absolute text-[13px]" style={{ left: ZONE_PAD, top: d.zone.height - 60 }}>{t.graph.zone.empty}</span> : null}
       {d.zone.rows.map((r) => (
         <span key={r.key} className="lc-label absolute" style={{ left: ZONE_PAD, top: r.top }}>
           {r.label} <span className="font-normal tracking-normal">· {r.total}</span>
@@ -101,11 +100,12 @@ export interface MoreData extends Record<string, unknown> {
 // content leave from it.
 export const MoreNode = memo(function MoreNode({ data }: NodeProps) {
   const { label, to } = data as MoreData
+  const t = useT()
   return (
     <div className="lc-more-card">
       <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
       <b className="text-[13px] leading-4">{label}</b>
-      <Link className="nodrag text-[12.5px]" to={to}>Voir plus</Link>
+      <Link className="nodrag text-[12.5px]" to={to}>{t.graph.seeMore}</Link>
       <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
     </div>
   )

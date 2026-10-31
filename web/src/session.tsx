@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router'
 import { onUnauthorized } from './apollo'
 import { setCustomIcons } from './lib/logos'
 import { config } from './config'
+import { useT } from './i18n'
 import { graphql } from './graphql'
 import type { SessionQuery } from './graphql/graphql'
 
@@ -36,15 +37,16 @@ export function loginPath(location: { pathname: string; search: string }) {
 export function RequireSession({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const t = useT()
   const { data, error, loading } = useQuery(SessionDoc, { fetchPolicy: 'network-only' })
   useEffect(() => onUnauthorized(() => navigate(loginPath(window.location.pathname.startsWith(config.basePath)
     ? { pathname: '/' + window.location.pathname.slice(config.basePath.length), search: window.location.search }
     : location))), [navigate, location])
-  if (loading && !data) return <div className="p-8 text-ink-muted">Chargement…</div>
+  if (loading && !data) return <div className="p-8 text-ink-muted">{t.components.session.loading}</div>
   if (error && 'statusCode' in (error.networkError ?? {}) && (error.networkError as { statusCode: number }).statusCode === 401) {
     return <Navigate to={loginPath(location)} replace />
   }
-  if (error || !data) return <div className="p-8" role="alert">Le serveur ne répond pas : {error?.message}</div>
+  if (error || !data) return <div className="p-8" role="alert">{t.components.session.noServer(error?.message ?? '')}</div>
   // The logos uploaded for technologies show wherever a technology does.
   setCustomIcons(data.techIcons)
   return <SessionContext.Provider value={data}>{children}</SessionContext.Provider>

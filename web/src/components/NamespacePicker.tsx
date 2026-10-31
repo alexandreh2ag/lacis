@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { useT } from '@/i18n'
 import { Chevron } from './Icon'
 
 // PickerLimit is the most namespaces the picker lists: past it, a search
@@ -21,6 +22,7 @@ export function matching<T extends Namespace>(namespaces: T[], q: string): T[] {
 // NamespacePicker opens another namespace: a search over those of the user,
 // listing PickerLimit of them at most.
 export function NamespacePicker({ namespaces, current }: { namespaces: Namespace[]; current?: string }) {
+  const t = useT().components.namespacePicker
   const navigate = useNavigate()
   const id = useId()
   const root = useRef<HTMLDivElement>(null)
@@ -59,16 +61,16 @@ export function NamespacePicker({ namespaces, current }: { namespaces: Namespace
     <div ref={root} className="relative">
       <button type="button" className="lc-input inline-flex items-center gap-2 font-mono [&_svg]:size-3.5 [&_svg]:text-ink-muted" aria-haspopup="dialog" aria-expanded={open}
         onClick={() => { setOpen(!open); setActive(0) }}>
-        <span className="sr-only">Namespace :</span>{current || 'namespace'}<Chevron dir="down" />
+        <span className="sr-only">{t.current}</span>{current || 'namespace'}<Chevron dir="down" />
       </button>
       {open ? (
-        <div role="dialog" aria-label="Changer de namespace" className="lc-panel absolute left-0 top-10 z-50 w-80">
+        <div role="dialog" aria-label={t.change} className="lc-panel absolute left-0 top-10 z-50 w-80">
           <div className="lc-panel__section">
-            <label htmlFor={id} className="sr-only">Chercher un namespace</label>
-            <input id={id} className="lc-input w-full" type="search" placeholder="Chercher un namespace" autoFocus autoComplete="off"
+            <label htmlFor={id} className="sr-only">{t.search}</label>
+            <input id={id} className="lc-input w-full" type="search" placeholder={t.search} autoFocus autoComplete="off"
               role="combobox" aria-expanded aria-controls={`${id}-list`} aria-activedescendant={shown[active] ? `${id}-${shown[active].id}` : undefined}
               value={q} onChange={(e) => { setQ(e.target.value); setActive(0) }} onKeyDown={onKey} />
-            <ul id={`${id}-list`} role="listbox" aria-label="Namespaces" className="m-0 flex list-none flex-col p-0">
+            <ul id={`${id}-list`} role="listbox" aria-label={t.list} className="m-0 flex list-none flex-col p-0">
               {shown.map((n, i) => (
                 <li key={n.id} id={`${id}-${n.id}`} role="option" aria-selected={i === active}
                   className={'flex cursor-pointer items-baseline gap-2 rounded-sm px-2 py-1.5 ' + (i === active ? 'bg-surface-hover' : '')}
@@ -78,15 +80,15 @@ export function NamespacePicker({ namespaces, current }: { namespaces: Namespace
                 </li>
               ))}
             </ul>
-            {found.length === 0 ? <span className="lc-muted text-[13px]">Aucun namespace ne correspond.</span> : null}
+            {found.length === 0 ? <span className="lc-muted text-[13px]">{t.none}</span> : null}
             {found.length > PickerLimit ? (
               <span className="lc-muted text-[12.5px]" role="status">
-                {PickerLimit} namespaces affichés sur {found.length} : affinez la recherche pour trouver les autres.
+                {t.shown(PickerLimit, found.length)}
               </span>
             ) : null}
           </div>
           <div className="lc-panel__section py-2.5">
-            <Link to="/" className="text-[13px]" onClick={() => setOpen(false)}>Tous les namespaces</Link>
+            <Link to="/" className="text-[13px]" onClick={() => setOpen(false)}>{t.all}</Link>
           </div>
         </div>
       ) : null}

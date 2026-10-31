@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useT } from '@/i18n'
 import { Chevron } from './Icon'
 import { Chips, type ChipOption } from './Listing'
 import { MultiPicker } from './MultiPicker'
@@ -32,6 +33,7 @@ export function FilterBar({ search, fields, count, onClearAll }: {
   // would not compose.
   onClearAll?: () => void
 }) {
+  const t = useT().components.filterBar
   const id = useId()
   const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -56,12 +58,12 @@ export function FilterBar({ search, fields, count, onClearAll }: {
       {fields.length ? (
         <div ref={root} className="relative">
           <button type="button" className="lc-btn lc-fbar__btn" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
-            <Funnel />Filtres
+            <Funnel />{t.filters}
             {set.length ? <span className="lc-fbar__count">{set.length}</span> : null}
             <Chevron dir={open ? 'up' : 'down'} />
           </button>
           {open ? (
-            <div id={id} role="dialog" aria-label="Filtres" className="lc-panel lc-fbar__panel">
+            <div id={id} role="dialog" aria-label={t.filters} className="lc-panel lc-fbar__panel">
               {fields.map((f) => (
                 <div key={f.label} className="lc-panel__section">
                   <span className="lc-label">{f.label}</span>
@@ -69,7 +71,7 @@ export function FilterBar({ search, fields, count, onClearAll }: {
                 </div>
               ))}
               <div className="lc-panel__section" style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <button type="button" className="lc-btn lc-btn--ghost" disabled={!set.length} onClick={clearAll}>Tout effacer</button>
+                <button type="button" className="lc-btn lc-btn--ghost" disabled={!set.length} onClick={clearAll}>{t.clearAll}</button>
               </div>
             </div>
           ) : null}
@@ -78,10 +80,10 @@ export function FilterBar({ search, fields, count, onClearAll }: {
       {set.map((f) => (
         <span key={f.label} className="lc-pill">
           <span className="lc-pill__key">{f.short ?? f.label} :</span> {f.value}
-          <button type="button" aria-label={`Retirer le filtre ${f.label}`} onClick={f.clear}>×</button>
+          <button type="button" aria-label={t.removeFilter(f.label)} onClick={f.clear}>×</button>
         </span>
       ))}
-      {set.length > 1 ? <button type="button" className="lc-btn lc-btn--ghost" onClick={clearAll}>Tout effacer</button> : null}
+      {set.length > 1 ? <button type="button" className="lc-btn lc-btn--ghost" onClick={clearAll}>{t.clearAll}</button> : null}
       <span className="flex-1" />
       {count ? <span className="text-[13px] text-ink-muted">{count}</span> : null}
     </div>

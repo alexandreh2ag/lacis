@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react'
 import { memo } from 'react'
-import { confidenceFr } from '@/lib/format'
+import { useT } from '@/i18n'
+import { confidenceText } from '@/lib/format'
 import type { GEdge } from './query'
 
 export interface LinkData extends Record<string, unknown> {
@@ -21,6 +22,7 @@ export interface LinkData extends Record<string, unknown> {
 export const LacisEdge = memo(function LacisEdge(props: EdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props
   const { edge: e, color, fromLabel, toLabel, related, faded, hovered, impact } = data as LinkData
+  const t = useT()
   const [path, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
   const width = 1.5 + Math.min(e.count - 1, 3) * 0.75 + (related ? 1.5 : 0)
   const dash = e.confidence === 'INFERRED' ? '6 4' : e.confidence === 'AMBIGUOUS' ? '1 4' : undefined
@@ -42,8 +44,8 @@ export const LacisEdge = memo(function LacisEdge(props: EdgeProps) {
             transform: `translate(-50%, calc(-100% - 14px)) translate(${labelX}px, ${labelY}px)` }}>
             <b><span className="mr-1.5 inline-block size-2 rounded-[2px]" style={{ background: stroke }} />{fromLabel} → {toLabel}</b>
             {e.labels.length ? <span className="lc-mono">{e.labels.slice(0, 3).join(' · ')}{e.labels.length > 3 ? ` +${e.labels.length - 3}` : ''}</span> : null}
-            <span>{e.count > 1 ? `${e.count} liens fusionnés` : '1 lien'} · {confidenceFr[e.confidence]}</span>
-            {e.crossEnv ? <span>Entre deux envs</span> : null}
+            <span>{t.graph.edge.links(e.count)} · {confidenceText(e.confidence)}</span>
+            {e.crossEnv ? <span>{t.graph.edge.crossEnv}</span> : null}
           </div>
         ) : null}
       </EdgeLabelRenderer>

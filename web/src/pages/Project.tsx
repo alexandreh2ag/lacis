@@ -10,7 +10,8 @@ import { Tabs, useTab } from '@/components/Tabs'
 import { UsedBy, type UsedByRow } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { ProjectPageQuery } from '@/graphql/graphql'
-import { confidenceFr } from '@/lib/format'
+import { t as text, useT } from '@/i18n'
+import { confidenceText } from '@/lib/format'
 
 const ProjectPageDoc = graphql(`
   query ProjectPage($ns: String!, $project: String!) {
@@ -75,7 +76,7 @@ function dependencies(apps: App[]): Dep[] {
         case 'Host': d = { key: t.id, target: t.hostname, hostId: t.id, kind: 'host', detail: 'host' }; break
         case 'Webserver': d = { key: t.id, target: t.host.hostname, hostId: t.host.id, kind: 'proxy', tech: t.type, detail: t.type }; break
         case 'App': d = { key: t.id, target: `${t.name} · ${t.host.hostname}`, hostId: t.host.id, kind: 'app', detail: 'app' }; break
-        default: d = { key: 'ext:' + t.target, target: t.target, kind: 'external', detail: t.reason ?? 'externe' }
+        default: d = { key: 'ext:' + t.target, target: t.target, kind: 'external', detail: t.reason ?? text().pages.project.external }
       }
       const env = a.environment?.slug ?? ''
       const id = d.key + '@' + env
@@ -99,6 +100,9 @@ function consumerProject(row: UsedByRow): string | undefined {
 export function ProjectPage() {
   const { ns = '', slug = '' } = useParams()
   const { data, error } = useQuery(ProjectPageDoc, { variables: { ns, project: slug } })
+  const t = useT()
+  const tp = t.pages.project
+  const ts = t.pages.shared
   const n = data?.namespace
   const [env, setEnv] = useState<string[]>([])
   const project = n?.projects.find((p) => p.slug === slug)
@@ -132,47 +136,47 @@ export function ProjectPage() {
   const domains = useMemo(() => [...new Set(apps.flatMap((a) => a.vhosts.map((v) => `${v}\u0000${a.name}\u0000${a.environment?.slug ?? ''}`)))]
     .sort().map((x) => x.split('\u0000')), [apps])
   const tabs = [
-    { id: 'general', label: 'Général' },
-    { id: 'apps', label: 'Apps', count: apps.length },
-    { id: 'hosts', label: 'Hosts', count: hosts.length },
-    { id: 'dependencies', label: 'Dépendances', count: deps.length },
-    { id: 'used-by', label: 'Utilisé par', count: usedBy.length },
-    { id: 'domains', label: 'Domaines servis', count: domains.length },
+    { id: 'general', label: ts.general },
+    { id: 'apps', label: tp.tabs.apps, count: apps.length },
+    { id: 'hosts', label: tp.tabs.hosts, count: hosts.length },
+    { id: 'dependencies', label: ts.dependencies, count: deps.length },
+    { id: 'used-by', label: ts.usedBy, count: usedBy.length },
+    { id: 'domains', label: tp.tabs.domains, count: domains.length },
   ]
   const [tab, setTab] = useTab(tabs, 'general')
 
-  if (error) return <Page title={slug}><p role="alert">Le projet n'a pas pu être chargé : {error.message}</p></Page>
-  if (!n) return <Page title={slug}><span className="lc-muted">Chargement…</span></Page>
-  if (!project) return <Page title="Projet introuvable"><Link to={`/${ns}`}>Retour au namespace</Link></Page>
+  if (error) return <Page title={slug}><p role="alert">{tp.failed(error.message)}</p></Page>
+  if (!n) return <Page title={slug}><span className="lc-muted">{ts.loading}</span></Page>
+  if (!project) return <Page title={tp.notFound}><Link to={`/${ns}`}>{tp.back}</Link></Page>
 
   const envs = [...n.environments].sort((a, b) => a.sortOrder - b.sortOrder).filter((e) => n.hosts.items.some((h) => h.environment?.slug === e.slug))
   // The env filters every tab: each tab's bar carries it.
-  const envField = chipsField({ label: 'Environnement', short: 'Env', options: envs.map((e) => ({ value: e.slug, label: e.slug })), selected: env, onChange: setEnv })
+  const envField = chipsField({ label: ts.environment, short: ts.env, options: envs.map((e) => ({ value: e.slug, label: e.slug })), selected: env, onChange: setEnv })
   const count = (k: string) => deps.filter((d) => d.kind === k).length
   return (
     <Page
       title={<span className="lc-copyable gap-1.5"><span>{project.name}</span><CopyButton value={project.slug} /></span>}
       meta={<>
-        <span>projet <span className="lc-mono">{project.slug}</span>{project.description ? ` · ${project.description}` : ''}</span>
+        <span>{tp.meta} <span className="lc-mono">{project.slug}</span>{project.description ? ` · ${project.description}` : ''}</span>
         <span className="flex-1" />
-        <Link to={`/${ns}/history`} className="text-[13px]">Historique du namespace</Link>
-        <Link className="lc-btn no-underline" to={`/${ns}/graph?${new URLSearchParams([['lens', 'projects'], ['project', slug], ...envs.slice(0, 1).map((e) => ['open', `project:${slug}@${e.slug}`])])}`}>Voir dans le graphe</Link>
+        <Link to={`/${ns}/history`} className="text-[13px]">{tp.namespaceHistory}</Link>
+        <Link className="lc-btn no-underline" to={`/${ns}/graph?${new URLSearchParams([['lens', 'projects'], ['project', slug], ...envs.slice(0, 1).map((e) => ['open', `project:${slug}@${e.slug}`])])}`}>{ts.seeInGraph}</Link>
       </>}
     >
-      <Tabs label="Contenu du projet" tabs={tabs} current={tab} onChange={setTab}>
+      <Tabs label={tp.content} tabs={tabs} current={tab} onChange={setTab}>
         {tab === 'general' ? <FilterBar fields={[envField]} /> : null}
         {tab === 'general' ? <General ns={ns} project={project} envs={envs} apps={apps} hosts={hosts} deps={deps} usedBy={usedBy} diverging={diverging} /> : null}
         {tab === 'apps' ? (
           <>
-            <FilterBar search={<SearchInput value={appTable.q} onChange={appTable.setQ} placeholder="Chercher une app, un host, une version" width={300} />}
-              fields={[envField]} count={`${apps.length} déploiements`} />
+            <FilterBar search={<SearchInput value={appTable.q} onChange={appTable.setQ} placeholder={tp.searchApps} width={300} />}
+              fields={[envField]} count={ts.deployments(apps.length)} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
               <thead><tr>
-                <SortHeader label="App" by="name" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
-                <SortHeader label="Env" by="env" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
-                <SortHeader label="Host" by="host" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
-                <SortHeader label="Version" by="version" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
-                <th>Commit</th><th>Domaine</th>
+                <SortHeader label={ts.app} by="name" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
+                <SortHeader label={ts.env} by="env" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
+                <SortHeader label={ts.host} by="host" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
+                <SortHeader label={ts.version} by="version" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
+                <th>{ts.commit}</th><th>{ts.domain}</th>
               </tr></thead>
               <tbody>{appTable.shown.map((a) => {
                 const diverges = diverging.has(a.name + '@' + (a.environment?.slug ?? ''))
@@ -181,27 +185,27 @@ export function ProjectPage() {
                     <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
                     <td>{a.environment?.slug}</td>
                     <td><span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${a.host.id}`}>{a.host.hostname}</Link><CopyButton value={a.host.hostname} /></span></td>
-                    <td><span className={'lc-mono' + (diverges ? ' text-status-stale' : '')}>{a.code?.version}</span>{diverges ? <span className="lc-badge lc-badge--stale ml-1.5 h-[18px] text-[11px]">diffère</span> : null}</td>
+                    <td><span className={'lc-mono' + (diverges ? ' text-status-stale' : '')}>{a.code?.version}</span>{diverges ? <span className="lc-badge lc-badge--stale ml-1.5 h-[18px] text-[11px]">{tp.differs}</span> : null}</td>
                     <td>{a.code?.commit ? <Copyable value={a.code.commit} shown={a.code.commit.slice(0, 7)} /> : null}</td>
                     <td>{a.vhosts[0] ? <Copyable value={a.vhosts[0]} /> : null}</td>
                   </tr>
                 )
               })}</tbody>
             </table></div>
-            <Pager page={appTable.page} size={appTable.size} total={appTable.list.length} noun="déploiements" onPage={appTable.setPage} onSize={appTable.setSize} />
+            <Pager page={appTable.page} size={appTable.size} total={appTable.list.length} noun={ts.nouns.deployments} onPage={appTable.setPage} onSize={appTable.setSize} />
           </>
         ) : null}
         {tab === 'hosts' ? (
           <>
-            <FilterBar search={<SearchInput value={hostTable.q} onChange={hostTable.setQ} placeholder="Chercher un host, une IP" width={300} />}
-              fields={[envField]} count={`${hosts.length} hosts`} />
+            <FilterBar search={<SearchInput value={hostTable.q} onChange={hostTable.setQ} placeholder={tp.searchHosts} width={300} />}
+              fields={[envField]} count={ts.hosts(hosts.length)} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
               <thead><tr>
-                <SortHeader label="Host" by="hostname" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
-                <SortHeader label="Env" by="env" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
-                <th>IP</th><th>OS</th><th>Webserver et services</th>
-                <SortHeader label="Apps" by="apps" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} num />
-                <SortHeader label="Statut" by="status" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
+                <SortHeader label={ts.host} by="hostname" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
+                <SortHeader label={ts.env} by="env" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
+                <th>{tp.ip}</th><th>{tp.os}</th><th>{ts.webserversAndServices}</th>
+                <SortHeader label={tp.apps} by="apps" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} num />
+                <SortHeader label={ts.status} by="status" sort={hostTable.sort.by} desc={hostTable.sort.desc} onSort={hostTable.onSort} />
               </tr></thead>
               <tbody>{hostTable.shown.map((h) => (
                 <tr key={h.id}>
@@ -215,23 +219,23 @@ export function ProjectPage() {
                 </tr>
               ))}</tbody>
             </table></div>
-            <Pager page={hostTable.page} size={hostTable.size} total={hostTable.list.length} noun="hosts" onPage={hostTable.setPage} onSize={hostTable.setSize} />
+            <Pager page={hostTable.page} size={hostTable.size} total={hostTable.list.length} noun={ts.nouns.hosts} onPage={hostTable.setPage} onSize={hostTable.setSize} />
           </>
         ) : null}
         {tab === 'dependencies' ? (
           <>
-            <FilterBar search={<SearchInput value={depTable.q} onChange={depTable.setQ} placeholder="Chercher une cible, une clé" width={300} />}
-              fields={[envField, chipsField({ label: 'Type de cible', short: 'Type', options: [{ value: 'service', label: 'services', count: count('service') }, { value: 'external', label: 'externes', count: count('external') }, { value: 'proxy', label: 'proxies', count: count('proxy') }, { value: 'host', label: 'hosts', count: count('host') }],
+            <FilterBar search={<SearchInput value={depTable.q} onChange={depTable.setQ} placeholder={tp.searchDeps} width={300} />}
+              fields={[envField, chipsField({ label: tp.targetType, short: tp.targetTypeShort, options: [{ value: 'service', label: ts.kinds.services, count: count('service') }, { value: 'external', label: ts.kinds.externals, count: count('external') }, { value: 'proxy', label: ts.kinds.proxies, count: count('proxy') }, { value: 'host', label: ts.kinds.hosts, count: count('host') }],
                 selected: kinds, onChange: setKinds })]}
-              onClearAll={() => { setEnv([]); setKinds([]) }} count={`${depRows.length} cibles sur ${deps.length}`} />
+              onClearAll={() => { setEnv([]); setKinds([]) }} count={tp.targets(depRows.length, deps.length)} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
               <thead><tr>
-                <SortHeader label="Cible" by="target" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
-                <th>Détail</th>
-                <SortHeader label="Env" by="env" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
-                <SortHeader label="Utilisé par" by="by" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
-                <th>Clés</th>
-                <SortHeader label="Confiance" by="confidence" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
+                <SortHeader label={ts.target} by="target" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
+                <th>{tp.detail}</th>
+                <SortHeader label={ts.env} by="env" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
+                <SortHeader label={ts.usedBy} by="by" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
+                <th>{tp.keys}</th>
+                <SortHeader label={ts.confidence} by="confidence" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
               </tr></thead>
               <tbody>{depTable.shown.map((d) => (
                 <tr key={d.key + d.env}>
@@ -243,19 +247,19 @@ export function ProjectPage() {
                   <td>{d.env}</td>
                   <td>{d.by.join(', ')}</td>
                   <td><div className="flex flex-wrap gap-x-3">{d.keys.map((k) => <Copyable key={k} value={k} />)}</div></td>
-                  <td>{confidenceFr[d.confidence]}</td>
+                  <td>{confidenceText(d.confidence)}</td>
                 </tr>
               ))}</tbody>
             </table></div>
-            <Pager page={depTable.page} size={depTable.size} total={depTable.list.length} noun="cibles" onPage={depTable.setPage} onSize={depTable.setSize} />
+            <Pager page={depTable.page} size={depTable.size} total={depTable.list.length} noun={ts.nouns.targets} onPage={depTable.setPage} onSize={depTable.setSize} />
           </>
         ) : null}
         {tab === 'used-by' ? <UsedBy ns={ns} rows={usedBy} showTargetHost fields={[envField]} /> : null}
-        {tab === 'domains' ? <FilterBar fields={[envField]} count={`${domains.length} domaines`} /> : null}
+        {tab === 'domains' ? <FilterBar fields={[envField]} count={tp.domains(domains.length)} /> : null}
         {tab === 'domains' ? (
-          domains.length === 0 ? <p className="lc-muted m-0">Aucun domaine servi.</p> : (
+          domains.length === 0 ? <p className="lc-muted m-0">{tp.noDomain}</p> : (
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-              <thead><tr><th>Domaine</th><th>App</th><th>Env</th></tr></thead>
+              <thead><tr><th>{ts.domain}</th><th>{ts.app}</th><th>{ts.env}</th></tr></thead>
               <tbody>{domains.map(([d, app, env]) => (
                 <tr key={d + app + env}><td><Copyable value={d} /></td><td className="font-semibold">{app}</td><td>{env}</td></tr>
               ))}</tbody>
@@ -280,33 +284,36 @@ function General({ ns, project, envs, apps, hosts, deps, usedBy, diverging }: {
 }) {
   const consumers = [...new Set(usedBy.map(consumerProject).filter((p): p is string => !!p && p !== project.slug))].sort()
   const kinds = (k: Dep['kind']) => deps.filter((d) => d.kind === k).length
+  const t = useT()
+  const tp = t.pages.project
+  const ts = t.pages.shared
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <section className="lc-panel lc-panel--card">
         <div className="lc-panel__section">
-          <span className="lc-label">Projet</span>
+          <span className="lc-label">{tp.section}</span>
           <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
-            <dt>Nom</dt><dd className="font-sans">{project.name}</dd>
-            <dt>Slug</dt><dd><Copyable value={project.slug} /></dd>
-            {project.description ? <><dt>Description</dt><dd className="font-sans">{project.description}</dd></> : null}
-            <dt>Envs</dt><dd>{envs.map((e) => e.slug).join(', ') || '—'}</dd>
+            <dt>{ts.name}</dt><dd className="font-sans">{project.name}</dd>
+            <dt>{tp.slug}</dt><dd><Copyable value={project.slug} /></dd>
+            {project.description ? <><dt>{tp.description}</dt><dd className="font-sans">{project.description}</dd></> : null}
+            <dt>{tp.envs}</dt><dd>{envs.map((e) => e.slug).join(', ') || '—'}</dd>
           </dl>
         </div>
       </section>
       <section className="lc-panel lc-panel--card">
         <div className="lc-panel__section">
-          <span className="lc-label">Résumé</span>
+          <span className="lc-label">{tp.summary}</span>
           <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
-            <dt>Hosts</dt>
-            <dd>{hosts.length}{envs.length ? ` · ${envs.map((e) => `${hosts.filter((h) => h.environment?.slug === e.slug).length} en ${e.slug}`).join(' · ')}` : ''}</dd>
-            <dt>Apps</dt><dd>{new Set(apps.map((a) => a.name)).size} · {apps.length} déploiements</dd>
+            <dt>{tp.hosts}</dt>
+            <dd>{hosts.length}{envs.length ? ` · ${envs.map((e) => tp.inEnv(hosts.filter((h) => h.environment?.slug === e.slug).length, e.slug)).join(' · ')}` : ''}</dd>
+            <dt>{tp.apps}</dt><dd>{new Set(apps.map((a) => a.name)).size} · {ts.deployments(apps.length)}</dd>
             {diverging.size ? (
-              <><dt>Versions divergentes</dt><dd className="text-status-stale">{[...diverging].map((k) => k.replace('@', ' en ')).join(', ')}</dd></>
+              <><dt>{tp.divergingVersions}</dt><dd className="text-status-stale">{[...diverging].map((k) => tp.appInEnv(...(k.split('@') as [string, string]))).join(', ')}</dd></>
             ) : null}
-            <dt>Dépendances</dt><dd>{deps.length} · {kinds('service')} services · {kinds('external')} externes · {kinds('proxy')} proxies</dd>
-            <dt>Utilisé par</dt>
+            <dt>{ts.dependencies}</dt><dd>{tp.depsSummary(deps.length, kinds('service'), kinds('external'), kinds('proxy'))}</dd>
+            <dt>{ts.usedBy}</dt>
             <dd>
-              {usedBy.length} liens
+              {ts.links(usedBy.length)}
               {consumers.length ? <> · {consumers.map((p, i) => <span key={p}>{i ? ', ' : ''}<Link to={`/${ns}/projects/${p}`}>{p}</Link></span>)}</> : null}
             </dd>
           </dl>

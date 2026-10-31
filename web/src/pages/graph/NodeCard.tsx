@@ -2,6 +2,7 @@ import { Handle, NodeResizeControl, Position, ResizeControlVariant, type NodePro
 import { memo } from 'react'
 import { CopyButton } from '@/components/Copy'
 import { Glyph, TechLogo } from '@/components/Icon'
+import { useT } from '@/i18n'
 import { canOpen, countOf, foldedTechs, info, kindOf, mainTech, stacked, title } from './kinds'
 import type { GNode } from './query'
 
@@ -20,6 +21,7 @@ export interface CardData extends Record<string, unknown> {
 // 216 × 56, the name cut, the logos of what it folds.
 export const NodeCard = memo(function NodeCard({ data }: NodeProps) {
   const { node: n, selected, related, faded, impact, copy } = data as CardData
+  const t = useT()
   const kind = kindOf(n)
   const count = countOf(n)
   const cls = ['lc-node', `lc-node--${kind}`,
@@ -34,10 +36,10 @@ export const NodeCard = memo(function NodeCard({ data }: NodeProps) {
     impact ? 'lc-node--impact' : '',
     n.selected ? '' : 'lc-node--neighbor'].join(' ')
   return (
-    <div className={cls} title={canOpen(n) ? `${title(n)} · cliquer pour déplier` : title(n)}>
+    <div className={cls} title={canOpen(n) ? t.graph.card.clickToOpen(title(n)) : title(n)}>
       <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
       {count ? <span className="lc-node__count">{count}</span> : null}
-      {impact ? <span className="lc-node__impact" title={impact === 1 ? 'Impact direct' : `Impact de niveau ${impact}`}>{impact === 1 ? 'direct' : `niveau ${impact}`}</span> : null}
+      {impact ? <span className="lc-node__impact" title={t.graph.card.impactTitle(impact)}>{t.graph.card.impactBadge(impact)}</span> : null}
       <span className="lc-node__icon"><Glyph kind={kind} tech={mainTech(n)} /></span>
       <span className="lc-node__text">
         {copy ? (

@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
+import { useT } from '@/i18n'
 
 // CopyButton copies a value and says so for 1.5 s.
 export function CopyButton({ value }: { value: string }) {
+  const t = useT()
+  const label = t.components.copy(value)
   const [done, setDone] = useState(false)
   useEffect(() => {
     if (!done) return
-    const t = setTimeout(() => setDone(false), 1500)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDone(false), 1500)
+    return () => clearTimeout(timer)
   }, [done])
   return (
     <button
       className={'lc-copy' + (done ? ' lc-copy--done' : '')}
+      data-done={t.components.copied}
       type="button"
-      aria-label={`Copier ${value}`}
-      title={`Copier ${value}`}
+      aria-label={label}
+      title={label}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()

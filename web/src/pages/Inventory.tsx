@@ -9,6 +9,7 @@ import { Consumers } from '@/components/UsedBy'
 import { envOptions, Pager, SearchInput, SortHeader, useListParams } from '@/components/Listing'
 import { graphql } from '@/graphql'
 import type { AppSortField, ServiceSortField } from '@/graphql/graphql'
+import { useT } from '@/i18n'
 
 const AppsDoc = graphql(`
   query Apps($ns: String!, $filter: AppFilter, $sort: AppSort, $page: PageInput) {
@@ -45,6 +46,8 @@ function HostLink({ ns, host }: { ns: string; host: { id: string; hostname: stri
 
 export function Apps() {
   const { ns = '' } = useParams()
+  const t = useT()
+  const ts = t.pages.shared
   const l = useListParams({ sort: 'NAME' })
   const envs = l.list('env')
   const projects = l.list('project')
@@ -57,22 +60,22 @@ export function Apps() {
   const onSort = (by: string) => l.toggleSort(by, l.sort, l.desc)
   const head = (label: string, by: AppSortField) => <SortHeader label={label} by={by} sort={l.sort} desc={l.desc} onSort={onSort} />
   return (
-    <Page title="Apps">
+    <Page title={t.pages.inventory.appsTitle}>
       <FilterBar
-        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder="Chercher une app, un chemin, une version, un framework, un host" />}
+        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder={t.pages.inventory.searchApps} />}
         fields={[
-          chipsField({ label: 'Environnement', short: 'Env', options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
-          pickerField({ label: 'Projet', choose: 'Choisir un projet', options: (data?.namespace?.projects ?? []).map((x) => x.slug), selected: projects, onChange: (v) => l.set({ project: v }) }),
-          versionField({ label: 'Framework', facets: data?.namespace?.facets.frameworks ?? [], value: framework, onChange: (v) => l.set(versionParamChanges('fw', v)) }),
-          versionField({ label: 'Runtime', facets: data?.namespace?.facets.runtimes ?? [], value: runtime, onChange: (v) => l.set(versionParamChanges('rt', v)) }),
+          chipsField({ label: ts.environment, short: ts.env, options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
+          pickerField({ label: ts.project, choose: ts.chooseProject, options: (data?.namespace?.projects ?? []).map((x) => x.slug), selected: projects, onChange: (v) => l.set({ project: v }) }),
+          versionField({ label: ts.framework, facets: data?.namespace?.facets.frameworks ?? [], value: framework, onChange: (v) => l.set(versionParamChanges('fw', v)) }),
+          versionField({ label: ts.runtime, facets: data?.namespace?.facets.runtimes ?? [], value: runtime, onChange: (v) => l.set(versionParamChanges('rt', v)) }),
         ]}
         onClearAll={() => l.set({ env: null, project: null, ...versionParamChanges('fw', null), ...versionParamChanges('rt', null) })}
-        count={list ? `${list.total} apps` : ''}
+        count={list ? ts.apps(list.total) : ''}
       />
 
       {error ? <p role="alert">{error.message}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-        <thead><tr>{head('App', 'NAME')}{head('Projet', 'PROJECT')}{head('Env', 'ENV')}{head('Host', 'HOSTNAME')}{head('Version', 'VERSION')}{head('Framework', 'FRAMEWORK')}<th>Domaine</th></tr></thead>
+        <thead><tr>{head(ts.app, 'NAME')}{head(ts.project, 'PROJECT')}{head(ts.env, 'ENV')}{head(ts.host, 'HOSTNAME')}{head(ts.version, 'VERSION')}{head(ts.framework, 'FRAMEWORK')}<th>{ts.domain}</th></tr></thead>
         <tbody>{(list?.items ?? []).map((a) => (
           <tr key={a.id}>
             <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
@@ -85,13 +88,16 @@ export function Apps() {
           </tr>
         ))}</tbody>
       </table></div>
-      {list ? <Pager page={l.page} size={l.size} total={list.total} noun="apps" onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
+      {list ? <Pager page={l.page} size={l.size} total={list.total} noun={ts.nouns.apps} onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
     </Page>
   )
 }
 
 export function Services() {
   const { ns = '' } = useParams()
+  const t = useT()
+  const ts = t.pages.shared
+  const ti = t.pages.inventory
   const l = useListParams({ sort: 'TYPE' })
   const envs = l.list('env')
   const types = l.list('type')
@@ -102,19 +108,19 @@ export function Services() {
   const onSort = (by: string) => l.toggleSort(by, l.sort, l.desc)
   const head = (label: string, by: ServiceSortField) => <SortHeader label={label} by={by} sort={l.sort} desc={l.desc} onSort={onSort} />
   return (
-    <Page title="Services">
+    <Page title={ti.servicesTitle}>
       <FilterBar
-        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder="Chercher un type, une version, un host" />}
+        search={<SearchInput value={l.q} onChange={(q) => l.set({ q })} placeholder={ti.searchServices} />}
         fields={[
-          pickerField({ label: 'Type', choose: 'Choisir un type', options: data?.namespace?.facets.serviceTypes ?? [], selected: types, onChange: (v) => l.set({ type: v }) }),
-          chipsField({ label: 'Environnement', short: 'Env', options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
+          pickerField({ label: ts.type, choose: ti.chooseType, options: data?.namespace?.facets.serviceTypes ?? [], selected: types, onChange: (v) => l.set({ type: v }) }),
+          chipsField({ label: ts.environment, short: ts.env, options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
         ]}
         onClearAll={() => l.set({ env: null, type: null })}
-        count={list ? `${list.total} services` : ''}
+        count={list ? ti.services(list.total) : ''}
       />
       {error ? <p role="alert">{error.message}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-        <thead><tr>{head('Service', 'TYPE')}<th>Instance</th>{head('Version', 'VERSION')}{head('Host', 'HOSTNAME')}<th>Projet</th><th>Env</th><th>Utilisé par</th></tr></thead>
+        <thead><tr>{head(ti.service, 'TYPE')}<th>{ti.instance}</th>{head(ts.version, 'VERSION')}{head(ts.host, 'HOSTNAME')}<th>{ts.project}</th><th>{ts.env}</th><th>{ts.usedBy}</th></tr></thead>
         <tbody>{(list?.items ?? []).map((s) => (
           <tr key={s.id}>
             <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={s.type} /></span>{s.type}</span></td>
@@ -127,7 +133,7 @@ export function Services() {
           </tr>
         ))}</tbody>
       </table></div>
-      {list ? <Pager page={l.page} size={l.size} total={list.total} noun="services" onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
+      {list ? <Pager page={l.page} size={l.size} total={list.total} noun={ti.servicesNoun} onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} /> : null}
     </Page>
   )
 }

@@ -9,7 +9,8 @@ import { Tabs, useTab } from '@/components/Tabs'
 import { hostOf, nameOf, techOf, UsedBy, type End, type UsedByRow } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { AppPageQuery } from '@/graphql/graphql'
-import { ago, confidenceFr, formatDateTime } from '@/lib/format'
+import { useT } from '@/i18n'
+import { ago, confidenceText, formatDateTime } from '@/lib/format'
 
 const AppPageDoc = graphql(`
   query AppPage($ns: String!, $id: ID!) {
@@ -70,8 +71,6 @@ type App = NonNullable<NonNullable<AppPageQuery['namespace']>['app']>
 type ChainNode = { id: string; kind: string; label: string; hostname?: string | null; project?: string | null; env?: string | null
   entity?: { __typename: string; id?: string } | null; hosts: { id: string }[]; level: number }
 
-const kindFr: Record<string, string> = { APP: 'app', SERVICE: 'service', WEBSERVER: 'proxy', HOST: 'host', EXTERNAL: 'externe' }
-
 // EndCell is the other end of a link: what it is, on which host, of which
 // project.
 function EndCell({ ns, end }: { ns: string; end: End }) {
@@ -94,16 +93,19 @@ export function AppPage() {
   const { ns = '', id = '' } = useParams()
   const { data, loading, error } = useQuery(AppPageDoc, { variables: { ns, id } })
   const a = data?.namespace?.app
+  const t = useT()
+  const ta = t.pages.app
+  const ts = t.pages.shared
   const tabs = [
-    { id: 'general', label: 'Général' },
-    { id: 'uses', label: 'Utilise', count: a?.links.length },
-    { id: 'used-by', label: 'Utilisé par', count: a?.dependents.length },
-    { id: 'config', label: 'Configuration lue', count: a?.dependencies.length },
+    { id: 'general', label: ts.general },
+    { id: 'uses', label: ta.tabs.uses, count: a?.links.length },
+    { id: 'used-by', label: ts.usedBy, count: a?.dependents.length },
+    { id: 'config', label: ta.tabs.config, count: a?.dependencies.length },
   ]
   const [tab, setTab] = useTab(tabs, 'general')
-  if (loading && !a) return <Page title="…"><span className="lc-muted">Chargement…</span></Page>
-  if (error) return <Page title="App"><p role="alert">La fiche n'a pas pu être chargée : {error.message}</p></Page>
-  if (!a) return <Page title="App introuvable"><Link to={`/${ns}/apps`}>Retour aux apps</Link></Page>
+  if (loading && !a) return <Page title="…"><span className="lc-muted">{ts.loading}</span></Page>
+  if (error) return <Page title={ta.failedTitle}><p role="alert">{ts.sheetFailed(error.message)}</p></Page>
+  if (!a) return <Page title={ta.notFound}><Link to={`/${ns}/apps`}>{ta.back}</Link></Page>
   const graph = a.project && a.environment
     ? `/${ns}/graph?${new URLSearchParams({ lens: 'projects', env: a.environment.slug, open: `project:${a.project.slug}@${a.environment.slug}` })}`
     : `/${ns}/graph?${new URLSearchParams({ lens: 'infra', host: a.host.hostname, open: `host:${a.host.id}` })}`
@@ -113,15 +115,15 @@ export function AppPage() {
       meta={<>
         <StatusBadge status={a.host.status} />
         <span>
-          app{a.project ? <> du projet <Link to={`/${ns}/projects/${a.project.slug}`}>{a.project.slug}</Link></> : ''}
-          {a.environment ? ` · ${a.environment.slug}` : ''} · sur <Link className="lc-mono" to={`/${ns}/hosts/${a.host.id}`}>{a.host.hostname}</Link>
+          {ta.meta}{a.project ? <>{ta.ofProject}<Link to={`/${ns}/projects/${a.project.slug}`}>{a.project.slug}</Link></> : ''}
+          {a.environment ? ` · ${a.environment.slug}` : ''}{ta.on}<Link className="lc-mono" to={`/${ns}/hosts/${a.host.id}`}>{a.host.hostname}</Link>
         </span>
         {a.code?.version ? <span className="lc-badge lc-badge--plain lc-mono">{a.code.version}</span> : null}
         <span className="flex-1" />
-        <Link className="lc-btn no-underline" to={graph}>Voir dans le graphe</Link>
+        <Link className="lc-btn no-underline" to={graph}>{ts.seeInGraph}</Link>
       </>}
     >
-      <Tabs label="Contenu de l'app" tabs={tabs} current={tab} onChange={setTab}>
+      <Tabs label={ta.content} tabs={tabs} current={tab} onChange={setTab}>
         {tab === 'general' ? <General ns={ns} app={a} /> : null}
         {tab === 'uses' ? <Uses ns={ns} app={a} /> : null}
         {tab === 'used-by' ? <UsedByTab ns={ns} app={a} /> : null}
@@ -134,37 +136,40 @@ export function AppPage() {
 // General tells what is deployed, and where else the same app runs.
 function General({ ns, app: a }: { ns: string; app: App }) {
   const c = a.code
+  const t = useT()
+  const ta = t.pages.app
+  const ts = t.pages.shared
   return (
     <div className="flex flex-col gap-6">
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="lc-panel lc-panel--card">
           <div className="lc-panel__section">
-            <span className="lc-label">Code déployé</span>
+            <span className="lc-label">{ta.deployedCode}</span>
             {c ? (
               <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
-                {c.version ? <><dt>Version</dt><dd><Copyable value={c.version} /></dd></> : null}
-                {c.commit ? <><dt>Commit</dt><dd><Copyable value={c.commit} shown={c.commit.slice(0, 7)} /></dd></> : null}
-                {c.branch ? <><dt>Branche</dt><dd><Copyable value={c.branch} /></dd></> : null}
-                {c.tag ? <><dt>Tag</dt><dd><Copyable value={c.tag} /></dd></> : null}
-                {c.repository ? <><dt>Dépôt</dt><dd><Copyable value={c.repository} /></dd></> : null}
-                {c.deployedAt ? <><dt>Déployé</dt><dd>{formatDateTime(c.deployedAt)} · {ago(c.deployedAt)}{c.deployedBy ? ` · ${c.deployedBy}` : ''}</dd></> : null}
-                {c.pipelineUrl ? <><dt>Pipeline</dt><dd><a href={c.pipelineUrl} target="_blank" rel="noreferrer">{c.pipelineId ?? c.pipelineUrl}</a></dd></> : null}
-                <dt>Source</dt><dd>{c.source}</dd>
+                {c.version ? <><dt>{ts.version}</dt><dd><Copyable value={c.version} /></dd></> : null}
+                {c.commit ? <><dt>{ts.commit}</dt><dd><Copyable value={c.commit} shown={c.commit.slice(0, 7)} /></dd></> : null}
+                {c.branch ? <><dt>{ta.branch}</dt><dd><Copyable value={c.branch} /></dd></> : null}
+                {c.tag ? <><dt>{ta.tag}</dt><dd><Copyable value={c.tag} /></dd></> : null}
+                {c.repository ? <><dt>{ta.repository}</dt><dd><Copyable value={c.repository} /></dd></> : null}
+                {c.deployedAt ? <><dt>{ts.deployed}</dt><dd>{formatDateTime(c.deployedAt)} · {ago(c.deployedAt)}{c.deployedBy ? ` · ${c.deployedBy}` : ''}</dd></> : null}
+                {c.pipelineUrl ? <><dt>{ta.pipeline}</dt><dd><a href={c.pipelineUrl} target="_blank" rel="noreferrer">{c.pipelineId ?? c.pipelineUrl}</a></dd></> : null}
+                <dt>{ta.source}</dt><dd>{c.source}</dd>
               </dl>
-            ) : <span className="lc-muted">Aucune information de code collectée.</span>}
+            ) : <span className="lc-muted">{ta.noCode}</span>}
           </div>
         </section>
         <section className="lc-panel lc-panel--card">
           <div className="lc-panel__section">
-            <span className="lc-label">App</span>
+            <span className="lc-label">{ts.app}</span>
             <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
-              <dt>Rôle</dt><dd>{a.role}</dd>
-              {a.framework ? <><dt>Framework</dt><dd>{a.framework} {a.frameworkVersion}</dd></> : null}
-              {a.runtime ? <><dt>Runtime</dt><dd>{a.runtime.type} {a.runtime.version}{a.runtime.source ? ` · ${a.runtime.source}` : ''}</dd></> : null}
-              <dt>Chemin</dt><dd><Copyable value={a.path} /></dd>
-              {a.resolvedPath && a.resolvedPath !== a.path ? <><dt>Résolu</dt><dd><Copyable value={a.resolvedPath} /></dd></> : null}
-              {a.vhosts.map((v) => <div key={v} className="contents"><dt>Domaine</dt><dd><Copyable value={v} /></dd></div>)}
-              <dt>Vu depuis</dt><dd>{ago(a.firstSeenAt)}</dd>
+              <dt>{ta.role}</dt><dd>{a.role}</dd>
+              {a.framework ? <><dt>{ts.framework}</dt><dd>{a.framework} {a.frameworkVersion}</dd></> : null}
+              {a.runtime ? <><dt>{ts.runtime}</dt><dd>{a.runtime.type} {a.runtime.version}{a.runtime.source ? ` · ${a.runtime.source}` : ''}</dd></> : null}
+              <dt>{ts.path}</dt><dd><Copyable value={a.path} /></dd>
+              {a.resolvedPath && a.resolvedPath !== a.path ? <><dt>{ta.resolved}</dt><dd><Copyable value={a.resolvedPath} /></dd></> : null}
+              {a.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}
+              <dt>{ts.seenSince}</dt><dd>{ago(a.firstSeenAt)}</dd>
             </dl>
           </div>
         </section>
@@ -178,16 +183,18 @@ function General({ ns, app: a }: { ns: string; app: App }) {
 function Siblings({ ns, app: a }: { ns: string; app: App }) {
   const { data } = useQuery(SiblingsDoc, { variables: { ns, project: a.project!.slug, env: a.environment!.slug, name: a.name } })
   const all = (data?.namespace?.apps.items ?? []).filter((x) => x.name === a.name)
+  const t = useT()
+  const ts = t.pages.shared
   if (all.length < 2) return null
   const versions = new Set(all.map((x) => `${x.code?.version ?? ''}/${x.code?.commit ?? ''}`))
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <h2 className="title m-0">Déploiements en {a.environment!.slug}</h2>
-        {versions.size > 1 ? <span className="lc-badge lc-badge--stale">versions différentes</span> : null}
+        <h2 className="title m-0">{t.pages.app.deploymentsIn(a.environment!.slug)}</h2>
+        {versions.size > 1 ? <span className="lc-badge lc-badge--stale">{t.pages.app.differentVersions}</span> : null}
       </div>
       <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-        <thead><tr><th>Host</th><th>Version</th><th>Commit</th><th>Déployé</th><th>Statut</th></tr></thead>
+        <thead><tr><th>{ts.host}</th><th>{ts.version}</th><th>{ts.commit}</th><th>{ts.deployed}</th><th>{ts.status}</th></tr></thead>
         <tbody>{all.map((x) => (
           <tr key={x.id} style={x.id === a.id ? { background: 'var(--brand-tint)' } : undefined}>
             <td>{x.id === a.id ? <span className="lc-mono">{x.host.hostname}</span> : <Link className="lc-mono" to={`/${ns}/apps/${x.id}`}>{x.host.hostname}</Link>}</td>
@@ -219,14 +226,16 @@ function useChain(ns: string, a: App, way: 'needs' | 'dependents'): ChainNode[] 
 // Chain lists what the app reaches, or what reaches it, through proxies
 // and other apps, level by level.
 function Chain({ ns, nodes, empty }: { ns: string; nodes: ChainNode[] | null; empty: string }) {
-  if (!nodes) return <span className="lc-muted">Chargement…</span>
+  const t = useT()
+  const ts = t.pages.shared
+  if (!nodes) return <span className="lc-muted">{ts.loading}</span>
   if (!nodes.length) return <p className="lc-muted m-0">{empty}</p>
   // A webserver drawn inside the app takes a level: the levels shown
   // follow one another from 1.
   const steps = [...new Set(nodes.map((n) => n.level))].sort((x, y) => x - y)
   return (
     <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-      <thead><tr><th className="lc-num">Niveau</th><th>Nœud</th><th>Type</th><th>Host</th><th>Projet</th><th>Env</th></tr></thead>
+      <thead><tr><th className="lc-num">{t.pages.app.level}</th><th>{t.pages.app.node}</th><th>{ts.type}</th><th>{ts.host}</th><th>{ts.project}</th><th>{ts.env}</th></tr></thead>
       <tbody>{nodes.map((n) => {
         const appId = n.entity?.__typename === 'App' ? n.entity.id : null
         const hostId = n.hosts.length === 1 ? n.hosts[0].id : null
@@ -234,7 +243,7 @@ function Chain({ ns, nodes, empty }: { ns: string; nodes: ChainNode[] | null; em
           <tr key={n.id}>
             <td className="lc-num">{steps.indexOf(n.level) + 1}</td>
             <td>{appId ? <Link className="font-semibold" to={`/${ns}/apps/${appId}`}>{n.label}</Link> : <span className="font-semibold">{n.label}</span>}</td>
-            <td className="text-ink-muted">{kindFr[n.kind] ?? n.kind.toLowerCase()}</td>
+            <td className="text-ink-muted">{t.pages.app.kinds[n.kind] ?? n.kind.toLowerCase()}</td>
             <td>{n.hostname && hostId ? <Link className="lc-mono" to={`/${ns}/hosts/${hostId}`}>{n.hostname}</Link> : null}</td>
             <td>{n.project ? <Link to={`/${ns}/projects/${n.project}`}>{n.project}</Link> : null}</td>
             <td>{n.env}</td>
@@ -247,21 +256,24 @@ function Chain({ ns, nodes, empty }: { ns: string; nodes: ChainNode[] | null; em
 
 // Uses lists the links of the app, then all it needs through them.
 function Uses({ ns, app: a }: { ns: string; app: App }) {
-  const t = useTable(a.links,
+  const tbl = useTable(a.links,
     (l) => [nameOf(l.to), hostOf(l.to)?.hostname ?? '', l.key ?? '', l.rule],
     (l, by) => by === 'key' ? l.key ?? '' : by === 'confidence' ? l.confidence : nameOf(l.to), 'target')
   const chain = useChain(ns, a, 'needs')
-  const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={t.sort.by} desc={t.sort.desc} onSort={t.onSort} />
+  const t = useT()
+  const ta = t.pages.app
+  const ts = t.pages.shared
+  const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={tbl.sort.by} desc={tbl.sort.desc} onSort={tbl.onSort} />
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
-        <h2 className="title m-0">Liens directs</h2>
-        {a.links.length === 0 ? <p className="lc-muted m-0">Aucune dépendance résolue.</p> : (
+        <h2 className="title m-0">{ta.directLinks}</h2>
+        {a.links.length === 0 ? <p className="lc-muted m-0">{ta.noDependency}</p> : (
           <>
-            <SearchInput value={t.q} onChange={t.setQ} placeholder="Chercher une cible, une clé" width={300} />
+            <SearchInput value={tbl.q} onChange={tbl.setQ} placeholder={ta.searchLinks} width={300} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-              <thead><tr>{head('Cible', 'target')}<th>Projet</th>{head('Clé', 'key')}<th>Résolu par</th>{head('Confiance', 'confidence')}</tr></thead>
-              <tbody>{t.shown.map((l) => {
+              <thead><tr>{head(ts.target, 'target')}<th>{ts.project}</th>{head(ts.key, 'key')}<th>{ta.resolvedBy}</th>{head(ts.confidence, 'confidence')}</tr></thead>
+              <tbody>{tbl.shown.map((l) => {
                 const host = hostOf(l.to)
                 return (
                   <tr key={l.id}>
@@ -269,22 +281,19 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
                     <td>{host?.project ? <Link to={`/${ns}/projects/${host.project.slug}`}>{host.project.slug}</Link> : <span className="lc-muted">—</span>}</td>
                     <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>{l.key ? <Copyable value={l.key} /> : null}</td>
                     <td className="text-ink-muted">{l.rule}{l.reason ? ` · ${l.reason}` : ''}</td>
-                    <td>{confidenceFr[l.confidence]}</td>
+                    <td>{confidenceText(l.confidence)}</td>
                   </tr>
                 )
               })}</tbody>
             </table></div>
-            <Pager page={t.page} size={t.size} total={t.list.length} noun="liens" onPage={t.setPage} onSize={t.setSize} />
+            <Pager page={tbl.page} size={tbl.size} total={tbl.list.length} noun={ts.nouns.links} onPage={tbl.setPage} onSize={tbl.setSize} />
           </>
         )}
       </section>
       <section className="flex flex-col gap-3">
-        <h2 className="title m-0">Dépendances indirectes</h2>
-        <p className="lc-muted m-0 text-[13px]">
-          Ce dont l'app a besoin sans l'appeler elle-même : niveau 1, ce qu'elle appelle ; niveau 2, ce dont ceux-là ont besoin, et ainsi de suite.
-          Un proxy n'est suivi que pour les domaines qu'on lui demande.
-        </p>
-        <Chain ns={ns} nodes={chain} empty="L'app n'a besoin de rien d'autre." />
+        <h2 className="title m-0">{ta.indirectDeps}</h2>
+        <p className="lc-muted m-0 text-[13px]">{ta.indirectDepsHelp}</p>
+        <Chain ns={ns} nodes={chain} empty={ta.needsNothing} />
       </section>
     </div>
   )
@@ -295,19 +304,17 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
 function UsedByTab({ ns, app: a }: { ns: string; app: App }) {
   const rows: UsedByRow[] = a.dependents.map((l) => ({ ...l, target: { name: a.name, tech: a.framework ?? 'app' } }))
   const chain = useChain(ns, a, 'dependents')
+  const ta = useT().pages.app
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
-        <h2 className="title m-0">Liens directs</h2>
+        <h2 className="title m-0">{ta.directLinks}</h2>
         <UsedBy ns={ns} rows={rows} />
       </section>
       <section className="flex flex-col gap-3">
-        <h2 className="title m-0">Utilisateurs indirects</h2>
-        <p className="lc-muted m-0 text-[13px]">
-          Ce qui cesse de marcher sans elle, même sans l'appeler directement : niveau 1, ce qui la sert ou l'appelle (un proxy) ;
-          niveau 2, les apps qui passent par ce proxy pour ses domaines, et ainsi de suite.
-        </p>
-        <Chain ns={ns} nodes={chain} empty="Rien d'autre ne dépend de l'app." />
+        <h2 className="title m-0">{ta.indirectUsers}</h2>
+        <p className="lc-muted m-0 text-[13px]">{ta.indirectUsersHelp}</p>
+        <Chain ns={ns} nodes={chain} empty={ta.nobodyDepends} />
       </section>
     </div>
   )
@@ -327,10 +334,12 @@ function targetText(target: unknown): string {
 // key no link resolves is told.
 function Config({ app: a }: { app: App }) {
   const resolved = new Set(a.links.map((l) => l.key).filter(Boolean))
-  if (!a.dependencies.length) return <p className="lc-muted m-0">Aucune dépendance lue dans la configuration.</p>
+  const t = useT()
+  const ta = t.pages.app
+  if (!a.dependencies.length) return <p className="lc-muted m-0">{ta.noConfig}</p>
   return (
     <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-      <thead><tr><th>Clé</th><th>Cible</th><th>Schéma</th><th className="lc-num">Port</th><th>État</th></tr></thead>
+      <thead><tr><th>{t.pages.shared.key}</th><th>{t.pages.shared.target}</th><th>{ta.scheme}</th><th className="lc-num">{ta.port}</th><th>{ta.state}</th></tr></thead>
       <tbody>{a.dependencies.map((d) => {
         const target = targetText(d.target)
         return (
@@ -339,8 +348,8 @@ function Config({ app: a }: { app: App }) {
             <td className="lc-mono" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{target}{d.path ? ` ${d.path}` : ''}</td>
             <td className="lc-mono">{d.scheme}</td>
             <td className="lc-num">{d.port}</td>
-            <td>{d.unparsed ? <span className="lc-badge lc-badge--stale">non lue</span> : resolved.has(d.key) ? <span className="lc-badge">résolue</span>
-              : <span className="lc-badge lc-badge--inactive">non résolue</span>}</td>
+            <td>{d.unparsed ? <span className="lc-badge lc-badge--stale">{ta.unparsed}</span> : resolved.has(d.key) ? <span className="lc-badge">{ta.resolvedState}</span>
+              : <span className="lc-badge lc-badge--inactive">{ta.unresolved}</span>}</td>
           </tr>
         )
       })}</tbody>

@@ -1,4 +1,6 @@
 import type { Kind } from '@/components/Icon'
+import { t } from '@/i18n'
+import { plural } from '@/lib/format'
 import { techOfDomain } from '@/lib/logos'
 import type { GNode } from './query'
 
@@ -61,8 +63,8 @@ export function stacked(n: GNode): boolean {
 
 // title is the name of a node, as the card and the panel write it.
 export function title(n: GNode): string {
-  if (n.kind === 'EXTERNAL' && n.id.startsWith('externals:')) return 'Externes'
-  if (n.kind === 'PROJECT' && !n.label) return 'sans projet'
+  if (n.kind === 'EXTERNAL' && n.id.startsWith('externals:')) return t().graph.card.externals
+  if (n.kind === 'PROJECT' && !n.label) return t().graph.card.noProject
   return n.label
 }
 
@@ -70,7 +72,7 @@ export function title(n: GNode): string {
 export function info(n: GNode): string {
   switch (n.kind) {
     case 'PROJECT':
-      return n.role === 'app' ? `${n.count} host${n.count > 1 ? 's' : ''} · ${n.apps} app${n.apps > 1 ? 's' : ''}` : (n.detail ?? '')
+      return n.role === 'app' ? `${plural(n.count, 'host')} · ${plural(n.apps, 'app')}` : (n.detail ?? '')
     case 'HOST':
       if (n.status === 'STALE' || n.status === 'INACTIVE') return n.detail ?? ''
       return n.role === 'app' ? [n.project, n.detail].filter(Boolean).join(' · ') : (n.detail ?? '')
@@ -83,7 +85,7 @@ export function info(n: GNode): string {
     case 'RUNTIME':
       return n.detail ?? ''
     case 'EXTERNAL':
-      return n.id.startsWith('externals:') ? `${n.count} cible${n.count > 1 ? 's' : ''}` : (n.detail ?? '')
+      return n.id.startsWith('externals:') ? t().graph.card.targets(n.count) : (n.detail ?? '')
   }
   return ''
 }

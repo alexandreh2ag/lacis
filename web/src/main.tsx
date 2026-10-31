@@ -5,13 +5,16 @@ import { BrowserRouter } from 'react-router'
 import { client } from './apollo'
 import { App } from './App'
 import { basename } from './config'
+import { LangProvider } from './i18n/Provider'
 import './styles/index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ApolloProvider client={client}>
       <BrowserRouter basename={basename}>
-        <App />
+        <LangProvider>
+          <App />
+        </LangProvider>
       </BrowserRouter>
     </ApolloProvider>
   </StrictMode>,

@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { lang, useT } from '@/i18n'
+import { statusText } from '@/lib/format'
 import { Chevron } from './Icon'
 
 // useListParams keeps the state of a listing in the URL: a shared link
@@ -45,7 +47,7 @@ export function useTable<T>(rows: T[], text: (r: T) => string[], value: (r: T, b
     .sort((a, b) => {
       const x = value(a, sort.by)
       const y = value(b, sort.by)
-      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'fr', { numeric: true })
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), lang(), { numeric: true })
       return sort.desc ? -c : c
     }), [rows, q, sort, text, value])
   return {
@@ -138,34 +140,35 @@ export function pages(current: number, count: number): (number | null)[] {
 export function Pager({ page, size, total, noun, onPage, onSize, sizes = [20, 50, 100] }: {
   page: number; size: number; total: number; noun: string; onPage: (p: number) => void; onSize: (s: number) => void; sizes?: number[]
 }) {
+  const t = useT().components.pager
   const id = useId()
   const count = Math.max(1, Math.ceil(total / size))
   const first = total === 0 ? 0 : (page - 1) * size + 1
   const last = Math.min(total, page * size)
   return (
-    <nav className="lc-pager" aria-label="Pagination">
-      <span className="lc-pager__range"><b>{first}–{last}</b> sur <b>{total}</b> {noun}</span>
+    <nav className="lc-pager" aria-label={t.label}>
+      <span className="lc-pager__range"><b>{first}–{last}</b> {t.of} <b>{total}</b> {noun}</span>
       <label className="lc-pager__size" htmlFor={id}>
-        Par page
+        {t.perPage}
         <select id={id} value={size} onChange={(e) => onSize(Number(e.target.value))}>
           {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
       <span className="lc-pager__pages">
-        <button type="button" aria-label="Page précédente" disabled={page <= 1} onClick={() => onPage(page - 1)}><Chevron dir="left" /></button>
+        <button type="button" aria-label={t.previous} disabled={page <= 1} onClick={() => onPage(page - 1)}><Chevron dir="left" /></button>
         {pages(page, count).map((p, i) => p === null
           ? <span key={'gap' + i} aria-hidden="true">…</span>
           : <button key={p} type="button" aria-current={p === page ? 'page' : undefined} onClick={() => onPage(p)}>{p}</button>)}
-        <button type="button" aria-label="Page suivante" disabled={page >= count} onClick={() => onPage(page + 1)}><Chevron dir="right" /></button>
+        <button type="button" aria-label={t.next} disabled={page >= count} onClick={() => onPage(page + 1)}><Chevron dir="right" /></button>
       </span>
     </nav>
   )
 }
 
 export function StatusBadge({ status, lastSeen }: { status: string | null | undefined; lastSeen?: string }) {
-  if (status === 'STALE') return <span className="lc-badge lc-badge--stale" title={lastSeen}>Stale</span>
-  if (status === 'INACTIVE') return <span className="lc-badge lc-badge--inactive" title={lastSeen}>Inactif</span>
-  return <span className="lc-badge">Actif</span>
+  if (status === 'STALE') return <span className="lc-badge lc-badge--stale" title={lastSeen}>{statusText('STALE')}</span>
+  if (status === 'INACTIVE') return <span className="lc-badge lc-badge--inactive" title={lastSeen}>{statusText('INACTIVE')}</span>
+  return <span className="lc-badge">{statusText('ACTIVE')}</span>
 }
 
 // envOptions are the envs of a namespace in their order, as chips.
@@ -173,4 +176,7 @@ export function envOptions(envs: { slug: string; sortOrder: number }[] | undefin
   return [...(envs ?? [])].sort((a, b) => a.sortOrder - b.sortOrder).map((e) => ({ value: e.slug, label: e.slug }))
 }
 
-export const statusOptions: ChipOption[] = [{ value: 'ACTIVE', label: 'actif' }, { value: 'STALE', label: 'stale' }, { value: 'INACTIVE', label: 'inactif' }]
+// statusOptions name the statuses in the language spoken when read.
+export const statusOptions: ChipOption[] = ['ACTIVE', 'STALE', 'INACTIVE'].map((value) => ({
+  value, get label() { return statusText(value).toLowerCase() },
+}))

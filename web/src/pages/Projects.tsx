@@ -6,6 +6,7 @@ import { Page } from '@/components/Layout'
 import { chipsField, FilterBar } from '@/components/FilterBar'
 import { envOptions, Pager, SearchInput, SortHeader, useListParams } from '@/components/Listing'
 import { graphql } from '@/graphql'
+import { t as text, useT } from '@/i18n'
 
 const ProjectsDoc = graphql(`
   query Projects($ns: String!) {
@@ -52,7 +53,7 @@ export function projectRows(graph: ProjectGraph): ProjectRow[] {
     const to = nodes.get(e.to)
     if (!from || !to || from.kind !== 'PROJECT') continue
     const r = by.get(from.project || from.label)
-    const name = to.kind === 'PROJECT' ? to.label : 'externes'
+    const name = to.kind === 'PROJECT' ? to.label : text().pages.projects.externals
     if (r && name !== r.slug && !r.deps.includes(name)) r.deps.push(name)
   }
   return [...by.values()]
@@ -61,6 +62,9 @@ export function projectRows(graph: ProjectGraph): ProjectRow[] {
 // ProjectsTable lists the projects of a namespace, its search, filters,
 // order and page in the URL.
 export function ProjectsTable({ ns, rows, environments }: { ns: string; rows: ProjectRow[]; environments: { slug: string; sortOrder: number }[] }) {
+  const t = useT()
+  const tp = t.pages.projects
+  const ts = t.pages.shared
   const l = useListParams({ sort: 'slug' })
   const envs = l.list('env')
   const q = l.q.toLowerCase()
@@ -76,23 +80,23 @@ export function ProjectsTable({ ns, rows, environments }: { ns: string; rows: Pr
   return (
     <>
       <FilterBar
-        search={<SearchInput value={l.q} onChange={(v) => l.set({ q: v })} placeholder="Chercher un projet, une dépendance" width={300} />}
-        fields={[chipsField({ label: 'Environnement', short: 'Env', options: envOptions(environments), selected: envs, onChange: (v) => l.set({ env: v }) })]}
-        count={`${list.length} projets`}
+        search={<SearchInput value={l.q} onChange={(v) => l.set({ q: v })} placeholder={tp.search} width={300} />}
+        fields={[chipsField({ label: ts.environment, short: ts.env, options: envOptions(environments), selected: envs, onChange: (v) => l.set({ env: v }) })]}
+        count={tp.count(list.length)}
       />
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="lc-table">
           <thead><tr>
-            <SortHeader label="Projet" by="slug" sort={l.sort} desc={l.desc} onSort={onSort} />
-            <th>Envs</th>
-            <SortHeader label="Hosts" by="hosts" sort={l.sort} desc={l.desc} onSort={onSort} num />
-            <SortHeader label="Apps" by="apps" sort={l.sort} desc={l.desc} onSort={onSort} num />
-            <th>Dépend de</th>
+            <SortHeader label={ts.project} by="slug" sort={l.sort} desc={l.desc} onSort={onSort} />
+            <th>{tp.envs}</th>
+            <SortHeader label={tp.hosts} by="hosts" sort={l.sort} desc={l.desc} onSort={onSort} num />
+            <SortHeader label={tp.apps} by="apps" sort={l.sort} desc={l.desc} onSort={onSort} num />
+            <th>{tp.dependsOn}</th>
           </tr></thead>
           <tbody>
             {list.slice((l.page - 1) * l.size, l.page * l.size).map((r) => (
               <tr key={r.slug}>
-                <td><span className="lc-copyable"><Link className="lc-mono font-semibold" to={`/${ns}/projects/${r.slug}`}>{r.slug || 'sans projet'}</Link>{r.slug ? <CopyButton value={r.slug} /> : null}</span></td>
+                <td><span className="lc-copyable"><Link className="lc-mono font-semibold" to={`/${ns}/projects/${r.slug}`}>{r.slug || ts.noProject}</Link>{r.slug ? <CopyButton value={r.slug} /> : null}</span></td>
                 <td>{r.envs.join(', ')}</td>
                 <td className="lc-num">{r.hosts}</td>
                 <td className="lc-num">{r.apps}</td>
@@ -102,7 +106,7 @@ export function ProjectsTable({ ns, rows, environments }: { ns: string; rows: Pr
           </tbody>
         </table>
       </div>
-      <Pager page={l.page} size={l.size} total={list.length} noun="projets" onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} />
+      <Pager page={l.page} size={l.size} total={list.length} noun={ts.nouns.projects} onPage={l.setPage} onSize={(s) => l.set({ size: String(s) })} />
     </>
   )
 }
@@ -112,10 +116,11 @@ export function Projects() {
   const { data, error } = useQuery(ProjectsDoc, { variables: { ns } })
   const n = data?.namespace
   const rows = useMemo(() => (n ? projectRows(n.graph) : []), [n])
+  const t = useT()
   return (
-    <Page title="Projets">
-      {error ? <p role="alert">Les projets n'ont pas pu être chargés : {error.message}</p> : null}
-      {n ? <ProjectsTable ns={ns} rows={rows} environments={n.environments} /> : !error ? <span className="lc-muted">Chargement…</span> : null}
+    <Page title={t.pages.projects.title}>
+      {error ? <p role="alert">{t.pages.projects.failed(error.message)}</p> : null}
+      {n ? <ProjectsTable ns={ns} rows={rows} environments={n.environments} /> : !error ? <span className="lc-muted">{t.pages.shared.loading}</span> : null}
     </Page>
   )
 }

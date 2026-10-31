@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import type { VersionOp } from '@/graphql/graphql'
+import { useT } from '@/i18n'
 import type { FilterField } from './FilterBar'
 
 // VersionFacet is a framework or a runtime, and the versions seen.
@@ -23,6 +24,7 @@ export const ops: { value: VersionOp; label: string }[] = [
 // it compares to: php ≥ 7.1. The versions seen in the namespace fill the
 // version in one click.
 function VersionControl({ label, facets, value, onChange }: { label: string; facets: VersionFacet[]; value: VersionValue | null; onChange: (v: VersionValue | null) => void }) {
+  const t = useT().components.version
   const id = useId()
   const [version, setVersion] = useState(value?.version ?? '')
   useEffect(() => setVersion(value?.version ?? ''), [value?.version])
@@ -39,21 +41,21 @@ function VersionControl({ label, facets, value, onChange }: { label: string; fac
         <label htmlFor={`${id}-name`} className="sr-only">{label}</label>
         <select id={`${id}-name`} className="lc-input w-[110px]" value={value?.name ?? ''}
           onChange={(e) => onChange(e.target.value ? { name: e.target.value, op: value?.op ?? 'GTE', version: '' } : null)}>
-          <option value="">Tous</option>
+          <option value="">{t.all}</option>
           {facets.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
         </select>
-        <label htmlFor={`${id}-op`} className="sr-only">Comparaison</label>
+        <label htmlFor={`${id}-op`} className="sr-only">{t.comparison}</label>
         <select id={`${id}-op`} className="lc-input w-[60px] font-mono" value={value?.op ?? 'GTE'} disabled={!value}
           onChange={(e) => value && onChange({ ...value, op: e.target.value as VersionOp })}>
           {ops.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <label htmlFor={`${id}-version`} className="sr-only">Version</label>
+        <label htmlFor={`${id}-version`} className="sr-only">{t.version}</label>
         <input id={`${id}-version`} className="lc-input w-[96px] font-mono" placeholder="7.1" disabled={!value} value={version}
           onChange={(e) => setVersion(e.target.value)} />
       </div>
       {value && seen.length ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] text-ink-muted">Vues :</span>
+          <span className="text-[12px] text-ink-muted">{t.seen}</span>
           {seen.map((v) => (
             <button key={v} type="button" className="lc-chip font-mono" aria-pressed={value.version === v} onClick={() => onChange({ ...value, version: v })}>{v}</button>
           ))}

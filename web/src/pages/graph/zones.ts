@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { NODE_H, NODE_W } from './layout'
 import type { GEdge, GNode, GraphData } from './query'
 
@@ -35,8 +36,6 @@ export interface Zone {
   height: number
 }
 
-const rowLabels: Record<RowKey, string> = { apps: 'Apps', components: 'Webservers et services', runtimes: 'Runtimes' }
-
 function rowOf(n: GNode): RowKey {
   return n.kind === 'APP' ? 'apps' : n.kind === 'RUNTIME' ? 'runtimes' : 'components'
 }
@@ -56,7 +55,7 @@ export function planZones(graph: GraphData): Map<string, Zone> {
         .sort((a, b) => Number(!a.divergences.length) - Number(!b.divergences.length) || a.label.localeCompare(b.label, 'fr', { numeric: true }))
       if (!all.length) continue
       const shown = all.length > MAX_SHOWN ? all.slice(0, MAX_SHOWN - 1) : all
-      rows.push({ key, label: rowLabels[key], total: all.length, shown, more: all.length - shown.length, moreId: `more:${g.id}|${key}`,
+      rows.push({ key, label: t().graph.zone.rows[key], total: all.length, shown, more: all.length - shown.length, moreId: `more:${g.id}|${key}`,
         top: ZONE_HEAD + rows.length * ROW_STEP })
     }
     zones.set(g.id, { id: g.id, node, rows, width: ZONE_W, height: ZONE_HEAD + Math.max(rows.length, 1) * ROW_STEP })

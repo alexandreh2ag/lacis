@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { errorMessage } from '@/components/Dialog'
 import { graphql } from '@/graphql'
 import type { AdminTasksQuery } from '@/graphql/graphql'
+import { t as text, useT } from '@/i18n'
 import { ago, formatDateTime } from '@/lib/format'
 
 const TasksDoc = graphql(`
@@ -29,36 +30,9 @@ const RetryTaskRunDoc = graphql(`
 
 type Run = AdminTasksQuery['tasks'][number]['runs'][number]
 
-// tasksFr names the jobs and says what they do.
-export const tasksFr: Record<string, { label: string; detail: string }> = {
-  purge_snapshots: { label: 'Purge des snapshots', detail: 'Supprime les snapshots hors de la rétention de leur namespace, en gardant toujours le dernier de chaque host.' },
-  purge_removed_entities: { label: 'Purge des entités retirées', detail: 'Supprime définitivement les apps, services, serveurs web et runtimes retirés depuis plus de la durée configurée (90 jours par défaut).' },
-  purge_expired_tokens: { label: 'Purge des tokens et sessions expirés', detail: 'Supprime les tokens d\'enrôlement expirés qui n\'ont enrôlé aucun agent, et les sessions expirées.' },
-  detect_token_conflicts: { label: 'Détection des hosts clonés', detail: 'Repère les agents dont deux machines partagent le token : leurs snapshots alternent entre deux noms d\'hôte sur 24 h. Ils sont signalés dans l\'onglet Agents.' },
-  purge_inactive_hosts: { label: 'Purge des hosts inactifs', detail: 'Supprime les hosts sans snapshot depuis plus de la durée configurée (180 jours par défaut), comme une suppression à la main. Désactivée par défaut.' },
-  normalize_snapshot: { label: 'Normalisation d\'un snapshot', detail: '' },
-  recompute_links: { label: 'Calcul des liens', detail: '' },
-}
-
-const statesFr: Record<string, { label: string; tone: string }> = {
-  available: { label: 'En attente', tone: 'lc-badge--plain' },
-  pending: { label: 'En attente', tone: 'lc-badge--plain' },
-  scheduled: { label: 'Programmée', tone: 'lc-badge--plain' },
-  running: { label: 'En cours', tone: 'lc-badge--stale' },
-  retryable: { label: 'Nouvel essai prévu', tone: 'lc-badge--stale' },
-  completed: { label: 'Terminée', tone: '' },
-  discarded: { label: 'Échec', tone: 'lc-badge--error' },
-  cancelled: { label: 'Annulée', tone: 'lc-badge--inactive' },
-}
-
-// outputFr says what a run changed: « 12 snapshots supprimés ».
-const outputFr: Record<string, [string, string]> = {
-  snapshots: ['snapshot supprimé', 'snapshots supprimés'],
-  entities: ['entité supprimée', 'entités supprimées'],
-  tokens: ['token supprimé', 'tokens supprimés'],
-  sessions: ['session supprimée', 'sessions supprimées'],
-  conflicts: ['token partagé', 'tokens partagés'],
-  hosts: ['host supprimé', 'hosts supprimés'],
+const tones: Record<string, string> = {
+  available: 'lc-badge--plain', pending: 'lc-badge--plain', scheduled: 'lc-badge--plain', running: 'lc-badge--stale',
+  retryable: 'lc-badge--stale', completed: '', discarded: 'lc-badge--error', cancelled: 'lc-badge--inactive',
 }
 
 export function outputText(output: unknown): string {
@@ -66,9 +40,8 @@ export function outputText(output: unknown): string {
   return Object.entries(output as Record<string, unknown>)
     .filter(([, v]) => typeof v === 'number')
     .map(([k, v]) => {
-      const n = v as number
-      const words = outputFr[k]
-      return words ? `${n} ${n > 1 ? words[1] : words[0]}` : `${k} : ${n}`
+      const said = text().admin.tasks.output[k]
+      return said ? said(v as number) : `${k} : ${v as number}`
     })
     .join(', ')
 }
@@ -79,8 +52,8 @@ export function pending(state: string): boolean {
 }
 
 function StateBadge({ run }: { run: Run }) {
-  const s = statesFr[run.state] ?? { label: run.state, tone: 'lc-badge--plain' }
-  return <span className={`lc-badge ${s.tone}`}>{s.label}{run.attempt > 1 ? ` · essai ${run.attempt}/${run.maxAttempts}` : ''}</span>
+  const k = useT().admin.tasks
+  return <span className={`lc-badge ${tones[run.state] ?? 'lc-badge--plain'}`}>{k.states[run.state] ?? run.state}{run.attempt > 1 ? k.attempt(run.attempt, run.maxAttempts) : ''}</span>
 }
 
 function RunLine({ run }: { run: Run }) {
@@ -106,9 +79,11 @@ export function Tasks({ write }: { write: boolean }) {
   const [retry] = useMutation(RetryTaskRunDoc)
   const [open, setOpen] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const t = useT()
+  const k = t.admin.tasks
 
   // A run not over yet is followed until it is.
-  const inFlight = !!data?.tasks.some((t) => t.runs.some((r) => pending(r.state)))
+  const inFlight = !!data?.tasks.some((x) => x.runs.some((r) => pending(r.state)))
   useEffect(() => {
     if (inFlight) startPolling(2000)
     else stopPolling()
@@ -125,58 +100,57 @@ export function Tasks({ write }: { write: boolean }) {
     }
   }
 
-  if (error) return <p role="alert">Les tâches n'ont pas pu être chargées : {error.message}</p>
-  if (!data) return <span className="lc-muted">Chargement…</span>
+  if (error) return <p role="alert">{k.loadError}{error.message}</p>
+  if (!data) return <span className="lc-muted">{t.admin.loading}</span>
   const cols = write ? 4 : 3
   return (
     <>
-      <p className="lc-muted m-0 text-[13px]">Les horaires viennent de <code className="lc-mono">workers.schedules</code> dans <code className="lc-mono">server.yaml</code> (cron) ;
-        sans horaire, une tâche ne tourne qu'à la main. Une tâche en échec est relancée jusqu'à 5 fois, avec un délai croissant.</p>
+      <p className="lc-muted m-0 text-[13px]">{k.intro[0]}<code className="lc-mono">workers.schedules</code>{k.intro[1]}<code className="lc-mono">server.yaml</code>{k.intro[2]}</p>
       {message ? <div className="lc-alert" role="alert">{message}</div> : null}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="lc-table">
-          <thead><tr><th>Tâche</th><th>Planification</th><th>Dernière exécution</th>{write ? <th><span className="sr-only">Actions</span></th> : null}</tr></thead>
+          <thead><tr><th>{k.task}</th><th>{k.schedule}</th><th>{k.lastRun}</th>{write ? <th><span className="sr-only">{t.admin.actions}</span></th> : null}</tr></thead>
           <tbody>
-            {data.tasks.map((t) => {
-              const fr = tasksFr[t.kind]
-              const last = t.runs[0]
+            {data.tasks.map((task) => {
+              const said = k.kinds[task.kind]
+              const last = task.runs[0]
               const busy = !!last && pending(last.state)
               return (
-                <Fragment key={t.kind}>
+                <Fragment key={task.kind}>
                   <tr className="align-top">
                     <td style={{ whiteSpace: 'normal', minWidth: 280, maxWidth: 460 }}>
-                      <div className="font-semibold">{fr?.label ?? t.kind}</div>
-                      <div className="lc-mono text-[12px] text-ink-muted">{t.kind}</div>
-                      {fr?.detail ? <div className="mt-1 text-[12.5px] leading-[18px] text-ink-muted">{fr.detail}</div> : null}
+                      <div className="font-semibold">{said?.label ?? task.kind}</div>
+                      <div className="lc-mono text-[12px] text-ink-muted">{task.kind}</div>
+                      {said?.detail ? <div className="mt-1 text-[12.5px] leading-[18px] text-ink-muted">{said.detail}</div> : null}
                     </td>
                     <td>
-                      {t.schedule ? (
+                      {task.schedule ? (
                         <span className="flex flex-col leading-[18px]">
-                          <code className="lc-mono">{t.schedule}</code>
-                          {t.nextRunAt ? <span className="text-[12.5px] text-ink-muted">prochaine : {formatDateTime(t.nextRunAt)}</span> : null}
+                          <code className="lc-mono">{task.schedule}</code>
+                          {task.nextRunAt ? <span className="text-[12.5px] text-ink-muted">{k.next(formatDateTime(task.nextRunAt))}</span> : null}
                         </span>
-                      ) : <span className="lc-muted">à la main</span>}
+                      ) : <span className="lc-muted">{k.byHand}</span>}
                     </td>
                     <td style={{ whiteSpace: 'normal', minWidth: 220 }}>
-                      {last ? <RunLine run={last} /> : <span className="lc-muted">jamais</span>}
-                      {t.runs.length > 1 ? (
-                        <button type="button" className="lc-more mt-1" aria-expanded={open === t.kind} onClick={() => setOpen(open === t.kind ? null : t.kind)}>
-                          {open === t.kind ? 'Masquer l\'historique' : `Historique (${t.runs.length})`}
+                      {last ? <RunLine run={last} /> : <span className="lc-muted">{t.admin.never}</span>}
+                      {task.runs.length > 1 ? (
+                        <button type="button" className="lc-more mt-1" aria-expanded={open === task.kind} onClick={() => setOpen(open === task.kind ? null : task.kind)}>
+                          {open === task.kind ? k.hideHistory : k.history(task.runs.length)}
                         </button>
                       ) : null}
                     </td>
                     {write ? (
                       <td className="lc-num">
                         <button type="button" className="lc-btn lc-btn--small" disabled={busy}
-                          onClick={() => void act(() => runTask({ variables: { kind: t.kind } }))}>{busy ? 'En cours…' : 'Lancer maintenant'}</button>
+                          onClick={() => void act(() => runTask({ variables: { kind: task.kind } }))}>{busy ? k.running : k.runNow}</button>
                       </td>
                     ) : null}
                   </tr>
-                  {open === t.kind ? (
+                  {open === task.kind ? (
                     <tr>
                       <td colSpan={cols} className="bg-surface">
                         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                          {t.runs.map((r) => <li key={r.id}><RunLine run={r} /></li>)}
+                          {task.runs.map((r) => <li key={r.id}><RunLine run={r} /></li>)}
                         </ul>
                       </td>
                     </tr>
@@ -188,21 +162,21 @@ export function Tasks({ write }: { write: boolean }) {
         </table>
       </div>
 
-      <h2 className="m-0 mt-2 text-[17px] font-semibold">Échecs</h2>
-      {data.taskFailures.length === 0 ? <p className="lc-muted m-0">Aucun échec : toutes les tâches, planifiées ou non, ont abouti.</p> : (
+      <h2 className="m-0 mt-2 text-[17px] font-semibold">{k.failures}</h2>
+      {data.taskFailures.length === 0 ? <p className="lc-muted m-0">{k.noFailure}</p> : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="lc-table">
-            <thead><tr><th>Tâche</th><th>État</th><th>Dernière erreur</th>{write ? <th><span className="sr-only">Actions</span></th> : null}</tr></thead>
+            <thead><tr><th>{k.task}</th><th>{k.state}</th><th>{k.lastError}</th>{write ? <th><span className="sr-only">{t.admin.actions}</span></th> : null}</tr></thead>
             <tbody>
               {data.taskFailures.map((r) => (
                 <tr key={r.id} className="align-top">
-                  <td><div className="font-semibold">{tasksFr[r.kind]?.label ?? r.kind}</div><div className="lc-mono text-[12px] text-ink-muted">{r.kind} · #{r.id}</div></td>
+                  <td><div className="font-semibold">{k.kinds[r.kind]?.label ?? r.kind}</div><div className="lc-mono text-[12px] text-ink-muted">{r.kind} · #{r.id}</div></td>
                   <td><span className="flex flex-col gap-0.5"><StateBadge run={r} />
                     <span className="text-[12.5px] text-ink-muted">{formatDateTime(r.finalizedAt ?? r.attemptedAt ?? r.createdAt)}</span></span></td>
                   <td className="lc-mono text-[12px]" style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 520 }}>{r.errors[r.errors.length - 1] ?? '—'}</td>
                   {write ? (
                     <td className="lc-num">
-                      <button type="button" className="lc-btn lc-btn--small" onClick={() => void act(() => retry({ variables: { id: r.id } }))}>Relancer</button>
+                      <button type="button" className="lc-btn lc-btn--small" onClick={() => void act(() => retry({ variables: { id: r.id } }))}>{k.retry}</button>
                     </td>
                   ) : null}
                 </tr>

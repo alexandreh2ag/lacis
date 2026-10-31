@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useT } from '@/i18n'
 import { Chevron } from './Icon'
 
 // PickerShown is the most options the list shows: past it, a search
@@ -13,6 +14,7 @@ export function MultiPicker({ label, options, selected, onChange }: {
   selected: string[]
   onChange: (values: string[]) => void
 }) {
+  const t = useT().components
   const id = useId()
   const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -54,16 +56,16 @@ export function MultiPicker({ label, options, selected, onChange }: {
         {label}<Chevron dir="down" />
       </button>
       {selected.map((v) => (
-        <button key={v} type="button" className="lc-chip" aria-pressed="true" aria-label={`Retirer ${v}`}
+        <button key={v} type="button" className="lc-chip" aria-pressed="true" aria-label={t.remove(v)}
           onClick={() => onChange(selected.filter((x) => x !== v))}>
           {v} <span aria-hidden="true">×</span>
         </button>
       ))}
       {open ? (
-        <div role="dialog" aria-label={`Choisir : ${label}`} className="lc-panel absolute left-0 top-8 z-50 w-72">
+        <div role="dialog" aria-label={t.multiPicker.choose(label)} className="lc-panel absolute left-0 top-8 z-50 w-72">
           <div className="lc-panel__section">
-            <label htmlFor={id} className="sr-only">Chercher</label>
-            <input id={id} className="lc-input w-full" type="search" placeholder="Chercher" autoFocus autoComplete="off"
+            <label htmlFor={id} className="sr-only">{t.multiPicker.search}</label>
+            <input id={id} className="lc-input w-full" type="search" placeholder={t.multiPicker.search} autoFocus autoComplete="off"
               role="combobox" aria-expanded aria-controls={`${id}-list`} aria-activedescendant={shown[active] ? `${id}-${active}` : undefined}
               value={q} onChange={(e) => { setQ(e.target.value); setActive(0) }} onKeyDown={onKey} />
             <ul id={`${id}-list`} role="listbox" aria-label={label} className="m-0 flex list-none flex-col p-0">
@@ -75,9 +77,9 @@ export function MultiPicker({ label, options, selected, onChange }: {
                 </li>
               ))}
             </ul>
-            {found.length === 0 ? <span className="lc-muted text-[13px]">{free.length ? 'Aucun ne correspond.' : 'Tous sont choisis.'}</span> : null}
+            {found.length === 0 ? <span className="lc-muted text-[13px]">{free.length ? t.noneMatch : t.multiPicker.allChosen}</span> : null}
             {found.length > PickerShown ? (
-              <span className="lc-muted text-[12.5px]" role="status">{PickerShown} affichés sur {found.length} : affinez la recherche.</span>
+              <span className="lc-muted text-[12.5px]" role="status">{t.shown(PickerShown, found.length)}</span>
             ) : null}
           </div>
         </div>

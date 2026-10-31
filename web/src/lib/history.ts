@@ -1,5 +1,7 @@
-// describe writes a change event of the history in French: a title and the
-// fields that changed, before → after.
+import { t } from '@/i18n'
+
+// describe writes a change event of the history in the language spoken: a
+// title and the fields that changed, before → after.
 
 export interface ChangeEvent {
   id: number
@@ -26,12 +28,6 @@ export interface Described {
 }
 
 type State = Record<string, unknown>
-
-const fieldFr: Record<string, string> = {
-  version: 'version', 'code.version': 'version', 'code.commit': 'commit', 'code.branch': 'branche', 'code.tag': 'tag',
-  kernel: 'noyau', 'os.pretty': 'OS', framework_version: 'framework', 'runtime.version': 'runtime', arch: 'arch',
-  'resources.cpu.effective_cores': 'CPU', 'resources.memory_mb.effective': 'mémoire', role: 'rôle', path: 'chemin',
-}
 
 const identity = new Set(['hostname', 'name', 'path', 'type', 'instance', 'from', 'to', 'to_type', 'key', 'source'])
 // noise are the fields a change always moves along: not worth telling.
@@ -60,10 +56,8 @@ export function diffs(before: unknown, after: unknown): Diff[] {
   // A deployment tells its version and commit first.
   const rank = (k: string) => ['code.version', 'version', 'code.commit', 'code.branch'].indexOf(k) + 1 || 99
   keys.sort((x, y) => rank(x) - rank(y) || x.localeCompare(y))
-  return keys.slice(0, 4).map((k) => ({ field: fieldFr[k] ?? k.replace(/_/g, ' '), before: b[k] ?? '', after: a[k] ?? '' }))
+  return keys.slice(0, 4).map((k) => ({ field: t().components.history.fields[k] ?? k.replace(/_/g, ' '), before: b[k] ?? '', after: a[k] ?? '' }))
 }
-
-const entityFr: Record<string, string> = { host: 'Host', runtime: 'Runtime', service: 'Service', webserver: 'Webserver', app: 'App', link: 'Lien' }
 
 export function describe(e: ChangeEvent): Described {
   const s = e.kind === 'removed' ? parse(e.before) : parse(e.after)
@@ -76,10 +70,11 @@ export function describe(e: ChangeEvent): Described {
     case 'webserver': case 'runtime': subject = name('type'); break
     case 'link': subject = [name('from'), name('to')].filter(Boolean).join(' → '); break
   }
-  const verb = e.entityType === 'app' && e.kind === 'changed' ? 'déployé'
-    : e.kind === 'added' ? (e.entityType === 'link' ? 'ajouté' : 'ajouté')
-      : e.kind === 'removed' ? (e.entityType === 'link' ? 'retiré' : 'retiré')
-        : 'mis à jour'
+  const h = t().components.history
+  const verb = e.entityType === 'app' && e.kind === 'changed' ? h.deployed
+    : e.kind === 'added' ? h.added
+      : e.kind === 'removed' ? h.removed
+        : h.updated
   const detail = e.entityType === 'link' ? [name('key'), name('source')].filter(Boolean).join(' · ') : undefined
-  return { title: `${entityFr[e.entityType] ?? e.entityType} ${verb}`, subject, diffs: e.kind === 'changed' ? diffs(e.before, e.after) : [], detail }
+  return { title: h.title(h.entities[e.entityType] ?? e.entityType, verb), subject, diffs: e.kind === 'changed' ? diffs(e.before, e.after) : [], detail }
 }

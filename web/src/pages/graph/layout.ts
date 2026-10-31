@@ -1,4 +1,5 @@
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
+import { plural } from '@/lib/format'
 import type { GraphData } from './query'
 
 // Every node of the graph has the same size: the name is cut, the panel
@@ -130,7 +131,7 @@ async function envLanes(graph: GraphData, envOrder: string[], sizes: Sizes, spac
     const l = laid[i]
     if (g.env) {
       const count = g.nodes.filter((n) => n.kind !== 'EXTERNAL').reduce((s, n) => s + (n.kind === 'PROJECT' ? n.count : n.members.length || 1), 0)
-      boxes.push({ id: l.id, label: g.env, meta: `${count} host${count > 1 ? 's' : ''}`, kind: 'lane', x: 0, y, width, height: l.height ?? 0 })
+      boxes.push({ id: l.id, label: g.env, meta: plural(count, 'host'), kind: 'lane', x: 0, y, width, height: l.height ?? 0 })
     }
     for (const k of l.children ?? []) {
       placed.set(k.id, g.env ? { id: k.id, x: k.x ?? 0, y: k.y ?? 0, parent: l.id } : { id: k.id, x: k.x ?? 0, y: y + (k.y ?? 0) })

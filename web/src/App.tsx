@@ -12,12 +12,14 @@ import { ProjectPage } from './pages/Project'
 import { Projects } from './pages/Projects'
 import { Settings } from './pages/Settings'
 import { Admin } from './pages/admin/Admin'
+import { useT } from './i18n'
 import { RequireSession } from './session'
 
 // The graph and its layout engine load on the first visit of the graph.
 const GraphPage = lazy(() => import('./pages/graph/GraphPage').then((m) => ({ default: m.GraphPage })))
 
 export function App() {
+  const t = useT()
   return (
     <Routes>
       <Route path="login" element={<Login />} />
@@ -26,7 +28,7 @@ export function App() {
         <Route path="admin" element={<Admin />} />
         <Route path=":ns">
           <Route index element={<Home />} />
-          <Route path="graph" element={<Suspense fallback={<div className="p-8 text-ink-muted">Chargement du graphe…</div>}><GraphPage /></Suspense>} />
+          <Route path="graph" element={<Suspense fallback={<div className="p-8 text-ink-muted">{t.common.loadingGraph}</div>}><GraphPage /></Suspense>} />
           <Route path="hosts" element={<Hosts />} />
           <Route path="hosts/:id" element={<HostPage />} />
           <Route path="apps" element={<Apps />} />

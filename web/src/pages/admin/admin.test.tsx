@@ -1,12 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Dialog, errorMessage } from '@/components/Dialog'
+import { t } from '@/i18n'
 import { family, moved } from '../Settings'
 import { canAdminister } from './Admin'
 import { iconRows } from './Icons'
 import { grantText } from './Roles'
-import { outputText, pending, tasksFr } from './Tasks'
+import { outputText, pending } from './Tasks'
 import { tokenState } from './Tokens'
-import { passwordMismatch, PasswordFields } from './Users'
+import { PasswordFields } from './Users'
+
+const passwordMismatch = t().admin.users.passwordMismatch
 
 const none = { read: false, write: false }
 
@@ -109,5 +112,5 @@ test('outputText says what a run changed', () => {
   expect(outputText(null)).toBe('')
   expect(pending('running')).toBe(true)
   expect(pending('completed')).toBe(false)
-  expect(Object.keys(tasksFr)).toEqual(expect.arrayContaining(['purge_snapshots', 'purge_removed_entities', 'purge_expired_tokens', 'detect_token_conflicts', 'purge_inactive_hosts']))
+  expect(Object.keys(t().admin.tasks.kinds)).toEqual(expect.arrayContaining(['purge_snapshots', 'purge_removed_entities', 'purge_expired_tokens', 'detect_token_conflicts', 'purge_inactive_hosts']))
 })

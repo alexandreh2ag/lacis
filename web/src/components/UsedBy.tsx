@@ -4,7 +4,8 @@ import { TechLogo } from './Icon'
 import { FilterBar, type FilterField } from './FilterBar'
 import { Pager, SearchInput, SortHeader, useTable } from './Listing'
 import { graphql } from '@/graphql'
-import { confidenceFr } from '@/lib/format'
+import { useT } from '@/i18n'
+import { confidenceText } from '@/lib/format'
 
 // UsedByLink is what UsedBy needs of a link to a component.
 export const UsedByLink = graphql(`
@@ -74,23 +75,24 @@ export function techOf(e: End): string {
 // UsedBy lists the links to the components of a host or a project, by who
 // makes them.
 export function UsedBy({ ns, rows, showTargetHost, fields = [] }: { ns: string; rows: UsedByRow[]; showTargetHost?: boolean; fields?: FilterField[] }) {
+  const m = useT().components.usedBy
   const t = useTable(rows,
     (r) => [nameOf(r.from), hostOf(r.from)?.hostname ?? '', hostOf(r.from)?.project?.slug ?? '', r.target.name, r.target.host?.hostname ?? '', r.key ?? ''],
     (r, by) => by === 'project' ? hostOf(r.from)?.project?.slug ?? '' : by === 'env' ? hostOf(r.from)?.environment?.slug ?? ''
       : by === 'target' ? r.target.name + (r.target.host?.hostname ?? '') : by === 'confidence' ? r.confidence : nameOf(r.from) + (hostOf(r.from)?.hostname ?? ''),
     'from')
-  const empty = <p className="lc-muted m-0">Rien ne dépend de ces composants : aucun lien n'a été résolu vers eux.</p>
+  const empty = <p className="lc-muted m-0">{m.empty}</p>
   // Without filter to clear, the empty listing says so alone.
   if (rows.length === 0 && !fields.some((f) => f.value !== null)) return empty
   const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={t.sort.by} desc={t.sort.desc} onSort={t.onSort} />
   return (
     <>
-      <FilterBar search={<SearchInput value={t.q} onChange={t.setQ} placeholder="Chercher une app, un host, un projet, une clé" width={320} />}
-        fields={fields} count={`${rows.length} liens`} />
+      <FilterBar search={<SearchInput value={t.q} onChange={t.setQ} placeholder={m.search} width={320} />}
+        fields={fields} count={m.count(rows.length)} />
       {rows.length === 0 ? empty : null}
       <div className="overflow-x-auto rounded-lg border border-border" hidden={rows.length === 0}><table className="lc-table">
         <thead><tr>
-          {head('Utilisé par', 'from')}{head('Projet', 'project')}{head('Env', 'env')}{head('Composant utilisé', 'target')}<th>Clé</th>{head('Confiance', 'confidence')}
+          {head(m.from, 'from')}{head(m.project, 'project')}{head(m.env, 'env')}{head(m.target, 'target')}<th>{m.key}</th>{head(m.confidence, 'confidence')}
         </tr></thead>
         <tbody>{t.shown.map((r) => {
           const host = hostOf(r.from)
@@ -120,12 +122,12 @@ export function UsedBy({ ns, rows, showTargetHost, fields = [] }: { ns: string; 
                 </span>
               </td>
               <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>{r.key ? <Copyable value={r.key} /> : null}</td>
-              <td>{confidenceFr[r.confidence]}</td>
+              <td>{confidenceText(r.confidence)}</td>
             </tr>
           )
         })}</tbody>
       </table></div>
-      <Pager page={t.page} size={t.size} total={t.list.length} noun="liens" onPage={t.setPage} onSize={t.setSize} />
+      <Pager page={t.page} size={t.size} total={t.list.length} noun={m.noun} onPage={t.setPage} onSize={t.setSize} />
     </>
   )
 }

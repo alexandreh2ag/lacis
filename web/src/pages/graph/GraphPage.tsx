@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Chips } from '@/components/Listing'
 import { MultiPicker } from '@/components/MultiPicker'
 import type { HostStatus, LinkConfidence } from '@/graphql/graphql'
+import { t as text, useT } from '@/i18n'
 import { canOpen, isStack, title } from './kinds'
 import { laneMinimum, separateLanes } from './lanes'
 import { layout, spacingFor, type Layout, type Spacing } from './layout'
@@ -24,8 +25,8 @@ const edgeTypes = { link: LacisEdge }
 // and document it, or its hosts, for incidents and changes. Both open
 // on the same content: apps, services, webservers and runtimes.
 const lenses = [
-  { key: 'projects', level: 'PROJECT', label: 'Projets' },
-  { key: 'infra', level: 'HOST', label: 'Infra' },
+  { key: 'projects', level: 'PROJECT' },
+  { key: 'infra', level: 'HOST' },
 ] as const
 
 type ImpactDirection = 'DEPENDENTS' | 'NEEDS'
@@ -68,10 +69,10 @@ function otherLens(ns: string, n: GNode): ZoneData['other'] {
     if (!n.project) return null
     const q = new URLSearchParams({ lens: 'infra', project: n.project })
     if (n.env) q.set('env', n.env)
-    return { label: 'Voir dans Infra', to: `/${ns}/graph?${q}` }
+    return { label: text().graph.seeIn.infra, to: `/${ns}/graph?${q}` }
   }
   if (!n.project || !n.env) return null
-  return { label: 'Voir dans Projets', to: `/${ns}/graph?${new URLSearchParams({ lens: 'projects', env: n.env, open: `project:${n.project}@${n.env}` })}` }
+  return { label: text().graph.seeIn.projects, to: `/${ns}/graph?${new URLSearchParams({ lens: 'projects', env: n.env, open: `project:${n.project}@${n.env}` })}` }
 }
 
 export function GraphPage() {
@@ -87,6 +88,7 @@ function Graph() {
   const p = useGraphParams()
   const flow = useReactFlow()
   const navigate = useNavigate()
+  const t = useT()
   const filter = { envs: p.envs, projects: p.projects, hosts: p.hosts, status: p.statuses, confidences: p.confidences, externals: p.externals,
     expand: p.open ? [p.open] : [] }
   const { data, previousData, loading, error } = useQuery(GraphViewDoc, { variables: { ns, level: p.lens.level, filter } })
@@ -237,7 +239,7 @@ function Graph() {
           const what = row.key === 'apps' ? 'apps' : row.key === 'runtimes' ? 'runtimes' : ''
           content.push({
             id: row.moreId, type: 'more', position: cardPlace(row, row.shown.length), parentId: zone.id, draggable: false, selectable: false,
-            data: { label: `+${row.more} autre${row.more > 1 ? 's' : ''}${what ? ' ' + what : ''}`, to: pageOf(ns, n, row.key) } satisfies MoreData,
+            data: { label: t.graph.more(row.more, what), to: pageOf(ns, n, row.key) } satisfies MoreData,
           })
         }
       }
@@ -275,7 +277,7 @@ function Graph() {
   const edges: Edge[] = useMemo(() => {
     if (!view || !placed) return []
     const drawn = new Set(nodes.map((n) => n.id))
-    const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : 'autres')
+    const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : t.graph.others)
     // A source the layout did not place, inside a zone, takes the color
     // of its zone.
     const color = (id: string) => placed.colors.get(id) ?? placed.colors.get(nodes.find((n) => n.id === id)?.parentId ?? '') ?? (hash(id) % 8) + 1
@@ -295,25 +297,25 @@ function Graph() {
   }
 
   const envs = [...(namespace?.environments ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
-  const crumbs = [p.lens.label, ...p.projects, ...p.envs, ...p.hosts]
+  const crumbs = [t.graph.lenses[p.lens.key], ...p.projects, ...p.envs, ...p.hosts]
   const opened = p.open ? { id: p.open, label: byId.get(p.open) ? title(byId.get(p.open)!) : p.open } : null
   return (
     <div className="flex min-h-0 flex-1">
-      <aside aria-label="Filtres" className="flex w-[248px] flex-none flex-col gap-5 overflow-auto border-r border-border bg-surface-raised p-4">
+      <aside aria-label={t.graph.filters.label} className="flex w-[248px] flex-none flex-col gap-5 overflow-auto border-r border-border bg-surface-raised p-4">
         <section className="flex flex-col gap-2">
-          <span className="lc-label">Environnements</span>
-          <Chips label="Environnements" options={envs.map((e) => ({ value: e.slug, label: e.slug }))} selected={p.envs} onChange={(v) => p.set({ env: v })} />
+          <span className="lc-label">{t.graph.filters.envs}</span>
+          <Chips label={t.graph.filters.envs} options={envs.map((e) => ({ value: e.slug, label: e.slug }))} selected={p.envs} onChange={(v) => p.set({ env: v })} />
         </section>
         <section className="flex flex-col gap-2">
-          <span className="lc-label">Projets</span>
-          <MultiPicker label="Choisir" options={(namespace?.projects ?? []).map((x) => x.slug)} selected={p.projects} onChange={(v) => p.set({ project: v })} />
+          <span className="lc-label">{t.graph.filters.projects}</span>
+          <MultiPicker label={t.graph.filters.pick} options={(namespace?.projects ?? []).map((x) => x.slug)} selected={p.projects} onChange={(v) => p.set({ project: v })} />
         </section>
         <section className="flex flex-col gap-2">
-          <span className="lc-label">Hosts</span>
+          <span className="lc-label">{t.graph.filters.hosts}</span>
           <span className="lc-search">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>
-            <label htmlFor="graph-host" className="sr-only">Filtrer par host</label>
-            <input id="graph-host" className="lc-input" list="graph-hostnames" placeholder="Filtrer par host" value={hostInput}
+            <label htmlFor="graph-host" className="sr-only">{t.graph.filters.byHost}</label>
+            <input id="graph-host" className="lc-input" list="graph-hostnames" placeholder={t.graph.filters.byHost} value={hostInput}
               onChange={(e) => {
                 setHostInput(e.target.value)
                 if (hostnames.some((h) => h.hostname === e.target.value)) addHost(e.target.value)
@@ -324,56 +326,55 @@ function Graph() {
           {p.hosts.length ? (
             <div className="flex flex-wrap gap-1.5">
               {p.hosts.map((h) => (
-                <button key={h} className="lc-chip font-mono" type="button" aria-pressed="true" aria-label={`Retirer ${h}`}
+                <button key={h} className="lc-chip font-mono" type="button" aria-pressed="true" aria-label={t.graph.filters.remove(h)}
                   onClick={() => p.set({ host: p.hosts.filter((x) => x !== h) })}>{h} <span aria-hidden="true">×</span></button>
               ))}
             </div>
           ) : null}
-          <span className="lc-muted text-xs leading-4">Garde les hosts choisis et leurs voisins directs.</span>
+          <span className="lc-muted text-xs leading-4">{t.graph.filters.hostsHint}</span>
         </section>
         <section className="flex flex-col gap-2">
-          <span className="lc-label">Statut des hosts</span>
-          <Chips label="Statut" options={[{ value: 'ACTIVE', label: 'actif' }, { value: 'STALE', label: 'stale' }, { value: 'INACTIVE', label: 'inactif' }]}
+          <span className="lc-label">{t.graph.filters.status}</span>
+          <Chips label={t.graph.filters.statusChips} options={(['ACTIVE', 'STALE', 'INACTIVE'] as const).map((s) => ({ value: s, label: t.graph.filters.statuses[s] }))}
             selected={p.statuses} onChange={(v) => p.set({ status: v.length ? v : ['ACTIVE', 'STALE', 'INACTIVE'] })} />
         </section>
         <section className="flex flex-col gap-2">
-          <span className="lc-label">Liens</span>
-          <Chips label="Confiance" options={[{ value: 'EXACT', label: 'exact' }, { value: 'INFERRED', label: 'déduit' }, { value: 'AMBIGUOUS', label: 'ambigu' }]}
+          <span className="lc-label">{t.graph.filters.links}</span>
+          <Chips label={t.graph.filters.confidence} options={(['EXACT', 'INFERRED', 'AMBIGUOUS'] as const).map((c) => ({ value: c, label: t.graph.filters.confidences[c] }))}
             selected={p.confidences} onChange={(v) => p.set({ conf: v })} />
           <label className="flex items-center gap-2 text-[13px]">
-            <input type="checkbox" checked={p.externals} onChange={(e) => p.set({ ext: e.target.checked ? null : '0' })} /> Cibles externes
+            <input type="checkbox" checked={p.externals} onChange={(e) => p.set({ ext: e.target.checked ? null : '0' })} /> {t.graph.filters.externals}
           </label>
         </section>
         <span className="flex-1" />
         <p className="lc-muted m-0 text-[12px] leading-[17px]">
-          Cliquez un projet ou un host pour le déplier ; un clic ailleurs ou Échap le replie. Glissez une carte pour la déplacer ; Ctrl + glisser ou Ctrl + clic
-          en sélectionne plusieurs. Rien n'est enregistré : « Réorganiser » ou un rechargement remet le placement calculé.
+          {t.graph.filters.help}
         </p>
-        {graph ? <p className="lc-muted m-0 text-[12.5px] leading-[18px]">{graph.nodes.length} nœuds · {graph.edges.length} liens</p> : null}
+        {graph ? <p className="lc-muted m-0 text-[12.5px] leading-[18px]">{t.graph.filters.counts(graph.nodes.length, graph.edges.length)}</p> : null}
       </aside>
 
       <div ref={pane} className="relative min-w-0 flex-1">
         <Markers />
         <div className="absolute inset-x-4 top-3 z-10 flex flex-wrap items-center gap-3">
-          <nav className="lc-crumbs rounded-md border border-border bg-surface-raised px-2 py-1" aria-label="Lentille et filtres">
+          <nav className="lc-crumbs rounded-md border border-border bg-surface-raised px-2 py-1" aria-label={t.graph.toolbar.crumbs}>
             <Link to={`/${ns}`}>{ns}</Link>
             {crumbs.map((c, i) => (
               <span key={i} className="contents"><span className="lc-crumbs__sep">/</span><span aria-current={i === crumbs.length - 1 ? 'page' : undefined}>{c}</span></span>
             ))}
           </nav>
           {opened ? (
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2 py-1" role="group" aria-label="Zone ouverte">
-              <span className="text-[12.5px] text-ink-muted">Ouvert :</span>
-              <button className="lc-chip" type="button" aria-pressed="true" aria-label={`Replier ${opened.label}`} onClick={close}>
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2 py-1" role="group" aria-label={t.graph.toolbar.openedZone}>
+              <span className="text-[12.5px] text-ink-muted">{t.graph.toolbar.opened}</span>
+              <button className="lc-chip" type="button" aria-pressed="true" aria-label={t.graph.toolbar.close(opened.label)} onClick={close}>
                 {opened.label} <span aria-hidden="true">×</span>
               </button>
             </div>
           ) : null}
           <span className="flex-1" />
           {impactOn ? (
-            <div className="lc-zoom" role="group" aria-label="Sens de l'impact">
-              <button type="button" aria-pressed={impactDir === 'DEPENDENTS'} onClick={() => setImpactDir('DEPENDENTS')}>Qui en dépend</button>
-              <button type="button" aria-pressed={impactDir === 'NEEDS'} onClick={() => setImpactDir('NEEDS')}>Ce dont il a besoin</button>
+            <div className="lc-zoom" role="group" aria-label={t.graph.toolbar.impactDirection}>
+              <button type="button" aria-pressed={impactDir === 'DEPENDENTS'} onClick={() => setImpactDir('DEPENDENTS')}>{t.graph.toolbar.dependents}</button>
+              <button type="button" aria-pressed={impactDir === 'NEEDS'} onClick={() => setImpactDir('NEEDS')}>{t.graph.toolbar.needs}</button>
             </div>
           ) : null}
           <button className={'lc-btn' + (impactOn ? ' lc-btn--primary' : '')} type="button" aria-pressed={impactOn}
@@ -382,22 +383,22 @@ function Graph() {
               if (!impactOn && p.open) close()
               setImpactOn(!impactOn)
               setImpactTarget(null)
-            }}>Impact</button>
-          <div className="lc-zoom" role="group" aria-label="Lentille">
+            }}>{t.graph.toolbar.impact}</button>
+          <div className="lc-zoom" role="group" aria-label={t.graph.toolbar.lens}>
             {lenses.map((l) => (
-              <button key={l.key} type="button" aria-pressed={l.key === p.lens.key} onClick={() => p.set({ lens: l.key, open: null })}>{l.label}</button>
+              <button key={l.key} type="button" aria-pressed={l.key === p.lens.key} onClick={() => p.set({ lens: l.key, open: null })}>{t.graph.lenses[l.key]}</button>
             ))}
           </div>
-          <button className="lc-btn" type="button" onClick={() => void flow.fitView(fitOptions)}>Ajuster</button>
-          <button className="lc-btn" type="button" title="Revient au placement calculé, sans les cartes déplacées"
-            onClick={() => setRelayout((x) => x + 1)}>Réorganiser</button>
+          <button className="lc-btn" type="button" onClick={() => void flow.fitView(fitOptions)}>{t.graph.toolbar.fit}</button>
+          <button className="lc-btn" type="button" title={t.graph.toolbar.relayoutTitle}
+            onClick={() => setRelayout((x) => x + 1)}>{t.graph.toolbar.relayout}</button>
         </div>
-        {error ? <div className="absolute inset-0 grid place-items-center" role="alert">Le graphe n'a pas pu être chargé : {error.message}</div> : null}
+        {error ? <div className="absolute inset-0 grid place-items-center" role="alert">{t.graph.loadError(error.message)}</div> : null}
         {!loading && graph && graph.nodes.length === 0 ? (
           <div className="absolute inset-0 z-10 grid place-items-center">
             <div className="lc-panel w-[380px]"><div className="lc-panel__section">
-              <span className="font-semibold">Aucun nœud</span>
-              <span className="lc-muted">Aucun host ne correspond aux filtres. Les hosts inactifs sont masqués par défaut : cochez « inactif » pour les voir.</span>
+              <span className="font-semibold">{t.graph.empty.title}</span>
+              <span className="lc-muted">{t.graph.empty.text}</span>
             </div></div>
           </div>
         ) : null}
@@ -442,7 +443,7 @@ function Graph() {
         </ReactFlow>
         <Legend />
         {impactOn ? (
-          <ImpactPanel target={impactTarget} label={(id) => byId.get(id) ? title(byId.get(id)!) : id.startsWith('more:') ? 'autres éléments' : id}
+          <ImpactPanel target={impactTarget} label={(id) => byId.get(id) ? title(byId.get(id)!) : id.startsWith('more:') ? t.graph.otherItems : id}
             impact={impact} nodes={byId} direction={impactDir} onClose={() => { setImpactOn(false); setImpactTarget(null) }} />
         ) : null}
       </div>
@@ -457,6 +458,8 @@ function hash(s: string): number {
 }
 
 function Legend() {
+  const t = useT()
+  const l = t.graph.legend
   const line = (label: string, dash?: string, halo?: boolean) => (
     <span className="lc-edge text-xs">
       <svg viewBox="0 0 56 14" aria-hidden="true" style={{ width: 36 }}>
@@ -472,13 +475,13 @@ function Legend() {
   )
   return (
     <div className="absolute bottom-4 left-4 z-10 flex max-w-[calc(100%-120px)] flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-border bg-surface-raised px-3.5 py-2.5 shadow-panel">
-      {dot('--kind-app', 'App')}{dot('--kind-service', 'Service, projet de service')}{dot('--kind-proxy', 'Proxy')}{dot('--kind-host', 'Host, projet, runtime')}{dot('--kind-external', 'Externe', true)}
+      {dot('--kind-app', l.app)}{dot('--kind-service', l.service)}{dot('--kind-proxy', l.proxy)}{dot('--kind-host', l.host)}{dot('--kind-external', l.external, true)}
       <span className="h-[18px] w-px bg-border" />
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className="inline-flex gap-0.5">{Array.from({ length: 8 }, (_, i) => <span key={i} className="h-1 w-3.5 rounded-sm" style={{ background: `var(--link-${i + 1})` }} />)}</span>
-        Couleur : nœud source
+        {l.color}
       </span>
-      {line('Exact')}{line('Déduit', '6 4')}{line('Ambigu', '1 4')}{line('Entre envs', undefined, true)}
+      {line(l.exact)}{line(l.inferred, '6 4')}{line(l.ambiguous, '1 4')}{line(l.crossEnv, undefined, true)}
     </div>
   )
 }
@@ -493,32 +496,34 @@ function ImpactPanel({ target, impact, nodes, label, direction, onClose }: {
   direction: ImpactDirection
   onClose: () => void
 }) {
+  const t = useT()
+  const i = t.graph.impact
   const byLevel = new Map<number, string[]>()
   for (const [id, level] of impact?.levels ?? []) byLevel.set(level, [...(byLevel.get(level) ?? []), id])
   const projects = [...new Set([...(impact?.levels.keys() ?? [])].map((id) => nodes.get(id)?.project).filter((x): x is string => !!x))].sort()
   return (
-    <aside className="lc-panel absolute right-4 top-16 z-10 max-h-[calc(100%-180px)] w-[320px] overflow-auto" aria-label="Impact">
+    <aside className="lc-panel absolute right-4 top-16 z-10 max-h-[calc(100%-180px)] w-[320px] overflow-auto" aria-label={i.title}>
       <div className="lc-panel__head">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="lc-panel__title text-[17px]">Impact</span>
+          <span className="lc-panel__title text-[17px]">{i.title}</span>
           <span className="lc-muted text-[12.5px]">
-            {target ? <>{direction === 'DEPENDENTS' ? 'Ce qui dépend de ' : 'Ce dont a besoin '}<b className="font-mono">{label(target)}</b></> : 'Cliquez le nœud dont vous voulez voir l\'impact.'}
+            {target ? <>{direction === 'DEPENDENTS' ? i.dependentsOf : i.needsOf}<b className="font-mono">{label(target)}</b></> : i.pick}
           </span>
         </div>
-        <button className="lc-btn lc-btn--icon lc-btn--ghost" type="button" aria-label="Quitter l'impact" onClick={onClose}>×</button>
+        <button className="lc-btn lc-btn--icon lc-btn--ghost" type="button" aria-label={i.quit} onClick={onClose}>×</button>
       </div>
       {target && impact && impact.levels.size === 0 ? (
-        <div className="lc-panel__section"><span className="lc-muted">{direction === 'DEPENDENTS' ? 'Rien n\'en dépend.' : 'Il n\'a besoin de rien.'}</span></div>
+        <div className="lc-panel__section"><span className="lc-muted">{direction === 'DEPENDENTS' ? i.noDependents : i.noNeeds}</span></div>
       ) : null}
       {[...byLevel].map(([level, ids]) => (
         <div key={level} className="lc-panel__section">
-          <span className="lc-label">{level === 1 ? 'Direct' : `Niveau ${level}`} · {ids.length}</span>
+          <span className="lc-label">{i.level(level)} · {ids.length}</span>
           {ids.map((id) => <span key={id} className="truncate font-mono text-[12.5px]">{label(id)}</span>)}
         </div>
       ))}
       {projects.length ? (
         <div className="lc-panel__section">
-          <span className="lc-label">Projets touchés · {projects.length}</span>
+          <span className="lc-label">{i.projects} · {projects.length}</span>
           <span className="text-[13px]">{projects.join(', ')}</span>
         </div>
       ) : null}
