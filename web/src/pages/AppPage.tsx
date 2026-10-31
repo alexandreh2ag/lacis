@@ -11,6 +11,7 @@ import { graphql } from '@/graphql'
 import type { AppPageQuery } from '@/graphql/graphql'
 import { useT } from '@/i18n'
 import { ago, confidenceText, formatDateTime } from '@/lib/format'
+import { repositoryUrl } from '@/lib/git'
 
 const AppPageDoc = graphql(`
   query AppPage($ns: String!, $id: ID!) {
@@ -134,6 +135,13 @@ export function AppPage() {
 }
 
 // General tells what is deployed, and where else the same app runs.
+// Repository is the address of a repository, a link to its page when it
+// has one.
+function Repository({ repository }: { repository: string }) {
+  const url = repositoryUrl(repository)
+  return url ? <a href={url} target="_blank" rel="noreferrer">{repository}</a> : <>{repository}</>
+}
+
 function General({ ns, app: a }: { ns: string; app: App }) {
   const c = a.code
   const t = useT()
@@ -151,7 +159,7 @@ function General({ ns, app: a }: { ns: string; app: App }) {
                 {c.commit ? <><dt>{ts.commit}</dt><dd><Copyable value={c.commit} shown={c.commit.slice(0, 7)} /></dd></> : null}
                 {c.branch ? <><dt>{ta.branch}</dt><dd><Copyable value={c.branch} /></dd></> : null}
                 {c.tag ? <><dt>{ta.tag}</dt><dd><Copyable value={c.tag} /></dd></> : null}
-                {c.repository ? <><dt>{ta.repository}</dt><dd><Copyable value={c.repository} /></dd></> : null}
+                {c.repository ? <><dt>{ta.repository}</dt><dd><Copyable value={c.repository} shown={<Repository repository={c.repository} />} /></dd></> : null}
                 {c.deployedAt ? <><dt>{ts.deployed}</dt><dd>{formatDateTime(c.deployedAt)} · {ago(c.deployedAt)}{c.deployedBy ? ` · ${c.deployedBy}` : ''}</dd></> : null}
                 {c.pipelineUrl ? <><dt>{ta.pipeline}</dt><dd><a href={c.pipelineUrl} target="_blank" rel="noreferrer">{c.pipelineId ?? c.pipelineUrl}</a></dd></> : null}
                 <dt>{ta.source}</dt><dd>{c.source}</dd>

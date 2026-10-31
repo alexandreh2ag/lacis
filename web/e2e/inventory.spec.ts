@@ -41,3 +41,12 @@ test('the history is listed the latest or the oldest first', async ({ page }) =>
   await expect(page.getByText("les plus anciens d'abord")).toBeVisible()
   await expect(page.getByRole('button', { name: "Plus anciens d'abord" })).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('the repository of an app opens its page and is copied', async ({ page }) => {
+  await page.goto('acme/apps?q=acme-site-staging-1')
+  await page.locator('tbody tr a').first().click()
+  const repository = page.getByRole('link', { name: 'https://git.acme.example/site/www.git' })
+  await expect(repository).toHaveAttribute('href', 'https://git.acme.example/site/www')
+  await expect(repository).toHaveAttribute('target', '_blank')
+  await expect(page.getByRole('button', { name: 'Copier https://git.acme.example/site/www.git' })).toBeVisible()
+})
