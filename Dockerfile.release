@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+
+# lacis-server image of a release, built by GoReleaser (dockers_v2 in
+# .goreleaser.yaml) from the binary it compiled: the front is already
+# embedded, nothing is rebuilt. The build context holds one directory per
+# platform, such as linux/amd64/lacis-server. The Dockerfile builds the
+# image from the sources, for local use.
+
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/lacis-server /usr/local/bin/lacis-server
+USER nonroot:nonroot
+EXPOSE 8080
+# The configuration is read from /etc/lacis/server.yaml when mounted, and
+# from the LACIS_* environment variables.
+ENTRYPOINT ["/usr/local/bin/lacis-server"]
+CMD ["start", "-c", "/etc/lacis"]

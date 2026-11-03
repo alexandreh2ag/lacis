@@ -1,0 +1,31 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  /* The brand of Lacis (web/src/styles/tokens.css). */
+  --ifm-color-primary: #0b6c76;
+  --ifm-color-primary-dark: #0a616a;
+  --ifm-color-primary-darker: #095c64;
+  --ifm-color-primary-darkest: #084c53;
+  --ifm-color-primary-light: #0c7782;
+  --ifm-color-primary-lighter: #0d7c88;
+  --ifm-color-primary-lightest: #0e8d99;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #41b6c2;
+  --ifm-color-primary-dark: #38a8b4;
+  --ifm-color-primary-darker: #359faa;
+  --ifm-color-primary-darkest: #2c838c;
+  --ifm-color-primary-light: #55bec9;
+  --ifm-color-primary-lighter: #5ec2cc;
+  --ifm-color-primary-lightest: #7bced6;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}

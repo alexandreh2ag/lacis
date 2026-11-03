@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/app.yml
+    permissions:
+      contents: read
+
+  binaries:
+    name: Binaries & server image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the GitHub release
+      packages: write # the server image on ghcr.io
+      id-token: write # cosign keyless signature
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the changelog
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            agent/go.sum
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      # dockers_v2 builds the multi-platform image with buildx. The image only
+      # copies the binary: no emulation for arm64.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The before hook builds web/, embedded in lacis-server, and the image
+      # is built from that binary.
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  module-tags:
+    name: Module tags
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # go get github.com/alexandreh2ag/lacis/common@vX.Y.Z needs common/vX.Y.Z.
+      - name: Tag common/ and agent/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for module in common agent; do
+            git tag -a "${module}/${GITHUB_REF_NAME}" -m "Release ${module}/${GITHUB_REF_NAME}"
+          done
+          git push origin "common/${GITHUB_REF_NAME}" "agent/${GITHUB_REF_NAME}"

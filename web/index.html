@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <!-- lacis-server sets the base path and the configuration. -->
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- The theme picked in the account menu, before the first paint. -->
+    <script>try { var t = localStorage.getItem('lacis-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) {}</script>
+    <title>Lacis</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script id="lacis-config" type="application/json">{"basePath":"/","version":"dev","auth":{"local":true,"oidc":false}}</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

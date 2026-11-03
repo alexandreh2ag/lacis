@@ -1,0 +1,30 @@
+extend type Query {
+  "The assistants (such as Claude) the user authorized to read Lacis through MCP, still valid; empty when mcp is off."
+  oauthGrants: [OAuthGrant!]!
+}
+
+extend type Mutation {
+  "Ends an authorization of the user: the assistant loses its access at once."
+  revokeOAuthGrant(id: ID!): Boolean!
+}
+
+"An access the user gave an assistant, read-only, with the rights of the user."
+type OAuthGrant {
+  id: ID!
+  "The name the assistant registered under."
+  clientName: String!
+  createdAt: Time!
+  lastUsedAt: Time!
+  "Past it, the assistant asks the user to authorize it again."
+  expiresAt: Time!
+}
+
+extend type Query {
+  "The assistants a user authorized, still valid; empty when mcp is off."
+  userOAuthGrants(userId: ID!): [OAuthGrant!]! @canGlobal(resource: USERS, action: READ)
+}
+
+extend type Mutation {
+  "Ends an authorization a user gave: the assistant loses its access at once."
+  revokeUserOAuthGrant(userId: ID!, id: ID!): Boolean! @canGlobal(resource: USERS, action: WRITE)
+}

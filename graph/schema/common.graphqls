@@ -1,0 +1,45 @@
+"An instant, in RFC 3339."
+scalar Time
+"Any JSON value, as the agent collected it."
+scalar JSON
+
+type Query {
+  "The user of the session."
+  me: User!
+  "The namespaces the user may read, by name."
+  namespaces: [Namespace!]!
+  "The namespace of this slug; null when unknown or not readable."
+  namespace(slug: String!): Namespace
+}
+
+"A page of a listing: limit is capped at 500."
+input PageInput {
+  limit: Int = 50
+  offset: Int = 0
+}
+
+type User {
+  id: ID!
+  username: String!
+  firstName: String
+  lastName: String
+  "The namespaces the user may change the metadata of are told by Namespace.canEdit."
+  isAdmin: Boolean!
+  "Whether the user has a password to sign in with."
+  local: Boolean!
+  "Whether the user signs in with SSO: the identity provider may set the names again at each login."
+  oidc: Boolean!
+}
+
+# The profile is the user's own, whatever the rights: no permission is needed.
+extend type Mutation {
+  "Changes the names of the user of the session; a name set empty is cleared."
+  updateProfile(input: ProfileInput!): User!
+  "Changes the password of the user of the session, given the current one; ends its other sessions. An SSO user without a password gets its first one from an administrator."
+  changePassword(currentPassword: String!, newPassword: String!): Boolean!
+}
+
+input ProfileInput {
+  firstName: String!
+  lastName: String!
+}

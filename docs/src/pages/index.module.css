@@ -1,0 +1,152 @@
+.hero {
+  padding: 5rem 0 4rem;
+  text-align: center;
+  background: linear-gradient(180deg, var(--ifm-color-primary-lightest) -200%, transparent 100%);
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+.logo {
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+.title {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.tagline {
+  font-size: 1.25rem;
+  max-width: 36rem;
+  margin: 0 auto 2rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.section {
+  padding: 4rem 0;
+}
+
+.alt {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.heading {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 2rem;
+}
+
+.feature h3 {
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.feature p {
+  margin: 0;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1.5rem;
+}
+
+.step {
+  margin: 0;
+}
+
+.step p {
+  margin: 0.25rem 0 0;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.stepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .stepNumber {
+  color: #0b1f22;
+}
+
+.code {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.more {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(19, 25, 32, 0.06), 0 8px 24px rgba(19, 25, 32, 0.08);
+}
+
+.shot figcaption {
+  margin-top: 0.75rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+}
+
+.shot figcaption strong {
+  color: var(--ifm-font-color-base);
+}
+
+.heroShot {
+  max-width: 64rem;
+  margin: 0 auto 3rem;
+}
+
+.heroShot figcaption {
+  text-align: center;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 2.5rem 2rem;
+}
+
+@media (max-width: 600px) {
+  .hero {
+    padding: 3rem 0 2.5rem;
+  }
+
+  .title {
+    font-size: 2.25rem;
+  }
+}

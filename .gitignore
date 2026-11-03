@@ -1,0 +1,22 @@
+# Binaries
+/lacis-server
+/agent/lacis-agent
+/dist/
+/tmp/
+
+# Generated
+mocks/
+/agent/mocks/
+/common/mocks/
+coverage.out
+*.coverprofile
+
+# Front
+/web/node_modules/
+/web/dist/
+
+# Local
+.idea/
+.vscode/
+*.local.yaml
+*.local.yml

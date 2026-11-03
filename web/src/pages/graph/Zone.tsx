@@ -1,0 +1,120 @@
+import { useQuery } from '@apollo/client'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { memo } from 'react'
+import { Link } from 'react-router'
+import { CopyButton } from '@/components/Copy'
+import { Glyph } from '@/components/Icon'
+import { StatusBadge } from '@/components/Listing'
+import { useT } from '@/i18n'
+import { ago, plural } from '@/lib/format'
+import { kindOf, title } from './kinds'
+import { ZoneHostsDoc, type GNode } from './query'
+import { ZONE_PAD, type RowKey, type Zone } from './zones'
+
+export interface ZoneData extends Record<string, unknown> {
+  zone: Zone
+  ns: string
+  // other is the link to the zone in the other lens.
+  other: { label: string; to: string } | null
+  onClose: () => void
+}
+
+// pageOf is the page of a zone, on the tab listing a row.
+export function pageOf(ns: string, n: GNode, row?: RowKey): string {
+  if (n.kind === 'PROJECT') return `/${ns}/projects/${encodeURIComponent(n.project ?? '')}${row === 'apps' ? '?tab=apps' : row ? '?tab=hosts' : ''}`
+  if (n.hosts.length === 1) return `/${ns}/hosts/${n.hosts[0].id}${row === 'apps' ? '?tab=apps' : row ? '?tab=components' : ''}`
+  return n.project ? `/${ns}/projects/${encodeURIComponent(n.project)}?tab=hosts` : `/${ns}/hosts/${n.hosts[0]?.id ?? ''}`
+}
+
+// Header tells what the zone is: the project or the host, its state, and
+// where to read more.
+function Header({ zone, ns, other, onClose }: ZoneData) {
+  const n = zone.node
+  const one = n.hosts.length === 1
+  const { data } = useQuery(ZoneHostsDoc, {
+    skip: !one && !n.project,
+    variables: { ns, one, id: n.hosts[0]?.id ?? '', filter: { projects: n.project ? [n.project] : [], envs: n.env ? [n.env] : [], status: ['ACTIVE', 'STALE', 'INACTIVE'] } },
+  })
+  const host = one ? data?.namespace?.host ?? null : null
+  const ids = new Set(n.hosts.map((h) => h.id))
+  const hosts = one ? (host ? [host] : []) : (data?.namespace?.hosts?.items ?? []).filter((h) => ids.has(h.id))
+  const apps = zone.rows.find((r) => r.key === 'apps')
+  const diverging = apps?.shown.filter((a) => a.divergences.length) ?? []
+  const first = diverging[0]?.divergences[0]
+  const ip = host?.ips.find((i) => i.defaultRoute) ?? host?.ips[0]
+  const lastSeen = hosts.map((h) => h.lastSeenAt).sort()[0]
+  const t = useT()
+  return (
+    <div className="lc-zone__head">
+      <div className="flex items-center gap-2.5">
+        <span className={`lc-node__icon lc-node--${kindOf(n)}`} style={{ width: 28, height: 28 }}><Glyph kind={kindOf(n)} /></span>
+        <span className={n.kind === 'HOST' ? 'font-mono text-[14px] font-semibold' : 'heading'}>{title(n)}</span>
+        {n.kind === 'HOST' && host ? <span className="nodrag -ml-2"><CopyButton value={host.hostname} /></span> : null}
+        <span className="lc-muted text-[12.5px]">{[n.kind === 'PROJECT' ? t.graph.zone.project : n.hosts.length > 1 ? t.graph.zone.hosts(n.hosts.length) : t.graph.zone.host, n.kind === 'HOST' ? n.project : null, n.env].filter(Boolean).join(' · ')}</span>
+        {n.status ? <StatusBadge status={n.status} /> : null}
+        <span className="flex-1" />
+        <button type="button" className="lc-btn lc-btn--ghost nodrag h-[26px]" onClick={onClose}>{t.graph.zone.close}</button>
+      </div>
+      <span className="lc-zone__line">
+        {host ? [host.os?.pretty, ip?.address].filter(Boolean).join(' · ') : t.graph.zone.members(n.hosts.length, n.members.join(', '))}
+        {apps ? ` · ${plural(apps.total, 'app')}` : ''}
+      </span>
+      {first ? (
+        <span className="lc-badge lc-badge--stale self-start">
+          {first.app} : {first.hosts.map((h) => t.graph.zone.on(h.version || h.commit?.slice(0, 7) || '?', h.hostname)).join(', ')}
+          {diverging.length > 1 ? t.graph.zone.others(diverging.length - 1) : ''}
+        </span>
+      ) : (
+        <span className="lc-zone__line">
+          {host?.agentVersion ? t.graph.zone.agent(host.agentVersion) : ''}{lastSeen ? t.graph.zone.lastSnapshot(ago(lastSeen)) : ''}
+        </span>
+      )}
+      <span className="nodrag flex gap-3.5 text-[12.5px]">
+        <Link to={pageOf(ns, n)}>{n.kind === 'PROJECT' ? t.graph.zone.projectPage : t.graph.zone.hostPage}</Link>
+        {other ? <Link to={other.to}>{other.label}</Link> : null}
+        <Link to={`/${ns}/history`}>{t.graph.zone.history}</Link>
+      </span>
+    </div>
+  )
+}
+
+// ZoneNode is a project, a host or a stack opened on the graph: its
+// header, then its content in rows of three cards at most; the cards are
+// nodes of their own, children of the zone.
+export const ZoneNode = memo(function ZoneNode({ data }: NodeProps) {
+  const d = data as ZoneData
+  const t = useT()
+  return (
+    <div className="lc-zone" style={{ width: d.zone.width, height: d.zone.height }}>
+      <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
+      <Header {...d} />
+      {d.zone.rows.length === 0 ? <span className="lc-muted absolute text-[13px]" style={{ left: ZONE_PAD, top: d.zone.height - 60 }}>{t.graph.zone.empty}</span> : null}
+      {d.zone.rows.map((r) => (
+        <span key={r.key} className="lc-label absolute" style={{ left: ZONE_PAD, top: r.top }}>
+          {r.label} <span className="font-normal tracking-normal">· {r.total}</span>
+        </span>
+      ))}
+      <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
+    </div>
+  )
+})
+
+export interface MoreData extends Record<string, unknown> {
+  label: string
+  to: string
+}
+
+// MoreNode stands for the content a row does not show; the links of that
+// content leave from it.
+export const MoreNode = memo(function MoreNode({ data }: NodeProps) {
+  const { label, to } = data as MoreData
+  const t = useT()
+  return (
+    <div className="lc-more-card">
+      <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
+      <b className="text-[13px] leading-4">{label}</b>
+      <Link className="nodrag text-[12.5px]" to={to}>{t.graph.seeMore}</Link>
+      <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
+    </div>
+  )
+})

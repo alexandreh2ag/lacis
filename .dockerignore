@@ -1,0 +1,24 @@
+# Only the sources the Dockerfiles build from.
+.git
+.github
+.claude
+.idea
+.vscode
+dist
+docs
+tmp
+mocks
+**/mocks
+coverage.out
+*.coverprofile
+Dockerfile*
+.dockerignore
+lacis-server
+agent/lacis-agent
+web/node_modules
+web/dist
+web/e2e/.run
+web/*.tsbuildinfo
+testdata
+*.local.yaml
+*.local.yml

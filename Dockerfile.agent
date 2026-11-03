@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+# lacis-agent in a container, for local builds only: no image is published.
+# The agent is meant to run on the host, from the release binary. In a
+# container it sees the host only through what is shared with it, and it has
+# none of the host's binaries (dpkg, rpm, php, node…): the services collector
+# is skipped and the runtime versions are missing. It runs as root, like on
+# the host:
+#
+#   docker build -f Dockerfile.agent -t lacis-agent .
+#   docker run -d --name lacis-agent --pid=host --network=host --privileged \
+#     -v /etc:/etc:ro -v /usr/lib/os-release:/usr/lib/os-release:ro \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     -v /var/lib/lacis:/var/lib/lacis lacis-agent
+#
+# /etc/lacis/agent.yaml comes with /etc; add read-only mounts of the
+# application directories so that they are found at the same paths.
+
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+WORKDIR /src
+COPY common/go.mod common/go.sum ./common/
+COPY agent/go.mod agent/go.sum ./agent/
+RUN cd agent && go mod download
+COPY common/ ./common/
+COPY agent/ ./agent/
+ARG TARGETOS TARGETARCH
+ARG VERSION=dev COMMIT=none DATE=unknown
+RUN cd agent && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+      -ldflags "-s -w \
+        -X github.com/alexandreh2ag/lacis/common/version.Version=${VERSION} \
+        -X github.com/alexandreh2ag/lacis/common/version.Commit=${COMMIT} \
+        -X github.com/alexandreh2ag/lacis/common/version.Date=${DATE}" \
+      -o /out/lacis-agent .
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=build /out/lacis-agent /usr/local/bin/lacis-agent
+VOLUME ["/var/lib/lacis"]
+ENTRYPOINT ["/usr/local/bin/lacis-agent"]
+CMD ["start", "-c", "/etc/lacis"]

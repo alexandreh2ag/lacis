@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-rp-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "infra",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "13",
+      "pretty": "Debian GNU/Linux 13 (trixie)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 2,
+      "effective_cores": 2,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 2048,
+      "effective": 2048,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 20
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "203.0.113.10/27"
+        ],
+        "default_route": true
+      },
+      {
+        "name": "eth1",
+        "ips": [
+          "10.0.1.10/24"
+        ]
+      },
+      {
+        "name": "eth2",
+        "ips": [
+          "10.0.2.10/24"
+        ]
+      }
+    ]
+  },
+  "runtimes": [],
+  "services": [],
+  "webservers": [
+    {
+      "type": "traefik",
+      "version": "3.6.4",
+      "routers": [
+        {
+          "name": "crm-api-prod-http@file",
+          "rule": "Host(`crm.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "crm-api-prod-https@file",
+          "rule": "Host(`crm.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "crm-api-prod@file",
+          "tls": true
+        },
+        {
+          "name": "crm-api-staging-http@file",
+          "rule": "Host(`crm.staging.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "crm-api-staging-https@file",
+          "rule": "Host(`crm.staging.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "crm-api-staging@file",
+          "tls": true
+        },
+        {
+          "name": "shop-api-prod-http@file",
+          "rule": "Host(`api.shop.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "shop-api-prod-https@file",
+          "rule": "Host(`api.shop.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "shop-api-prod@file",
+          "tls": true
+        },
+        {
+          "name": "shop-api-staging-http@file",
+          "rule": "Host(`api.shop.staging.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "shop-api-staging-https@file",
+          "rule": "Host(`api.shop.staging.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "shop-api-staging@file",
+          "tls": true
+        },
+        {
+          "name": "shop-front-prod-http@file",
+          "rule": "Host(`shop.acme.example`) || Host(`www.shop.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "shop-front-prod-https@file",
+          "rule": "Host(`shop.acme.example`) || Host(`www.shop.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "shop-front-prod@file",
+          "tls": true
+        },
+        {
+          "name": "shop-front-staging-http@file",
+          "rule": "Host(`shop.staging.acme.example`) || Host(`www.shop.staging.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "shop-front-staging-https@file",
+          "rule": "Host(`shop.staging.acme.example`) || Host(`www.shop.staging.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "shop-front-staging@file",
+          "tls": true
+        },
+        {
+          "name": "site-prod-http@file",
+          "rule": "Host(`www.acme.example`) || Host(`acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "site-prod-https@file",
+          "rule": "Host(`www.acme.example`) || Host(`acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "site-prod@file",
+          "tls": true
+        },
+        {
+          "name": "site-staging-http@file",
+          "rule": "Host(`www.staging.acme.example`) || Host(`staging.acme.example`)",
+          "entrypoints": [
+            "web"
+          ],
+          "service": "noop@internal"
+        },
+        {
+          "name": "site-staging-https@file",
+          "rule": "Host(`www.staging.acme.example`) || Host(`staging.acme.example`)",
+          "entrypoints": [
+            "websecure"
+          ],
+          "service": "site-staging@file",
+          "tls": true
+        }
+      ],
+      "services": [
+        {
+          "name": "crm-api-prod@file",
+          "servers": [
+            "http://10.0.1.31"
+          ]
+        },
+        {
+          "name": "crm-api-staging@file",
+          "servers": [
+            "http://10.0.2.31"
+          ]
+        },
+        {
+          "name": "noop@internal",
+          "servers": []
+        },
+        {
+          "name": "shop-api-prod@file",
+          "servers": [
+            "http://10.0.1.21",
+            "http://10.0.1.22"
+          ]
+        },
+        {
+          "name": "shop-api-staging@file",
+          "servers": [
+            "http://10.0.2.21"
+          ]
+        },
+        {
+          "name": "shop-front-prod@file",
+          "servers": [
+            "http://10.0.1.21",
+            "http://10.0.1.22"
+          ]
+        },
+        {
+          "name": "shop-front-staging@file",
+          "servers": [
+            "http://10.0.2.21"
+          ]
+        },
+        {
+          "name": "site-prod@file",
+          "servers": [
+            "http://10.0.1.35"
+          ]
+        },
+        {
+          "name": "site-staging@file",
+          "servers": [
+            "http://10.0.2.35"
+          ]
+        }
+      ]
+    }
+  ],
+  "apps": [],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "skipped"
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "skipped"
+    },
+    {
+      "name": "services",
+      "status": "skipped"
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

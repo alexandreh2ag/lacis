@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-haproxy-prod-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "infra",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "13",
+      "pretty": "Debian GNU/Linux 13 (trixie)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 2,
+      "effective_cores": 2,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 2048,
+      "effective": 2048,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 19
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.1.11/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [],
+  "services": [],
+  "webservers": [
+    {
+      "type": "haproxy",
+      "version": "3.0.11",
+      "frontends": [
+        {
+          "name": "mariadb_frontend",
+          "mode": "tcp",
+          "bind": [
+            "0.0.0.0:3306"
+          ],
+          "default_backend": "mariadb_backend"
+        }
+      ],
+      "backends": [
+        {
+          "name": "mariadb_backend",
+          "mode": "tcp",
+          "servers": [
+            {
+              "name": "mariadb-1",
+              "address": "10.0.1.41:3306"
+            },
+            {
+              "name": "mariadb-2",
+              "address": "10.0.1.42:3306"
+            },
+            {
+              "name": "mariadb-3",
+              "address": "10.0.1.43:3306"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "apps": [],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "skipped"
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "skipped"
+    },
+    {
+      "name": "services",
+      "status": "skipped"
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

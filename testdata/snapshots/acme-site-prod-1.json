@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 120,
+  "namespace": "acme",
+  "host": {
+    "hostname": "acme-site-prod-1",
+    "labels": {
+      "namespace": "acme",
+      "project": "site",
+      "env": "production"
+    },
+    "os": {
+      "id": "debian",
+      "version": "10",
+      "pretty": "Debian GNU/Linux 10 (buster)"
+    },
+    "kernel": "6.8.12-4-pve",
+    "arch": "x86_64",
+    "virtualization": "lxc",
+    "cpu": {
+      "model": "AMD EPYC 4584PX 16-Core Processor",
+      "visible_cores": 1,
+      "effective_cores": 1,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 2048,
+      "effective": 2048,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 30
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "ips": [
+          "10.0.1.35/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [
+    {
+      "type": "php",
+      "version": "7.0.33",
+      "path": "/usr/bin/php7.0"
+    }
+  ],
+  "services": [
+    {
+      "type": "php-fpm",
+      "version": "7.0.33",
+      "instance": "7.0",
+      "listen": [
+        "127.0.0.1:9000"
+      ],
+      "config_path": "/etc/php/7.0/fpm/php-fpm.conf",
+      "pools": [
+        {
+          "name": "www",
+          "listen": "127.0.0.1:9000",
+          "user": "web"
+        }
+      ]
+    }
+  ],
+  "webservers": [
+    {
+      "type": "apache",
+      "version": "2.4.62",
+      "vhosts": [
+        {
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "config_file": "/etc/apache2/sites-enabled/000-default.conf"
+        },
+        {
+          "server_names": [
+            "www.acme.example",
+            "acme.example"
+          ],
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "root": "/home/web/var/www/site/production/www/public",
+          "upstreams": [
+            "localhost:9000"
+          ],
+          "config_file": "/etc/apache2/sites-enabled/site.conf"
+        }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "path": "/home/web/var/www/site/production/www",
+      "resolved_path": "/home/web/builds/site/production/www",
+      "name": "site",
+      "role": "web",
+      "project": "site",
+      "env": "production",
+      "framework": {
+        "name": "zend1",
+        "version": "1.12.20"
+      },
+      "runtime": {
+        "type": "php",
+        "version": "7.0.33",
+        "source": "fpm_pool"
+      },
+      "code": {
+        "source": "git",
+        "version": "3.40.52",
+        "commit": "a77d1e0",
+        "tag": "3.40.52",
+        "repository": "https://git.acme.example/site/www.git"
+      },
+      "vhosts": [
+        "acme.example",
+        "www.acme.example"
+      ],
+      "launchers": [],
+      "dependencies": [
+        {
+          "key": "resources.cachemanager.page.backend.options.servers",
+          "source": {
+            "file": "/home/web/builds/site/production/www/application/configs/application.ini",
+            "line": 12,
+            "key_path": "resources.cachemanager.page.backend.options.servers"
+          },
+          "port": 6379,
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.61"
+          }
+        },
+        {
+          "key": "resources.db.params",
+          "source": {
+            "file": "/home/web/builds/site/production/www/application/configs/application.ini",
+            "line": 4,
+            "key_path": "resources.db.params"
+          },
+          "scheme": "mysql",
+          "port": 3306,
+          "path": "site_production_",
+          "target": {
+            "kind": "ip",
+            "value": "10.0.1.11"
+          }
+        },
+        {
+          "key": "resources.status",
+          "source": {
+            "file": "/home/web/builds/site/production/www/application/configs/application.ini",
+            "line": 40,
+            "key_path": "resources.status"
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "status.acme.example",
+            "resolved": [
+              "203.0.113.10"
+            ],
+            "resolver": "dns"
+          }
+        }
+      ]
+    }
+  ],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

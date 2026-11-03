@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 95,
+  "namespace": "globex",
+  "host": {
+    "hostname": "globex-portal-prod-1",
+    "labels": {
+      "namespace": "globex",
+      "project": "portal",
+      "env": "production"
+    },
+    "os": {
+      "id": "ubuntu",
+      "version": "24.04",
+      "pretty": "Ubuntu 24.04.3 LTS"
+    },
+    "kernel": "6.8.0-85-generic",
+    "arch": "x86_64",
+    "virtualization": "kvm",
+    "cpu": {
+      "model": "Intel Xeon Gold 6338 CPU @ 2.00GHz",
+      "visible_cores": 2,
+      "effective_cores": 2,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 4096,
+      "effective": 4096,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 40
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "ens18",
+        "ips": [
+          "10.1.1.10/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [
+    {
+      "type": "php",
+      "version": "8.3.6",
+      "path": "/usr/bin/php8.3"
+    }
+  ],
+  "services": [
+    {
+      "type": "php-fpm",
+      "version": "8.3.6",
+      "instance": "8.3",
+      "listen": [
+        "unix:/run/php/portal.sock"
+      ],
+      "config_path": "/etc/php/8.3/fpm/php-fpm.conf",
+      "pools": [
+        {
+          "name": "portal",
+          "listen": "unix:/run/php/portal.sock",
+          "user": "deploy"
+        }
+      ]
+    },
+    {
+      "type": "redis",
+      "version": "7.0.15",
+      "listen": [
+        "unix:/run/redis/redis-server.sock"
+      ]
+    }
+  ],
+  "webservers": [
+    {
+      "type": "nginx",
+      "version": "1.24.0",
+      "vhosts": [
+        {
+          "server_names": [
+            "portal.globex.example"
+          ],
+          "listen": [
+            "0.0.0.0:80"
+          ],
+          "root": "/srv/portal/production/public",
+          "upstreams": [
+            "unix:/run/php/portal.sock"
+          ],
+          "config_file": "/etc/nginx/sites-enabled/portal.conf"
+        }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "path": "/srv/portal/production",
+      "resolved_path": "/srv/portal/releases/production/2-4-0",
+      "name": "portal",
+      "role": "web",
+      "project": "portal",
+      "env": "production",
+      "framework": {
+        "name": "laravel",
+        "version": "11.46.1"
+      },
+      "runtime": {
+        "type": "php",
+        "version": "8.3.6",
+        "source": "fpm_pool"
+      },
+      "code": {
+        "source": "git",
+        "version": "v2.4.0",
+        "commit": "e41b7a2",
+        "tag": "v2.4.0",
+        "repository": "https://git.globex.example/portal/portal.git"
+      },
+      "vhosts": [
+        "portal.globex.example"
+      ],
+      "launchers": [
+        {
+          "type": "supervisor",
+          "name": "portal-queue",
+          "role": "worker",
+          "command": "php8.3",
+          "directory": "/srv/portal/production",
+          "user": "deploy"
+        }
+      ],
+      "dependencies": [
+        {
+          "key": "DB_HOST",
+          "source": {
+            "file": "/srv/portal/releases/production/2-4-0/.env",
+            "line": 9
+          },
+          "scheme": "mysql",
+          "port": 3306,
+          "path": "portal_production",
+          "target": {
+            "kind": "ip",
+            "value": "10.1.1.20"
+          }
+        },
+        {
+          "key": "REDIS_HOST",
+          "source": {
+            "file": "/srv/portal/releases/production/2-4-0/.env",
+            "line": 14
+          },
+          "scheme": "redis",
+          "target": {
+            "kind": "socket",
+            "value": "/run/redis/redis-server.sock"
+          }
+        },
+        {
+          "key": "MAILGUN_ENDPOINT",
+          "source": {
+            "file": "/srv/portal/releases/production/2-4-0/.env",
+            "line": 21
+          },
+          "scheme": "https",
+          "port": 443,
+          "target": {
+            "kind": "name",
+            "value": "api.eu.mailgun.net",
+            "resolved": [
+              "34.111.82.209"
+            ],
+            "resolver": "dns"
+          }
+        }
+      ],
+      "info": {
+        "APP_ENV": "production"
+      }
+    }
+  ],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "docker",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "ok",
+      "duration_ms": 10
+    }
+  ],
+  "collector_errors": []
+}

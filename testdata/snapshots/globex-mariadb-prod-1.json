@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "agent": {
+    "version": "0.1.0",
+    "commit": "0000000",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "collected_at": "2026-10-27T12:00:00Z",
+  "duration_ms": 95,
+  "namespace": "globex",
+  "host": {
+    "hostname": "globex-mariadb-prod-1",
+    "labels": {
+      "namespace": "globex",
+      "project": "mariadb",
+      "env": "production"
+    },
+    "os": {
+      "id": "ubuntu",
+      "version": "24.04",
+      "pretty": "Ubuntu 24.04.3 LTS"
+    },
+    "kernel": "6.8.0-85-generic",
+    "arch": "x86_64",
+    "virtualization": "kvm",
+    "cpu": {
+      "model": "Intel Xeon Gold 6338 CPU @ 2.00GHz",
+      "visible_cores": 4,
+      "effective_cores": 4,
+      "source": "proc"
+    },
+    "memory_mb": {
+      "visible": 8192,
+      "effective": 8192,
+      "source": "proc"
+    },
+    "disks": [
+      {
+        "mount": "/",
+        "size_gb": 120
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "ens18",
+        "ips": [
+          "10.1.1.20/24"
+        ],
+        "default_route": true
+      }
+    ]
+  },
+  "runtimes": [],
+  "services": [
+    {
+      "type": "mariadb",
+      "version": "10.11.13",
+      "listen": [
+        "0.0.0.0:3306"
+      ]
+    }
+  ],
+  "webservers": [],
+  "apps": [],
+  "collectors": [
+    {
+      "name": "apps",
+      "status": "skipped"
+    },
+    {
+      "name": "docker",
+      "status": "skipped"
+    },
+    {
+      "name": "envfiles",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "runtimes",
+      "status": "skipped"
+    },
+    {
+      "name": "services",
+      "status": "ok",
+      "duration_ms": 10
+    },
+    {
+      "name": "webservers",
+      "status": "skipped"
+    }
+  ],
+  "collector_errors": []
+}
