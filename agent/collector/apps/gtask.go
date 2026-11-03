@@ -52,7 +52,8 @@ func gtaskConfigPath(command string) string {
 }
 
 // gtaskTasks returns the scheduled tasks of a launcher running gtask, read
-// from its configuration when the file lies in the app; nil otherwise.
+// from its configuration when the file lies in the app, as given or once
+// its links resolved; nil otherwise.
 func (c *collection) gtaskTasks(a *app, l system.Launcher) ([]snapshot.LauncherTask, error) {
 	file := gtaskConfigPath(l.Command)
 	if file == "" {
@@ -65,6 +66,14 @@ func (c *collection) gtaskTasks(a *app, l system.Launcher) ([]snapshot.LauncherT
 		file = path.Join(l.Directory, file)
 	}
 	root, rel, ok := inApp(a, path.Clean(file))
+	if !ok {
+		// The file may reach the app through a link: /home/web/var/www/x
+		// → /home/web/builds/x. The resolved path is checked the same way,
+		// and the read stays confined to the root of the app.
+		if resolved, err := c.sys.Resolve(file); err == nil {
+			root, rel, ok = inApp(a, resolved)
+		}
+	}
 	if !ok {
 		return nil, fmt.Errorf("gtask config %s of %s: out of the app, not read", file, l.Name)
 	}

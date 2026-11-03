@@ -81,6 +81,35 @@ func TestCollect_GtaskTasks(t *testing.T) {
 	}, out.Apps[1].Launchers)
 }
 
+func TestCollect_GtaskTasksThroughLink(t *testing.T) {
+	h := newHost(t)
+	h.fs.Files(t, map[string]string{
+		"/home/web/builds/front/staging/www/package.json":       "{}",
+		"/home/web/builds/front/staging/www/.reflet/gtask.yml":  "scheduled:\n  - id: sitemap\n    expr: \"0 3 * * *\"\n",
+		"/home/web/builds/front/staging/www/.reflet/escape.yml": "",
+		"/etc/secret.yml": "scheduled:\n  - id: leaked\n    expr: \"* * * * *\"\n",
+		"/etc/supervisor/conf.d/front.conf": "[program:front-cron]\n" +
+			"command=gtask schedule start -c /home/web/var/www/front/staging/www/.reflet/gtask.yml\n" +
+			"directory=/home/web/builds/front/staging/www\n" +
+			"[program:front-escape]\n" +
+			"command=gtask schedule start -c /home/web/var/www/front/staging/www/.reflet/escape.yml\n" +
+			"directory=/home/web/builds/front/staging/www\n",
+	})
+	// The configuration is given through a link to the builds.
+	h.fs.Link("/home/web/var/www/front", "/home/web/builds/front")
+	// A link of the app out of it is not followed.
+	require.NoError(t, h.fs.Remove("/home/web/builds/front/staging/www/.reflet/escape.yml"))
+	h.fs.Link("/home/web/builds/front/staging/www/.reflet/escape.yml", "/etc/secret.yml")
+	out := &snapshot.Snapshot{}
+	err := h.collect(out)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gtask config /home/web/var/www/front/staging/www/.reflet/escape.yml of front-escape: out of the app, not read")
+	assert.NotContains(t, err.Error(), "front-cron")
+	require.Len(t, out.Apps, 1)
+	assert.Equal(t, []snapshot.LauncherTask{{ID: "sitemap", Schedule: "0 3 * * *"}}, out.Apps[0].Launchers[0].Tasks)
+	assert.Nil(t, out.Apps[0].Launchers[1].Tasks)
+}
+
 func TestGtaskConfigPath(t *testing.T) {
 	tests := []struct{ command, want string }{
 		{"gtask schedule start -c .reflet/gtask.yml", ".reflet/gtask.yml"},
