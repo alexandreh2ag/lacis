@@ -191,7 +191,7 @@ See [Collectors](../collectors.md) for what each one does.
 | `collectors.apps.scan_paths`   | list | `[/var/www]` | Directories searched for app roots, besides the roots found from the vhosts, the supervisor programs and the processes. |
 | `collectors.apps.max_depth`    | int  | `4`          | Depth of the search under each scan path. At least 1. |
 | `collectors.apps.max_files`    | int  | `5000`       | Directory entries read under each scan path: the scan of that path stops there, with a warning in the collector errors. At least 1. |
-| `collectors.apps.commands`     | string | `path`     | What is sent of a supervisor program command: `path`, the program alone (`argv[0]`); `full`, the whole command, arguments included (and any password in them, such as `mysqldump -pSECRET`). |
+| `collectors.apps.commands`     | string | `path`     | What is sent of a supervisor program command: `path`, the program alone (`argv[0]`); `full`, the whole command, arguments included (and any password in them, such as `mysqldump -pSECRET`). With `full`, the commands of the gtask scheduled tasks are sent too. |
 | `collectors.apps.exclude`      | list | see example  | Directories never searched, nor accepted as part of an app root. An entry is a directory name (`vendor`) or a run of them (`var/cache`), matched as whole names anywhere in the path. Hidden directories are always skipped. |
 | `collectors.apps.frameworks`   | list | `[]`         | Declarative framework detectors, see below. |
 | `collectors.apps.extra_config` | list | `[]`         | Configuration files added to some apps, see below. |

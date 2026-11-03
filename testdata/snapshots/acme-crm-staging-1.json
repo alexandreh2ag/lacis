@@ -156,7 +156,7 @@
           "type": "supervisor",
           "name": "crm-api-consumer_sync",
           "role": "worker",
-          "command": "php8.2",
+          "command": "/usr/bin/php8.2 bin/console messenger:consume sync --time-limit=3600 --memory-limit=256M -vv",
           "directory": "/home/web/var/www/crm/api/staging/www",
           "user": "web"
         },
@@ -164,7 +164,27 @@
           "type": "supervisor",
           "name": "crm-api-consumer_mail",
           "role": "worker",
-          "command": "php8.2",
+          "command": "/usr/bin/php8.2 bin/console messenger:consume mail --limit=100 --time-limit=3600 --memory-limit=256M",
+          "directory": "/home/web/var/www/crm/api/staging/www",
+          "user": "web"
+                },
+        {
+          "type": "supervisor",
+          "name": "crm-api-cron",
+          "role": "worker",
+          "command": "/usr/local/bin/gtask schedule start --tick 1m -c .reflet/gtask.yml",
+          "tasks": [
+            {
+              "id": "sync-contacts",
+              "schedule": "*/10 * * * *",
+              "command": "php bin/console app:contacts:sync --batch=500"
+            },
+            {
+              "id": "send-digest",
+              "schedule": "0 7 * * 1-5",
+              "command": "php bin/console app:digest:send --env=staging"
+            }
+          ],
           "directory": "/home/web/var/www/crm/api/staging/www",
           "user": "web"
         }

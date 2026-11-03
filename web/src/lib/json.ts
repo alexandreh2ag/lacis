@@ -45,3 +45,43 @@ export function resourcesOf(v: unknown): Resources {
     }),
   }
 }
+
+export interface LauncherTask {
+  id: string
+  schedule?: string
+  // command is sent only by an agent sending whole commands.
+  command?: string
+}
+
+export interface Launcher {
+  type: string
+  name: string
+  role: string
+  command?: string
+  directory?: string
+  user?: string
+  tasks: LauncherTask[]
+}
+
+// launchersOf reads the launchers of an app: the programs starting it,
+// such as supervisor ones, and the tasks they schedule. A launcher without
+// a name, or a task without an id, is left out.
+export function launchersOf(v: unknown): Launcher[] {
+  return (Array.isArray(v) ? v : []).flatMap((l: unknown) => {
+    const name = str(field(l, 'name'))
+    if (!name) return []
+    const tasks = field(l, 'tasks')
+    return [{
+      type: str(field(l, 'type')) ?? '',
+      name,
+      role: str(field(l, 'role')) ?? '',
+      command: str(field(l, 'command')),
+      directory: str(field(l, 'directory')),
+      user: str(field(l, 'user')),
+      tasks: (Array.isArray(tasks) ? tasks : []).flatMap((t: unknown) => {
+        const id = str(field(t, 'id'))
+        return id ? [{ id, schedule: str(field(t, 'schedule')), command: str(field(t, 'command')) }] : []
+      }),
+    }]
+  })
+}

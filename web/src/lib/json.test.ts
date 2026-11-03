@@ -1,4 +1,4 @@
-import { field, isObject, num, resourcesOf, str, strings } from './json'
+import { field, isObject, launchersOf, num, resourcesOf, str, strings } from './json'
 
 test('the guards keep the values of their type only', () => {
   expect([isObject({}), isObject([]), isObject(null), isObject('x')]).toEqual([true, false, false, false])
@@ -16,4 +16,20 @@ test('resourcesOf reads the resources of a host, leaving out what is malformed',
     .toEqual({ cores: undefined, memoryMb: undefined, disks: [] })
   expect(resourcesOf(null)).toEqual({ cores: undefined, memoryMb: undefined, disks: [] })
   expect(resourcesOf({ disks: { mount: '/' } })).toEqual({ cores: undefined, memoryMb: undefined, disks: [] })
+})
+
+test('launchersOf reads the launchers of an app and their tasks, leaving out what is malformed', () => {
+  expect(launchersOf([
+    { type: 'supervisor', name: 'cron', role: 'worker', command: 'gtask', directory: '/srv/a', user: 'web',
+      tasks: [{ id: 'sitemap', schedule: '0 3 * * *', command: 'php bin/console app:sitemap' }, { schedule: '* * * * *' }, { id: 'manual', command: 3 }, 'x'] },
+    { type: 'supervisor', name: 'front', role: 'web', command: 4 },
+    { type: 'supervisor' },
+    null,
+  ])).toEqual([
+    { type: 'supervisor', name: 'cron', role: 'worker', command: 'gtask', directory: '/srv/a', user: 'web',
+      tasks: [{ id: 'sitemap', schedule: '0 3 * * *', command: 'php bin/console app:sitemap' }, { id: 'manual', schedule: undefined, command: undefined }] },
+    { type: 'supervisor', name: 'front', role: 'web', command: undefined, directory: undefined, user: undefined, tasks: [] },
+  ])
+  expect(launchersOf(null)).toEqual([])
+  expect(launchersOf({ name: 'x' })).toEqual([])
 })

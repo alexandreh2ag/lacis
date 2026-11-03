@@ -328,7 +328,8 @@ type Launcher struct {
 	Directory string  `json:"directory,omitempty"`
 	User      string  `json:"user,omitempty"`
 	// Tasks are the tasks the program schedules, such as those of a gtask
-	// configuration: their ids and schedules, never their commands.
+	// configuration: their ids and schedules, and their commands only with
+	// collectors.apps.commands full.
 	Tasks []LauncherTask `json:"tasks,omitempty"`
 }
 
@@ -337,6 +338,9 @@ type LauncherTask struct {
 	ID string `json:"id"`
 	// Schedule is a cron expression, e.g. "*/5 * * * *".
 	Schedule string `json:"schedule,omitempty"`
+	// Command is what the task runs, sent only when the agent sends whole
+	// commands (collectors.apps.commands: full).
+	Command string `json:"command,omitempty"`
 }
 
 // Dependency is a link from an app to something it connects to, read from its

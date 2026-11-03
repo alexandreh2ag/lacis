@@ -176,8 +176,8 @@ For each app:
   whole command (`full`). A program running
   [gtask](https://github.com/alexandreh2ag/go-task) (`gtask schedule start` or
   `gtask schedule run` with `-c <file>`) also reports the **scheduled tasks** of
-  that file: their ids and cron expressions, never their commands nor their
-  environment. The file is read confined to the app root (a relative `-c` is
+  that file: their ids and cron expressions, their commands only with
+  `collectors.apps.commands: full`, never their environment. The file is read confined to the app root (a relative `-c` is
   joined to the directory of the program); a file out of the app is not read;
 - **framework**: Symfony, Laminas, Zend, Zend Framework 1, Laravel, Next.js, Nuxt,
   NestJS, or a [declarative detector](./configuration/agent.md#collectorsapps);
@@ -316,7 +316,8 @@ Credentials are removed **on the host**, before the snapshot leaves it:
 - Of a Docker container, only the version variables of its image are read; its
   environment is never sent.
 - Of a gtask configuration, only the ids and cron expressions of the scheduled
-  tasks are read; their commands, environment and conditions never.
+  tasks are read, and their commands with `collectors.apps.commands: full`;
+  their environment and conditions never.
 
 What **is** sent as is: paths, hostnames, IPs, listen addresses, vhost names and
 proxy targets, versions and commits. Check with `lacis-agent collect` before

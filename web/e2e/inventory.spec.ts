@@ -51,3 +51,28 @@ test('the repository of an app opens its page and is copied', async ({ page }) =
   await expect(repository).toHaveAttribute('target', '_blank')
   await expect(page.getByRole('button', { name: 'Copier https://git.acme.example/site/www.git' })).toBeVisible()
 })
+
+test('the workers of an app and their scheduled tasks are listed', async ({ page }) => {
+  await page.goto('acme/apps?q=acme-shop-staging-1')
+  await page.locator('tbody tr a', { hasText: /api/ }).first().click()
+  await page.getByRole('tab', { name: /^Workers/ }).click()
+  await expect(page).toHaveURL(/tab=workers/)
+  await expect(page.locator('tbody tr')).toHaveCount(3)
+  await expect(page.getByRole('cell', { name: 'shop-api-cron' })).toBeVisible()
+
+  await page.getByRole('tab', { name: /^Tâches planifiées/ }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await expect(page.getByRole('row', { name: /sitemap.*0 3 \* \* \*.*shop-api-cron/ })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Commande' })).toBeHidden()
+})
+
+test('the whole commands of the workers and their tasks are shown when their agent sends them', async ({ page }) => {
+  await page.goto('acme/apps?q=acme-crm-staging-1')
+  await page.locator('tbody tr a', { hasText: /api/ }).first().click()
+  await page.getByRole('tab', { name: /^Workers/ }).click()
+  await expect(page.getByRole('cell', { name: '/usr/bin/php8.2 bin/console messenger:consume sync --time-limit=3600 --memory-limit=256M -vv' })).toBeVisible()
+  await expect(page.locator('tbody tr')).toHaveCount(3)
+  await page.getByRole('tab', { name: /^Tâches planifiées/ }).click()
+  await expect(page.getByRole('columnheader', { name: 'Commande' })).toBeVisible()
+  await expect(page.getByRole('row', { name: /sync-contacts.*\*\/10 \* \* \* \*.*app:contacts:sync --batch=500.*crm-api-cron/ })).toBeVisible()
+})

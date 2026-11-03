@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/alexandreh2ag/lacis/agent/config"
@@ -79,6 +80,40 @@ func TestCollect_GtaskTasks(t *testing.T) {
 			Tasks: []snapshot.LauncherTask{{ID: "sitemap", Schedule: "0 3 * * *"}, {ID: "cleanup", Schedule: "*/5 * * * *"}}},
 		{Type: "supervisor", Name: "shop-worker", Role: "worker", Command: "gtask", Directory: "/srv/shop"},
 	}, out.Apps[1].Launchers)
+}
+
+func TestCollect_GtaskTaskCommands(t *testing.T) {
+	long := strings.Repeat("x", maxGtaskCommand+1)
+	tests := []struct {
+		name string
+		mode config.CommandMode
+		want []snapshot.LauncherTask
+	}{
+		{name: "path: never read", mode: config.CommandPath, want: []snapshot.LauncherTask{
+			{ID: "sitemap", Schedule: "0 3 * * *"}, {ID: "long", Schedule: "* * * * *"}}},
+		{name: "full: read, a long one left out", mode: config.CommandFull, want: []snapshot.LauncherTask{
+			{ID: "sitemap", Schedule: "0 3 * * *", Command: "php bin/console app:sitemap --token=SECRET"},
+			{ID: "long", Schedule: "* * * * *"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHost(t)
+			h.fs.Files(t, map[string]string{
+				"/srv/shop/composer.json": "{}",
+				"/srv/shop/.reflet/gtask.yml": "scheduled:\n" +
+					"  - id: sitemap\n    expr: \"0 3 * * *\"\n    command: \"php bin/console app:sitemap --token=SECRET\"\n" +
+					"    envs:\n      DATABASE_URL: mysql://root:SECRET@db/shop\n" +
+					"  - id: long\n    expr: \"* * * * *\"\n    command: " + long + "\n",
+				"/etc/supervisor/conf.d/shop.conf": "[program:shop-cron]\ncommand=gtask schedule start -c .reflet/gtask.yml\ndirectory=/srv/shop\n",
+			})
+			h.configure = func(c *config.Config) { c.Collectors.Apps.Commands = tt.mode }
+			out := &snapshot.Snapshot{}
+			require.NoError(t, h.collect(out))
+			require.Len(t, out.Apps, 1)
+			require.Len(t, out.Apps[0].Launchers, 1)
+			assert.Equal(t, tt.want, out.Apps[0].Launchers[0].Tasks)
+		})
+	}
 }
 
 func TestCollect_GtaskTasksThroughLink(t *testing.T) {

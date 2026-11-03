@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/alexandreh2ag/lacis/agent/config"
 	"github.com/alexandreh2ag/lacis/agent/system"
 	"github.com/alexandreh2ag/lacis/common/snapshot"
 	"go.yaml.in/yaml/v3"
@@ -19,14 +20,19 @@ const maxGtaskTasks = 200
 // maxGtaskField bounds an id or an expression: longer, the task is skipped.
 const maxGtaskField = 256
 
+// maxGtaskCommand bounds the command of a task: longer, it is left out.
+const maxGtaskCommand = 4096
+
 // gtaskConfig is what Lacis reads of a gtask configuration
 // (github.com/alexandreh2ag/go-task): the ids and cron expressions of the
-// scheduled tasks. Their commands, environment and conditions are never
-// read: they may hold secrets.
+// scheduled tasks, and their commands when collectors.apps.commands is
+// full. Their environment and conditions are never read: they may hold
+// secrets.
 type gtaskConfig struct {
 	Scheduled []struct {
-		ID   string `yaml:"id"`
-		Expr string `yaml:"expr"`
+		ID      string `yaml:"id"`
+		Expr    string `yaml:"expr"`
+		Command string `yaml:"command"`
 	} `yaml:"scheduled"`
 }
 
@@ -95,7 +101,11 @@ func (c *collection) gtaskTasks(a *app, l system.Launcher) ([]snapshot.LauncherT
 		if t.ID == "" || len(t.ID) > maxGtaskField || len(t.Expr) > maxGtaskField || len(tasks) == maxGtaskTasks {
 			continue
 		}
-		tasks = append(tasks, snapshot.LauncherTask{ID: t.ID, Schedule: t.Expr})
+		task := snapshot.LauncherTask{ID: t.ID, Schedule: t.Expr}
+		if c.ctx.Config.Collectors.Apps.Commands == config.CommandFull && len(t.Command) <= maxGtaskCommand {
+			task.Command = t.Command
+		}
+		tasks = append(tasks, task)
 	}
 	return tasks, nil
 }

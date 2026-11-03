@@ -12,7 +12,7 @@ import type { AppPageQuery } from '@/graphql/graphql'
 import { useT } from '@/i18n'
 import { ago, confidenceText, formatDateTime } from '@/lib/format'
 import { repositoryUrl } from '@/lib/git'
-import { field, str, strings } from '@/lib/json'
+import { field, launchersOf, str, strings, type Launcher } from '@/lib/json'
 import { safeHttpUrl } from '@/lib/url'
 import { refresh } from '@/config'
 
@@ -21,7 +21,7 @@ const AppPageDoc = graphql(`
     namespace(slug: $ns) {
       id
       app(id: $id) {
-        id name path resolvedPath role framework frameworkVersion vhosts firstSeenAt
+        id name path resolvedPath role framework frameworkVersion vhosts launchers firstSeenAt
         runtime { type version path source }
         code { source version commit branch tag repository pipelineId pipelineUrl deployedAt deployedBy }
         project { slug name }
@@ -100,11 +100,14 @@ export function AppPage() {
   const t = useT()
   const ta = t.pages.app
   const ts = t.pages.shared
+  const launchers = useMemo(() => launchersOf(a?.launchers), [a?.launchers])
   const tabs = [
     { id: 'general', label: ts.general },
     { id: 'uses', label: ta.tabs.uses, count: a?.links.length },
     { id: 'used-by', label: ts.usedBy, count: a?.dependents.length },
     { id: 'config', label: ta.tabs.config, count: a?.dependencies.length },
+    { id: 'workers', label: ta.tabs.workers, count: a ? launchers.length : undefined },
+    { id: 'scheduled', label: ta.tabs.scheduled, count: a ? launchers.reduce((n, l) => n + l.tasks.length, 0) : undefined },
   ]
   const [tab, setTab] = useTab(tabs, 'general')
   if (loading && !a) return <Page title="…"><span className="lc-muted">{ts.loading}</span></Page>
@@ -132,6 +135,8 @@ export function AppPage() {
         {tab === 'uses' ? <Uses ns={ns} app={a} /> : null}
         {tab === 'used-by' ? <UsedByTab ns={ns} app={a} /> : null}
         {tab === 'config' ? <Config app={a} /> : null}
+        {tab === 'workers' ? <Workers launchers={launchers} /> : null}
+        {tab === 'scheduled' ? <Scheduled launchers={launchers} /> : null}
       </Tabs>
     </Page>
   )
@@ -372,6 +377,53 @@ function Config({ app: a }: { app: App }) {
           </tr>
         )
       })}</tbody>
+    </table></div>
+  )
+}
+
+// Workers lists the programs starting the app, such as supervisor ones:
+// those listening on a port serve it (web), the others work for it.
+function Workers({ launchers }: { launchers: Launcher[] }) {
+  const t = useT()
+  const ta = t.pages.app
+  if (!launchers.length) return <p className="lc-muted m-0">{ta.noWorker}</p>
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
+      <thead><tr><th>{ta.program}</th><th>{ta.role}</th><th>{ta.command}</th><th>{ta.directory}</th><th>{ta.user}</th><th>{ta.launcher}</th></tr></thead>
+      <tbody>{launchers.map((l) => (
+        <tr key={`${l.type}/${l.name}`}>
+          <td><Copyable value={l.name} /></td>
+          <td><span className={l.role === 'web' ? 'lc-badge' : 'lc-badge lc-badge--plain'}>{l.role}</span></td>
+          <td className="lc-mono" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{l.command}</td>
+          <td style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{l.directory ? <Copyable value={l.directory} /> : null}</td>
+          <td className="lc-mono">{l.user}</td>
+          <td>{l.type}</td>
+        </tr>
+      ))}</tbody>
+    </table></div>
+  )
+}
+
+// Scheduled lists the tasks the launchers of the app schedule, such as
+// those of a gtask configuration, with their cron expressions, and their
+// commands when the agent sends them (collectors.apps.commands: full).
+function Scheduled({ launchers }: { launchers: Launcher[] }) {
+  const t = useT()
+  const ta = t.pages.app
+  const rows = launchers.flatMap((l) => l.tasks.map((task) => ({ launcher: l.name, ...task })))
+  if (!rows.length) return <p className="lc-muted m-0">{ta.noScheduled}</p>
+  const commands = rows.some((r) => r.command)
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
+      <thead><tr><th>{ta.task}</th><th>{ta.schedule}</th>{commands ? <th>{ta.command}</th> : null}<th>{ta.program}</th></tr></thead>
+      <tbody>{rows.map((r) => (
+        <tr key={`${r.launcher}/${r.id}`}>
+          <td><Copyable value={r.id} /></td>
+          <td className="lc-mono">{r.schedule ?? <span className="lc-muted">{ta.manual}</span>}</td>
+          {commands ? <td className="lc-mono" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{r.command}</td> : null}
+          <td className="lc-mono">{r.launcher}</td>
+        </tr>
+      ))}</tbody>
     </table></div>
   )
 }
