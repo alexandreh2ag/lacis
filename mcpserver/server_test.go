@@ -114,6 +114,7 @@ func newFixture(t *testing.T) *fixture {
 	f.ns.EXPECT().List(gomock.Any()).Return([]model.Namespace{other, hidden, acme}, nil).AnyTimes()
 	cfg := config.DefaultConfig()
 	cfg.Graph.MaxNodes = 3
+	cfg.Listen.PublicURL = "https://lacis.acme.example/lacis/"
 	server := mcpserver.New(mcpserver.Services{Namespace: f.ns, Graph: f.graph, History: f.history}, clk, f.logger, cfg, "1.2.3")
 	listen := config.ListenConfig{BasePath: "/", PublicURL: "https://lacis.acme.example"}
 	srv := httptest.NewServer(mcpRoute.Handler(appContext.TestContext(nil).Logger, listen, f.oauth, server))
@@ -178,6 +179,16 @@ func TestServer_Tools(t *testing.T) {
 	}
 	assert.Equal(t, []string{"find_by_version", "get_app", "get_host", "graph", "history", "links", "list_namespaces", "list_versions", "search"}, names)
 	assert.Contains(t, f.session.InitializeResult().Instructions, "find_by_version")
+}
+
+func TestServer_Icons(t *testing.T) {
+	f := newFixture(t)
+	info := f.session.InitializeResult().ServerInfo
+	assert.Equal(t, "Lacis", info.Title)
+	assert.Equal(t, []mcp.Icon{
+		{Source: "https://lacis.acme.example/lacis/icon-512.png", MIMEType: "image/png", Sizes: []string{"512x512"}},
+		{Source: "https://lacis.acme.example/lacis/favicon.svg", MIMEType: "image/svg+xml", Sizes: []string{"any"}},
+	}, info.Icons, "served by the front, under the base path")
 }
 
 func TestServer_ListNamespaces(t *testing.T) {

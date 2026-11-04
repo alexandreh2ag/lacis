@@ -32,6 +32,7 @@ func serve(t *testing.T, files fstest.MapFS, target string) *httptest.ResponseRe
 var files = fstest.MapFS{
 	"index.html":          {Data: []byte(index)},
 	"favicon.svg":         {Data: []byte("<svg/>")},
+	"favicon.ico":         {Data: []byte("ico")},
 	"assets/index-ab1.js": {Data: []byte("console.log(1)")},
 }
 
@@ -68,6 +69,31 @@ func TestServe_Files(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, serve(t, files, "/lacis/assets/gone.js").Code, "a missing asset is no page")
 	assert.Equal(t, http.StatusNotFound, serve(t, files, "/lacis/logo.png").Code)
 	assert.Equal(t, http.StatusOK, serve(t, files, "/lacis/../../etc/passwd").Code, "cleaned to a page of the front")
+}
+
+func TestRegisterRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		files  fstest.MapFS
+		prefix string
+		want   int
+	}{
+		{name: "under a base path", files: files, prefix: "/lacis/", want: http.StatusOK},
+		{name: "no favicon built", files: fstest.MapFS{"index.html": {Data: []byte(index)}}, prefix: "/lacis/", want: http.StatusNotFound},
+		{name: "at the root, Register serves it", files: files, prefix: "/", want: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			NewHandler(tt.files, &config.Config{}, "1").RegisterRoot(e, tt.prefix)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/favicon.ico", nil))
+			assert.Equal(t, tt.want, rec.Code)
+			if tt.want == http.StatusOK {
+				assert.Equal(t, "ico", rec.Body.String())
+			}
+		})
+	}
 }
 
 func TestServe_NotBuilt(t *testing.T) {

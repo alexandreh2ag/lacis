@@ -52,6 +52,10 @@ var (
 	configTag = regexp.MustCompile(`(<script id="lacis-config" type="application/json">)[^<]*(</script>)`)
 )
 
+// Favicon is the icon of the front the browsers and the favicon fetchers ask
+// for by default.
+const Favicon = "favicon.ico"
+
 type Handler struct {
 	files fs.FS
 	index []byte
@@ -89,6 +93,21 @@ func NewHandler(files fs.FS, cfg *config.Config, version string) *Handler {
 func (h *Handler) Register(g *echo.Group) {
 	g.GET("", h.Serve)
 	g.GET("/*", h.Serve)
+}
+
+// RegisterRoot serves /favicon.ico at the root of the domain when the front
+// is under a base path: the favicon fetchers, such as the one of an
+// assistant listing its connectors, look there and not under the base path.
+func (h *Handler) RegisterRoot(e *echo.Echo, prefix string) {
+	if prefix == "/" {
+		return
+	}
+	e.GET("/"+Favicon, func(c *echo.Context) error {
+		if _, err := fs.Stat(h.files, Favicon); err != nil {
+			return echo.ErrNotFound
+		}
+		return c.FileFS(Favicon, h.files)
+	})
 }
 
 func (h *Handler) Serve(c *echo.Context) error {

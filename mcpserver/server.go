@@ -98,7 +98,8 @@ func add[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h mcp.ToolHandler
 // New returns the MCP server; version is the one of Lacis.
 func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Config, version string) *mcp.Server {
 	s := &server{services: services, clock: clk, logger: logger, maxNodes: cfg.Graph.MaxNodes}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "lacis", Title: "Lacis", Version: version}, &mcp.ServerOptions{Instructions: instructions})
+	srv := mcp.NewServer(&mcp.Implementation{Name: "lacis", Title: "Lacis", Version: version, Icons: icons(cfg.Listen)},
+		&mcp.ServerOptions{Instructions: instructions})
 	readOnly := func(title string) *mcp.ToolAnnotations {
 		return &mcp.ToolAnnotations{Title: title, ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: new(false)}
 	}
@@ -610,4 +611,14 @@ func (s *server) history(ctx context.Context, req *mcp.CallToolRequest, in Histo
 		out.Changes = append(out.Changes, c)
 	}
 	return nil, out, nil
+}
+
+// icons are the logos of Lacis the assistants show beside the connector,
+// served by the front.
+func icons(listen config.ListenConfig) []mcp.Icon {
+	base := listen.PublicBase()
+	return []mcp.Icon{
+		{Source: base + "/icon-512.png", MIMEType: "image/png", Sizes: []string{"512x512"}},
+		{Source: base + "/favicon.svg", MIMEType: "image/svg+xml", Sizes: []string{"any"}},
+	}
 }

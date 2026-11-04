@@ -9,7 +9,10 @@
     <!-- The theme picked in the account menu, before the first paint. -->
     <script>try { var t = localStorage.getItem('lacis-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) {}</script>
     <title>Lacis</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" href="favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" sizes="any" />
+    <link rel="icon" type="image/png" href="icon-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <script id="lacis-config" type="application/json">{"basePath":"/","version":"dev","auth":{"local":true,"oidc":false}}</script>
   </head>
   <body>

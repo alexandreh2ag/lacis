@@ -108,7 +108,9 @@ func CreateServerHTTP(ctx *context.Context, services *Services) *echo.Echo {
 		mcpRoute.Register(g, mcpRoute.Handler(ctx.Logger, ctx.Config.Listen, services.OAuth, server))
 	}
 	if services.UI != nil {
-		ui.NewHandler(services.UI, ctx.Config, version.Version).Register(g)
+		uiHandler := ui.NewHandler(services.UI, ctx.Config, version.Version)
+		uiHandler.Register(g)
+		uiHandler.RegisterRoot(e, ctx.Config.Listen.Prefix())
 	}
 	return e
 }
