@@ -45,7 +45,7 @@ var (
 	web2  = model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "web-2", ProjectID: &shop.ID, EnvironmentID: &staging.ID}
 	db1   = model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "db-1", ProjectID: &shop.ID, EnvironmentID: &prod.ID}
 	front = model.App{Base: model.Base{ID: uuid.New()}, HostID: web1.ID, Name: "shop-front", Path: "/srv/shop", Role: "web",
-		Framework: new("symfony"), FrameworkVersion: new("6.4.12"), Runtime: json.RawMessage(`{"type":"php","version":"8.1.27"}`), Vhosts: model.StringArray{"shop.acme.example"}}
+		Framework: new("symfony"), FrameworkVersion: new("6.4.12"), Runtime: json.RawMessage(`{"type":"php","version":"8.1.27","package_version":"8.1.27-9+deb.sury.org+1"}`), Vhosts: model.StringArray{"shop.acme.example"}}
 	legacy = model.App{Base: model.Base{ID: uuid.New()}, HostID: web2.ID, Name: "legacy", Path: "/srv/legacy",
 		Framework: new("laravel"), FrameworkVersion: new("8.83.1"), Runtime: json.RawMessage(`{"type":"php","version":"7.4.33"}`)}
 	mysql = model.Service{Base: model.Base{ID: uuid.New()}, HostID: db1.ID, Type: "mysql", Instance: "default", Version: new("8.0.36")}
@@ -58,7 +58,7 @@ func inventory() *model.Inventory {
 		Hosts: []model.Host{web1, web2, db1},
 		IPs:   []model.HostIP{{HostID: db1.ID, IP: model.IP{Addr: netip.MustParseAddr("10.0.2.10")}}},
 		Runtimes: []model.Runtime{
-			{HostID: web1.ID, Type: "php", Version: "8.1.2-1ubuntu2.18", Path: "/usr/bin/php8.1"},
+			{HostID: web1.ID, Type: "php", Version: "8.1.2-1ubuntu2.18", Path: "/usr/bin/php8.1", PackageVersion: new("8.1.2-1ubuntu2.18")},
 			{HostID: web2.ID, Type: "php", Version: "7.4.33", Path: "/usr/bin/php7.4"},
 		},
 		Services:   []model.Service{mysql},
@@ -252,10 +252,11 @@ func TestServer_GetHost(t *testing.T) {
 	assert.Equal(t, "production", out.Env)
 	assert.Equal(t, "front", out.Role)
 	assert.Equal(t, map[string]any{"name": "debian", "version": "12"}, out.OS)
-	assert.Equal(t, []mcpserver.Runtime{{Type: "php", Version: "8.1.2-1ubuntu2.18", Path: "/usr/bin/php8.1"}}, out.Runtimes)
+	assert.Equal(t, []mcpserver.Runtime{{Type: "php", Version: "8.1.2-1ubuntu2.18", Path: "/usr/bin/php8.1", PackageVersion: "8.1.2-1ubuntu2.18"}}, out.Runtimes)
 	assert.Equal(t, []mcpserver.WebserverOut{{ID: nginx.ID.String(), Type: "nginx", Version: "1.24.0", Endpoints: []mcpserver.Endpoint{{Kind: "domain", Address: "www.acme.example"}}}}, out.Webservers)
 	require.Len(t, out.Apps, 1)
 	assert.Equal(t, "8.1.27", out.Apps[0].RuntimeVersion)
+	assert.Equal(t, "8.1.27-9+deb.sury.org+1", out.Apps[0].RuntimePackageVersion)
 
 	assert.Contains(t, f.call(t, "get_host", map[string]any{"host": "nope", "namespace": "acme"}, &out), `no host "nope"`)
 }
@@ -367,6 +368,11 @@ func TestServer_FindByVersion(t *testing.T) {
 	assert.Equal(t, 4, out.Count)
 	assert.Len(t, out.Usages, 1)
 	assert.True(t, out.Truncated)
+
+	// The package version tells the patched PHP of the app apart.
+	require.Empty(t, f.call(t, "find_by_version", map[string]any{"technology": "php", "op": "eq", "version": "8.1.27"}, &out))
+	require.Len(t, out.Usages, 1)
+	assert.Equal(t, "8.1.27-9+deb.sury.org+1", out.Usages[0].PackageVersion)
 }
 
 func TestServer_ListVersions(t *testing.T) {

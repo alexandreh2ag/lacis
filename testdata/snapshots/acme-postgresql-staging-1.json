@@ -56,6 +56,7 @@
     {
       "type": "postgresql",
       "version": "16.4",
+      "package_version": "16.4-1.pgdg120+2",
       "instance": "16/main",
       "cluster": "main",
       "listen": [

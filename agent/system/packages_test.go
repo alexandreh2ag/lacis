@@ -117,6 +117,16 @@ func TestPackagesVersion(t *testing.T) {
 	assert.Empty(t, pkg)
 }
 
+func TestPackagesRaw(t *testing.T) {
+	p := Packages{"php8.1-cli": "8.1.34-9+deb.sury.org+1"}
+	v, pkg := p.Raw("php8.1-cli")
+	assert.Equal(t, "8.1.34-9+deb.sury.org+1", v)
+	assert.Equal(t, "php8.1-cli", pkg)
+	v, pkg = p.Raw("php8.2-cli")
+	assert.Empty(t, v)
+	assert.Empty(t, pkg)
+}
+
 func TestCompareVersions(t *testing.T) {
 	tests := []struct {
 		a, b string

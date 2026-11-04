@@ -45,7 +45,7 @@ func (r *appResolver) Runtime(ctx context.Context, obj *model.App) (*graph.AppRu
 	if err := json.Unmarshal(obj.Runtime, &rt); err != nil {
 		return nil, fmt.Errorf("decode runtime of app %s: %w", obj.ID, err)
 	}
-	return &graph.AppRuntime{Type: rt.Type, Version: rt.Version, Path: optional(rt.Path), Source: optional(rt.Source)}, nil
+	return &graph.AppRuntime{Type: rt.Type, Version: rt.Version, PackageVersion: optional(rt.PackageVersion), Path: optional(rt.Path), Source: optional(rt.Source)}, nil
 }
 
 // Code is the resolver for the code field.

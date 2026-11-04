@@ -262,7 +262,7 @@ func TestNormalize_Apps(t *testing.T) {
 	assert.Equal(t, "web", api.Role)
 	assert.Equal(t, "symfony", *api.Framework)
 	assert.Equal(t, "7.2.6", *api.FrameworkVersion)
-	assert.JSONEq(t, `{"type":"php","version":"8.3.14","source":"fpm_pool"}`, string(api.Runtime))
+	assert.JSONEq(t, `{"type":"php","version":"8.3.14","package_version":"8.3.14-1+0~20241128.48+debian12~1.gbp3d9f8a","source":"fpm_pool"}`, string(api.Runtime))
 	assert.Equal(t, model.StringArray{"api.shop.acme.example"}, api.Vhosts)
 	assert.JSONEq(t, `{"APP_ENV":"prod"}`, string(api.Info))
 	var launchers []snapshot.Launcher

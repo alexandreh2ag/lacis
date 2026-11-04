@@ -118,14 +118,16 @@ func deref[T any](p *T) T {
 	return *p
 }
 
-// appRuntime reads the runtime of an app; empty when none was collected.
-func appRuntime(a *model.App) (string, string) {
+// appRuntime reads the runtime of an app: its type, version and package
+// version; empty when none was collected.
+func appRuntime(a *model.App) (typ, version, packageVersion string) {
 	var rt struct {
-		Type    string `json:"type"`
-		Version string `json:"version"`
+		Type           string `json:"type"`
+		Version        string `json:"version"`
+		PackageVersion string `json:"package_version"`
 	}
 	_ = json.Unmarshal(a.Runtime, &rt)
-	return rt.Type, rt.Version
+	return rt.Type, rt.Version, rt.PackageVersion
 }
 
 // raw decodes a JSON value of the inventory, nil when empty: the schema
@@ -224,6 +226,8 @@ type Runtime struct {
 	Version string `json:"version"`
 	Path    string `json:"path,omitempty"`
 	Manager string `json:"manager,omitempty"`
+	// PackageVersion is the version of its system package, revision included.
+	PackageVersion string `json:"package_version,omitempty" jsonschema:"version of the system package, packaging revision included (8.1.34-9+deb.sury.org+1): distributions patch an end-of-life version there and keep the version"`
 }
 
 // Endpoint is where a service or webserver listens, or a domain it serves.
@@ -234,12 +238,14 @@ type Endpoint struct {
 }
 
 type ServiceOut struct {
-	ID        string     `json:"id"`
-	Type      string     `json:"type"`
-	Instance  string     `json:"instance,omitempty"`
-	Version   string     `json:"version,omitempty"`
-	Details   any        `json:"details,omitempty"`
-	Endpoints []Endpoint `json:"endpoints,omitempty"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Instance string `json:"instance,omitempty"`
+	Version  string `json:"version,omitempty"`
+	// PackageVersion is the version of its system package, revision included.
+	PackageVersion string     `json:"package_version,omitempty" jsonschema:"version of the system package, packaging revision included"`
+	Details        any        `json:"details,omitempty"`
+	Endpoints      []Endpoint `json:"endpoints,omitempty"`
 }
 
 type WebserverOut struct {
@@ -251,17 +257,20 @@ type WebserverOut struct {
 
 // AppSummary is an app as a host lists it.
 type AppSummary struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Role             string   `json:"role,omitempty"`
-	Path             string   `json:"path"`
-	Project          string   `json:"project,omitempty"`
-	Env              string   `json:"env,omitempty"`
-	Framework        string   `json:"framework,omitempty"`
-	FrameworkVersion string   `json:"framework_version,omitempty"`
-	Runtime          string   `json:"runtime,omitempty"`
-	RuntimeVersion   string   `json:"runtime_version,omitempty"`
-	Vhosts           []string `json:"vhosts,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Role             string `json:"role,omitempty"`
+	Path             string `json:"path"`
+	Project          string `json:"project,omitempty"`
+	Env              string `json:"env,omitempty"`
+	Framework        string `json:"framework,omitempty"`
+	FrameworkVersion string `json:"framework_version,omitempty"`
+	Runtime          string `json:"runtime,omitempty"`
+	RuntimeVersion   string `json:"runtime_version,omitempty"`
+	// RuntimePackageVersion is the version of the system package of the
+	// runtime or of its PHP-FPM, revision included.
+	RuntimePackageVersion string   `json:"runtime_package_version,omitempty" jsonschema:"version of the system package of the runtime or of its PHP-FPM, packaging revision included"`
+	Vhosts                []string `json:"vhosts,omitempty"`
 }
 
 type ContainerOut struct {
@@ -309,9 +318,9 @@ func (x *index) endpointsOf(ownerID uuid.UUID) []Endpoint {
 
 func (x *index) appSummary(a *model.App) AppSummary {
 	p, e := x.placeOf(a.HostID, a.ProjectID, a.EnvironmentID)
-	rt, rtv := appRuntime(a)
+	rt, rtv, rtp := appRuntime(a)
 	return AppSummary{ID: a.ID.String(), Name: a.Name, Role: a.Role, Path: a.Path, Project: p, Env: e,
-		Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion), Runtime: rt, RuntimeVersion: rtv, Vhosts: a.Vhosts}
+		Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion), Runtime: rt, RuntimeVersion: rtv, RuntimePackageVersion: rtp, Vhosts: a.Vhosts}
 }
 
 func (x *index) host(h *model.Host) HostOut {
@@ -325,13 +334,13 @@ func (x *index) host(h *model.Host) HostOut {
 	}
 	for _, r := range x.inv.Runtimes {
 		if r.HostID == h.ID {
-			out.Runtimes = append(out.Runtimes, Runtime{Type: r.Type, Version: r.Version, Path: r.Path, Manager: deref(r.Manager)})
+			out.Runtimes = append(out.Runtimes, Runtime{Type: r.Type, Version: r.Version, Path: r.Path, Manager: deref(r.Manager), PackageVersion: deref(r.PackageVersion)})
 		}
 	}
 	for _, s := range x.inv.Services {
 		if s.HostID == h.ID {
 			out.Services = append(out.Services, ServiceOut{ID: s.ID.String(), Type: s.Type, Instance: s.Instance, Version: deref(s.Version),
-				Details: raw(s.Details), Endpoints: x.endpointsOf(s.ID)})
+				PackageVersion: deref(s.PackageVersion), Details: raw(s.Details), Endpoints: x.endpointsOf(s.ID)})
 		}
 	}
 	for _, w := range x.inv.Webservers {
@@ -506,11 +515,14 @@ type Usage struct {
 	Kind       string `json:"kind" jsonschema:"runtime (installed on the host), app_runtime (the runtime of an app), framework, service, webserver or container"`
 	Technology string `json:"technology"`
 	Version    string `json:"version,omitempty"`
-	Host       string `json:"host"`
-	App        string `json:"app,omitempty"`
-	AppID      string `json:"app_id,omitempty"`
-	Project    string `json:"project,omitempty"`
-	Env        string `json:"env,omitempty"`
+	// PackageVersion is the version of the system package, revision
+	// included, for a runtime, an app runtime or a service.
+	PackageVersion string `json:"package_version,omitempty" jsonschema:"version of the system package, packaging revision included (8.1.34-9+deb.sury.org+1): tells a patched end-of-life version apart"`
+	Host           string `json:"host"`
+	App            string `json:"app,omitempty"`
+	AppID          string `json:"app_id,omitempty"`
+	Project        string `json:"project,omitempty"`
+	Env            string `json:"env,omitempty"`
 }
 
 // imageName is the name of a Docker image without registry nor tag:
@@ -536,15 +548,16 @@ func (x *index) usages(technology string) []Usage {
 	for _, r := range x.inv.Runtimes {
 		if keep(r.Type) {
 			p, e := x.placeOf(r.HostID, nil, nil)
-			out = append(out, Usage{Namespace: ns, Kind: KindRuntime, Technology: r.Type, Version: r.Version, Host: x.hostname(r.HostID), Project: p, Env: e})
+			out = append(out, Usage{Namespace: ns, Kind: KindRuntime, Technology: r.Type, Version: r.Version, PackageVersion: deref(r.PackageVersion), Host: x.hostname(r.HostID), Project: p, Env: e})
 		}
 	}
 	for i := range x.inv.Apps {
 		a := &x.inv.Apps[i]
 		p, e := x.placeOf(a.HostID, a.ProjectID, a.EnvironmentID)
 		u := Usage{Namespace: ns, Host: x.hostname(a.HostID), App: a.Name, AppID: a.ID.String(), Project: p, Env: e}
-		if rt, v := appRuntime(a); keep(rt) {
-			u.Kind, u.Technology, u.Version = KindAppRuntime, rt, v
+		if rt, v, pv := appRuntime(a); keep(rt) {
+			u := u
+			u.Kind, u.Technology, u.Version, u.PackageVersion = KindAppRuntime, rt, v, pv
 			out = append(out, u)
 		}
 		if fw := deref(a.Framework); keep(fw) {
@@ -555,7 +568,7 @@ func (x *index) usages(technology string) []Usage {
 	for _, s := range x.inv.Services {
 		if keep(s.Type) {
 			p, e := x.placeOf(s.HostID, nil, nil)
-			out = append(out, Usage{Namespace: ns, Kind: KindService, Technology: s.Type, Version: deref(s.Version), Host: x.hostname(s.HostID), Project: p, Env: e})
+			out = append(out, Usage{Namespace: ns, Kind: KindService, Technology: s.Type, Version: deref(s.Version), PackageVersion: deref(s.PackageVersion), Host: x.hostname(s.HostID), Project: p, Env: e})
 		}
 	}
 	for _, w := range x.inv.Webservers {

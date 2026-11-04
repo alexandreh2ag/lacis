@@ -55,6 +55,7 @@
     {
       "type": "node",
       "version": "22.20.0",
+      "package_version": "22.20.0-1nodesource1",
       "path": "/usr/bin/node"
     }
   ],
@@ -95,6 +96,7 @@
       "runtime": {
         "type": "node",
         "version": "22.20.0",
+        "package_version": "22.20.0-1nodesource1",
         "path": "/usr/bin/node",
         "source": "process"
       },

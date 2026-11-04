@@ -61,6 +61,7 @@
     {
       "type": "php",
       "version": "8.3.14",
+      "package_version": "8.3.14-1+0~20241128.48+debian12~1.gbp3d9f8a",
       "path": "/usr/bin/php8.3"
     }
   ],
@@ -68,6 +69,7 @@
     {
       "type": "php-fpm",
       "version": "8.3.14",
+      "package_version": "8.3.14-1+0~20241128.48+debian12~1.gbp3d9f8a",
       "instance": "8.3",
       "listen": [
         "unix:/run/php/shop-api.sock"
@@ -139,6 +141,7 @@
       "runtime": {
         "type": "php",
         "version": "8.3.14",
+        "package_version": "8.3.14-1+0~20241128.48+debian12~1.gbp3d9f8a",
         "source": "fpm_pool"
       },
       "code": {

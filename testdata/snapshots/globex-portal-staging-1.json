@@ -55,6 +55,7 @@
     {
       "type": "php",
       "version": "8.3.6",
+      "package_version": "8.3.6-0ubuntu0.24.04.5",
       "path": "/usr/bin/php8.3"
     }
   ],
@@ -62,6 +63,7 @@
     {
       "type": "php-fpm",
       "version": "8.3.6",
+      "package_version": "8.3.6-0ubuntu0.24.04.5",
       "instance": "8.3",
       "listen": [
         "unix:/run/php/portal.sock"
@@ -78,6 +80,7 @@
     {
       "type": "mariadb",
       "version": "10.11.13",
+      "package_version": "1:10.11.13-0ubuntu0.24.04.1",
       "listen": [
         "127.0.0.1:3306"
       ]
@@ -119,6 +122,7 @@
       "runtime": {
         "type": "php",
         "version": "8.3.6",
+        "package_version": "8.3.6-0ubuntu0.24.04.5",
         "source": "fpm_pool"
       },
       "code": {

@@ -134,6 +134,11 @@ type Runtime struct {
 	Version string `json:"version"`
 	Path    string `json:"path"`
 	Manager string `json:"manager,omitempty"`
+	// PackageVersion is the version of the system package holding the
+	// runtime, its packaging revision included ("8.1.34-9+deb.sury.org+1"):
+	// distributions patch an end-of-life version there, with the same
+	// Version.
+	PackageVersion string `json:"package_version,omitempty"`
 	// Alias is the requested version when it is not a version, e.g. "lts/*"
 	// in a .nvmrc.
 	Alias string `json:"alias,omitempty"`
@@ -144,12 +149,15 @@ type Service struct {
 	Version string `json:"version,omitempty"`
 	// Instance tells apart several instances of a type on one host, such as
 	// PostgreSQL clusters. Empty means the default instance.
-	Instance   string     `json:"instance,omitempty"`
-	Listen     []string   `json:"listen,omitempty"`
-	ConfigPath string     `json:"config_path,omitempty"`
-	Cluster    string     `json:"cluster,omitempty"`
-	Pools      []FPMPool  `json:"pools,omitempty"`
-	Container  *Container `json:"container,omitempty"`
+	Instance string `json:"instance,omitempty"`
+	// PackageVersion is the version of the system package of the service,
+	// its packaging revision included; see Runtime.PackageVersion.
+	PackageVersion string     `json:"package_version,omitempty"`
+	Listen         []string   `json:"listen,omitempty"`
+	ConfigPath     string     `json:"config_path,omitempty"`
+	Cluster        string     `json:"cluster,omitempty"`
+	Pools          []FPMPool  `json:"pools,omitempty"`
+	Container      *Container `json:"container,omitempty"`
 }
 
 type FPMPool struct {
@@ -293,6 +301,9 @@ type AppRuntime struct {
 	Type    string `json:"type"`
 	Version string `json:"version"`
 	Path    string `json:"path,omitempty"`
+	// PackageVersion is the version of the system package of the runtime
+	// or of its FPM service; see Runtime.PackageVersion.
+	PackageVersion string `json:"package_version,omitempty"`
 	// Source tells how the runtime was found: fpm_pool, process, nvmrc.
 	Source string `json:"source"`
 }

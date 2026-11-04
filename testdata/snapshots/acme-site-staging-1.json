@@ -55,6 +55,7 @@
     {
       "type": "php",
       "version": "7.0.33",
+      "package_version": "7.0.33-75+0~20251021.95+debian10~1.gbp6c3f2b",
       "path": "/usr/bin/php7.0"
     }
   ],
@@ -62,6 +63,7 @@
     {
       "type": "php-fpm",
       "version": "7.0.33",
+      "package_version": "7.0.33-75+0~20251021.95+debian10~1.gbp6c3f2b",
       "instance": "7.0",
       "listen": [
         "127.0.0.1:9000"
@@ -119,6 +121,7 @@
       "runtime": {
         "type": "php",
         "version": "7.0.33",
+        "package_version": "7.0.33-75+0~20251021.95+debian10~1.gbp6c3f2b",
         "source": "fpm_pool"
       },
       "code": {

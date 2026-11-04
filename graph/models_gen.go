@@ -60,10 +60,12 @@ type AppList struct {
 }
 
 type AppRuntime struct {
-	Type    string  `json:"type"`
-	Version string  `json:"version"`
-	Path    *string `json:"path,omitempty"`
-	Source  *string `json:"source,omitempty"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+	// The version of the system package of the runtime or of its PHP-FPM, its packaging revision included.
+	PackageVersion *string `json:"packageVersion,omitempty"`
+	Path           *string `json:"path,omitempty"`
+	Source         *string `json:"source,omitempty"`
 }
 
 type AppSort struct {

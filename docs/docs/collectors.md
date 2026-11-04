@@ -83,6 +83,14 @@ are found from the binaries of the running processes and from well-known paths:
 probing the binary (`php -n -v`, `node --version`) or, for Java, from the `release`
 file of the JDK/JRE. The Node version manager is recorded.
 
+The **package version** of a runtime installed by a package is recorded too, its
+packaging revision included: `php8.1-cli` (Debian, Ubuntu, deb.sury.org) for
+`/usr/bin/php8.1`, `php-cli` (RHEL) for `/usr/bin/php`, `php81-php-cli` for Remi's
+`/opt/remi/php81`, `nodejs` for `/usr/bin/node`. Distributions patch an
+end-of-life version there and keep its version: PHP 8.1.34 patched is still
+`8.1.34`, its package `8.1.34-9+ubuntu22.04.1+deb.sury.org+1`. The package is kept
+only when its version is the one the binary printed.
+
 ## `services`
 
 Services running on the host, recognized by their main process: MySQL, MariaDB,
@@ -95,6 +103,8 @@ process. For each:
   binary (`--version`, `varnishd -V`, `vault version`). A MinIO or Silo package
   version such as `20240116160738.0.0` is given as its release,
   `RELEASE.2024-01-16T16-07-38Z`;
+- the **package version**, its packaging revision included
+  (`8.2.24-1+deb12u1`), when the service comes from a package;
 - the **addresses it listens on** (TCP and unix sockets) across its process tree;
 - an **instance** name when a type runs several times: the PostgreSQL cluster of
   Debian (`/etc/postgresql/<version>/<cluster>/`), the PHP version of PHP-FPM, else
@@ -182,7 +192,8 @@ For each app:
 - **framework**: Symfony, Laminas, Zend, Zend Framework 1, Laravel, Next.js, Nuxt,
   NestJS, or a [declarative detector](./configuration/agent.md#collectorsapps);
 - **runtime** it really runs on: the PHP-FPM pool its vhost sends to, the binary
-  of its Node process, the PHP of its launcher command, or its `.nvmrc`;
+  of its Node process, the PHP of its launcher command, or its `.nvmrc`, with the
+  package version of that runtime or of its PHP-FPM;
 - **code**: from a version file, else from `.git` (read without the git binary):
   the tag of HEAD, else the branch, the commit and the remote URL;
 - **project** and **env**, see below.

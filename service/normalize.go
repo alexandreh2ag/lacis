@@ -180,11 +180,21 @@ func hostState(h *model.Host) history.State {
 }
 
 func runtimeState(r *model.Runtime) history.State {
-	return history.State{"type": r.Type, "path": r.Path, "version": r.Version, "manager": r.Manager}
+	return withPackageVersion(history.State{"type": r.Type, "path": r.Path, "version": r.Version, "manager": r.Manager}, r.PackageVersion)
 }
 
 func serviceState(s *model.Service) history.State {
-	return history.State{"type": s.Type, "instance": s.Instance, "version": s.Version}
+	return withPackageVersion(history.State{"type": s.Type, "instance": s.Instance, "version": s.Version}, s.PackageVersion)
+}
+
+// withPackageVersion adds the package version to the state when there is
+// one: a package patched by the distribution (8.1.34-8 → 8.1.34-9) is a
+// change, a runtime without package says nothing of it.
+func withPackageVersion(s history.State, packageVersion *string) history.State {
+	if packageVersion != nil {
+		s["package_version"] = *packageVersion
+	}
+	return s
 }
 
 func webserverState(w *model.Webserver) history.State {
@@ -194,7 +204,19 @@ func webserverState(w *model.Webserver) history.State {
 // appState follows the code deployed: any change of it is a deployment.
 func appState(a *model.App) history.State {
 	return history.State{"path": a.Path, "name": a.Name, "role": a.Role, "framework": a.Framework,
-		"framework_version": a.FrameworkVersion, "runtime": a.Runtime, "code": a.Code}
+		"framework_version": a.FrameworkVersion, "runtime": deployedRuntime(a.Runtime), "code": a.Code}
+}
+
+// deployedRuntime is the runtime of an app without its package version: a
+// package patched by the distribution is a change of the runtime or of the
+// service, recorded there, not a deployment of the app.
+func deployedRuntime(runtime json.RawMessage) any {
+	var rt map[string]any
+	if json.Unmarshal(runtime, &rt) != nil || rt == nil {
+		return runtime
+	}
+	delete(rt, "package_version")
+	return rt
 }
 
 // hostFields copies the description of the host, and ties it to the
@@ -340,7 +362,7 @@ func (n *normalizer) runtimes() error {
 		} else if row.RemovedAt == nil {
 			before = runtimeState(row)
 		}
-		row.Version, row.Manager, row.RemovedAt = r.Version, optional(r.Manager), nil
+		row.Version, row.Manager, row.PackageVersion, row.RemovedAt = r.Version, optional(r.Manager), optional(r.PackageVersion), nil
 		if err := n.repos.Runtime.Save(n.ctx, row); err != nil {
 			return err
 		}
@@ -423,7 +445,7 @@ func (n *normalizer) services() error {
 		} else if row.RemovedAt == nil {
 			before = serviceState(row)
 		}
-		row.Version, row.RemovedAt = optional(s.Version), nil
+		row.Version, row.PackageVersion, row.RemovedAt = optional(s.Version), optional(s.PackageVersion), nil
 		row.Details = marshalOrNil(serviceDetails{Listen: s.Listen, ConfigPath: s.ConfigPath, Cluster: s.Cluster, Pools: s.Pools, Container: s.Container})
 		if err := n.repos.Service.Save(n.ctx, row); err != nil {
 			return err

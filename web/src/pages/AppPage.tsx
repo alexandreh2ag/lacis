@@ -1,6 +1,7 @@
 import { useQuery } from '@apollo/client'
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
+import { PackageVersion } from '@/components/PackageVersion'
 import { Copyable, CopyButton } from '@/components/Copy'
 import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
@@ -22,7 +23,7 @@ const AppPageDoc = graphql(`
       id
       app(id: $id) {
         id name path resolvedPath role framework frameworkVersion vhosts launchers firstSeenAt
-        runtime { type version path source }
+        runtime { type version packageVersion path source }
         code { source version commit branch tag repository pipelineId pipelineUrl deployedAt deployedBy }
         project { slug name }
         environment { slug }
@@ -188,7 +189,7 @@ function General({ ns, app: a }: { ns: string; app: App }) {
             <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
               <dt>{ta.role}</dt><dd>{a.role}</dd>
               {a.framework ? <><dt>{ts.framework}</dt><dd>{a.framework} {a.frameworkVersion}</dd></> : null}
-              {a.runtime ? <><dt>{ts.runtime}</dt><dd>{a.runtime.type} {a.runtime.version}{a.runtime.source ? ` · ${a.runtime.source}` : ''}</dd></> : null}
+              {a.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{a.runtime.type} {a.runtime.version}{a.runtime.source ? ` · ${a.runtime.source}` : ''}<PackageVersion version={a.runtime.version} packageVersion={a.runtime.packageVersion} /></span></dd></> : null}
               <dt>{ts.path}</dt><dd><Copyable value={a.path} /></dd>
               {a.resolvedPath && a.resolvedPath !== a.path ? <><dt>{ta.resolved}</dt><dd><Copyable value={a.resolvedPath} /></dd></> : null}
               {a.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}

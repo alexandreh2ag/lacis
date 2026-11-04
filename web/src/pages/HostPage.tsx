@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@apollo/client'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { PackageVersion } from '@/components/PackageVersion'
 import { Copyable, CopyButton, Ips } from '@/components/Copy'
 import { HistoryEvent } from '@/components/HistoryEvents'
 import { TechLogo } from '@/components/Icon'
@@ -25,14 +26,14 @@ const HostPageDoc = graphql(`
         project { slug name } environment { slug name }
         os { id version pretty }
         ips { address prefixLength interface defaultRoute network { slug name } }
-        runtimes { id type version path manager firstSeenAt }
+        runtimes { id type version path manager packageVersion firstSeenAt }
         containers { id name containerId image version state ports networks composeProject composeService firstSeenAt }
-        services { id type instance version details firstSeenAt dependents { ...UsedByLink } }
+        services { id type instance version packageVersion details firstSeenAt dependents { ...UsedByLink } }
         webservers { id type version domains firstSeenAt dependents { ...UsedByLink } }
         apps {
           id name path role framework frameworkVersion vhosts firstSeenAt
           code { version commit branch deployedAt }
-          runtime { type version source }
+          runtime { type version packageVersion source }
           dependencies { key }
           links { id }
         }
@@ -155,7 +156,7 @@ function AppCard({ app }: { app: App }) {
         {app.code?.commit ? <><dt>{ts.commit}</dt><dd><Copyable value={app.code.commit} shown={app.code.commit.slice(0, 7) + (app.code.branch ? ` · ${app.code.branch}` : '')} /></dd></> : null}
         {app.code?.deployedAt ? <><dt>{ts.deployed}</dt><dd>{ago(app.code.deployedAt)}</dd></> : null}
         {app.framework ? <><dt>{ts.framework}</dt><dd>{app.framework} {app.frameworkVersion}</dd></> : null}
-        {app.runtime ? <><dt>{ts.runtime}</dt><dd>{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}</dd></> : null}
+        {app.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}<PackageVersion version={app.runtime.version} packageVersion={app.runtime.packageVersion} /></span></dd></> : null}
         {app.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}
         <dt>{ts.dependencies}</dt><dd>{app.dependencies.length} · {ts.links(app.links.length)}</dd>
       </dl>
@@ -216,6 +217,7 @@ interface Component {
   name: string
   tech: string
   version: string
+  packageVersion?: string | null
   where: string[]
   since: string
 }
@@ -229,8 +231,8 @@ function listens(details: unknown): string[] {
 function Components({ host }: { host: Host }) {
   const all: Component[] = useMemo(() => [
     ...host.webservers.map((w) => ({ key: w.id, type: 'webserver' as const, name: w.type, tech: w.type, version: w.version ?? '', where: w.domains.slice(0, 3), since: w.firstSeenAt })),
-    ...host.services.map((s) => ({ key: s.id, type: 'service' as const, name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, version: s.version ?? '', where: listens(s.details), since: s.firstSeenAt })),
-    ...host.runtimes.map((r) => ({ key: r.id, type: 'runtime' as const, name: r.type, tech: r.type, version: r.version, where: [r.path], since: r.firstSeenAt })),
+    ...host.services.map((s) => ({ key: s.id, type: 'service' as const, name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, version: s.version ?? '', packageVersion: s.packageVersion, where: listens(s.details), since: s.firstSeenAt })),
+    ...host.runtimes.map((r) => ({ key: r.id, type: 'runtime' as const, name: r.type, tech: r.type, version: r.version, packageVersion: r.packageVersion, where: [r.path], since: r.firstSeenAt })),
   ], [host])
   const t = useT()
   const ts = t.pages.shared
@@ -239,7 +241,7 @@ function Components({ host }: { host: Host }) {
   const [sort, setSort] = useState<{ by: keyof Component; desc: boolean }>({ by: 'name', desc: false })
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(20)
-  const list = all.filter((c) => (!types.length || types.includes(c.type)) && (!q || [c.name, c.version, ...c.where].some((x) => x.toLowerCase().includes(q.toLowerCase()))))
+  const list = all.filter((c) => (!types.length || types.includes(c.type)) && (!q || [c.name, c.version, c.packageVersion ?? '', ...c.where].some((x) => x.toLowerCase().includes(q.toLowerCase()))))
     .sort((a, b) => String(a[sort.by]).localeCompare(String(b[sort.by]), 'fr', { numeric: true }) * (sort.desc ? -1 : 1))
   const onSort = (by: string) => setSort((s) => ({ by: by as keyof Component, desc: s.by === by && !s.desc }))
   const count = (type: string) => all.filter((c) => c.type === type).length
@@ -265,7 +267,7 @@ function Components({ host }: { host: Host }) {
               <tr key={c.key}>
                 <td>{c.type}</td>
                 <td><span className="inline-flex items-center gap-2"><span className="lc-node__techs"><TechLogo tech={c.tech} /></span>{c.name}</span></td>
-                <td className="lc-mono">{c.version}</td>
+                <td><div className="flex flex-col"><span className="lc-mono">{c.version}</span><PackageVersion version={c.version} packageVersion={c.packageVersion} /></div></td>
                 <td><div className="flex flex-wrap gap-x-3.5 gap-y-0.5">{c.where.map((w) => <Copyable key={w} value={w} />)}</div></td>
                 <td className="text-ink-muted">{ago(c.since)}</td>
               </tr>

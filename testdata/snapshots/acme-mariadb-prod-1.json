@@ -56,6 +56,7 @@
     {
       "type": "mariadb",
       "version": "11.4.7",
+      "package_version": "1:11.4.7+maria~deb12",
       "listen": [
         "0.0.0.0:3306",
         "unix:/run/mysqld/mysqld.sock"

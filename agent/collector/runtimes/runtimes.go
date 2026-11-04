@@ -47,6 +47,11 @@ var Globs = map[string][]string{
 var (
 	phpBinary  = regexp.MustCompile(`^php(\d+(\.\d+)?)?$`)
 	phpVersion = regexp.MustCompile(`^PHP (\d+\.\d+\.\d+)`)
+	// The PHP binaries of the distributions and their packages: php8.1 of
+	// Debian or Ubuntu (and deb.sury.org) in php8.1-cli, php of RHEL in
+	// php-cli, php of a Remi collection in php81-php-cli.
+	phpDebBinary  = regexp.MustCompile(`^/usr/bin/php(\d+\.\d+)$`)
+	phpRemiBinary = regexp.MustCompile(`^/opt/remi/(php\d+)/root/usr/bin/php$`)
 	// Node version managers keep one directory per version.
 	nodeManagers = []struct {
 		name string
@@ -128,12 +133,19 @@ func typeOf(path string) string {
 // cannot be read is reported and left out.
 func (c *Collector) Collect(stdCtx stdContext.Context, ctx *context.Context, sys *system.System, out *snapshot.Snapshot) error {
 	errs := c.errs
+	// Without the packages, the runtimes are still reported, without their
+	// package version.
+	packages, err := sys.Packages(stdCtx)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	for path, typ := range c.candidates {
 		r, err := c.runtime(stdCtx, ctx, sys, path, typ)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", path, err))
 			continue
 		}
+		r.PackageVersion = packageVersion(packages, r)
 		out.Runtimes = append(out.Runtimes, r)
 	}
 	slices.SortFunc(out.Runtimes, func(a, b snapshot.Runtime) int {
@@ -147,6 +159,39 @@ func (c *Collector) Collect(stdCtx stdContext.Context, ctx *context.Context, sys
 	})
 	slices.SortFunc(errs, func(a, b error) int { return strings.Compare(a.Error(), b.Error()) })
 	return errors.Join(errs...)
+}
+
+// packageNames are the system packages that may hold the runtime binary
+// at path; none for a runtime installed without package manager.
+func packageNames(typ, path string) []string {
+	switch typ {
+	case TypePHP:
+		if m := phpDebBinary.FindStringSubmatch(path); m != nil {
+			return []string{"php" + m[1] + "-cli"}
+		}
+		if m := phpRemiBinary.FindStringSubmatch(path); m != nil {
+			return []string{m[1] + "-php-cli"}
+		}
+		if path == "/usr/bin/php" {
+			return []string{"php-cli"}
+		}
+	case TypeNode:
+		if path == "/usr/bin/node" {
+			return []string{"nodejs"}
+		}
+	}
+	return nil
+}
+
+// packageVersion returns the version of the package holding the runtime,
+// revision included, when that package is the runtime collected: its
+// upstream version must be the version the binary printed.
+func packageVersion(packages system.Packages, r snapshot.Runtime) string {
+	v, pkg := packages.Raw(packageNames(r.Type, r.Path)...)
+	if pkg == "" || system.UpstreamVersion(v) != r.Version {
+		return ""
+	}
+	return v
 }
 
 func (c *Collector) runtime(stdCtx stdContext.Context, ctx *context.Context, sys *system.System, path, typ string) (snapshot.Runtime, error) {

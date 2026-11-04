@@ -15,6 +15,8 @@ export const pages = {
     version: 'Version',
     framework: 'Framework',
     runtime: 'Runtime',
+    packageVersion: 'paquet',
+    packageVersionHint: "Version du paquet système, révision incluse : les correctifs d'une version en fin de vie n'apparaissent que là.",
     commit: 'Commit',
     domain: 'Domaine',
     deployed: 'Déployé',

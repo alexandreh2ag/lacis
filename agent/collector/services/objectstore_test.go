@@ -27,8 +27,8 @@ func TestCollect_ObjectStores(t *testing.T) {
 				h.process(300, 1, "/usr/bin/silo", "/usr/bin/silo", "healthcheck", "ready")
 			},
 			want: []snapshot.Service{
-				{Type: "minio", Version: "RELEASE.2024-01-16T16-07-38Z", Listen: []string{"0.0.0.0:9000"}},
-				{Type: "silo", Version: "20261026.0.0", Listen: []string{"0.0.0.0:9100"}},
+				{Type: "minio", Version: "RELEASE.2024-01-16T16-07-38Z", PackageVersion: "20240116160738.0.0", Listen: []string{"0.0.0.0:9000"}},
+				{Type: "silo", Version: "20261026.0.0", PackageVersion: "20261026.0.0", Listen: []string{"0.0.0.0:9100"}},
 			},
 		},
 		{

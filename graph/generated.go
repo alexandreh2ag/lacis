@@ -146,10 +146,11 @@ type ComplexityRoot struct {
 	}
 
 	AppRuntime struct {
-		Path    func(childComplexity int) int
-		Source  func(childComplexity int) int
-		Type    func(childComplexity int) int
-		Version func(childComplexity int) int
+		PackageVersion func(childComplexity int) int
+		Path           func(childComplexity int) int
+		Source         func(childComplexity int) int
+		Type           func(childComplexity int) int
+		Version        func(childComplexity int) int
 	}
 
 	ChangeEvent struct {
@@ -509,23 +510,25 @@ type ComplexityRoot struct {
 	}
 
 	Runtime struct {
-		FirstSeenAt func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Manager     func(childComplexity int) int
-		Path        func(childComplexity int) int
-		Type        func(childComplexity int) int
-		Version     func(childComplexity int) int
+		FirstSeenAt    func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Manager        func(childComplexity int) int
+		PackageVersion func(childComplexity int) int
+		Path           func(childComplexity int) int
+		Type           func(childComplexity int) int
+		Version        func(childComplexity int) int
 	}
 
 	Service struct {
-		Dependents  func(childComplexity int) int
-		Details     func(childComplexity int) int
-		FirstSeenAt func(childComplexity int) int
-		Host        func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Instance    func(childComplexity int) int
-		Type        func(childComplexity int) int
-		Version     func(childComplexity int) int
+		Dependents     func(childComplexity int) int
+		Details        func(childComplexity int) int
+		FirstSeenAt    func(childComplexity int) int
+		Host           func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Instance       func(childComplexity int) int
+		PackageVersion func(childComplexity int) int
+		Type           func(childComplexity int) int
+		Version        func(childComplexity int) int
 	}
 
 	ServiceList struct {
@@ -1091,6 +1094,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.AppList.Total(childComplexity), true
 
+	case "AppRuntime.packageVersion":
+		if e.complexity.AppRuntime.PackageVersion == nil {
+			break
+		}
+
+		return e.complexity.AppRuntime.PackageVersion(childComplexity), true
 	case "AppRuntime.path":
 		if e.complexity.AppRuntime.Path == nil {
 			break
@@ -2858,6 +2867,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Runtime.Manager(childComplexity), true
+	case "Runtime.packageVersion":
+		if e.complexity.Runtime.PackageVersion == nil {
+			break
+		}
+
+		return e.complexity.Runtime.PackageVersion(childComplexity), true
 	case "Runtime.path":
 		if e.complexity.Runtime.Path == nil {
 			break
@@ -2913,6 +2928,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.Instance(childComplexity), true
+	case "Service.packageVersion":
+		if e.complexity.Service.PackageVersion == nil {
+			break
+		}
+
+		return e.complexity.Service.PackageVersion(childComplexity), true
 	case "Service.type":
 		if e.complexity.Service.Type == nil {
 			break
@@ -5069,6 +5090,8 @@ func (ec *executionContext) fieldContext_App_runtime(_ context.Context, field gr
 				return ec.fieldContext_AppRuntime_type(ctx, field)
 			case "version":
 				return ec.fieldContext_AppRuntime_version(ctx, field)
+			case "packageVersion":
+				return ec.fieldContext_AppRuntime_packageVersion(ctx, field)
 			case "path":
 				return ec.fieldContext_AppRuntime_path(ctx, field)
 			case "source":
@@ -5899,6 +5922,35 @@ func (ec *executionContext) _AppRuntime_version(ctx context.Context, field graph
 }
 
 func (ec *executionContext) fieldContext_AppRuntime_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppRuntime",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppRuntime_packageVersion(ctx context.Context, field graphql.CollectedField, obj *AppRuntime) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppRuntime_packageVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.PackageVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppRuntime_packageVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AppRuntime",
 		Field:      field,
@@ -9411,6 +9463,8 @@ func (ec *executionContext) fieldContext_Host_runtimes(_ context.Context, field 
 				return ec.fieldContext_Runtime_path(ctx, field)
 			case "manager":
 				return ec.fieldContext_Runtime_manager(ctx, field)
+			case "packageVersion":
+				return ec.fieldContext_Runtime_packageVersion(ctx, field)
 			case "firstSeenAt":
 				return ec.fieldContext_Runtime_firstSeenAt(ctx, field)
 			}
@@ -9505,6 +9559,8 @@ func (ec *executionContext) fieldContext_Host_services(_ context.Context, field 
 				return ec.fieldContext_Service_instance(ctx, field)
 			case "version":
 				return ec.fieldContext_Service_version(ctx, field)
+			case "packageVersion":
+				return ec.fieldContext_Service_packageVersion(ctx, field)
 			case "details":
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
@@ -12880,6 +12936,8 @@ func (ec *executionContext) fieldContext_Namespace_service(ctx context.Context, 
 				return ec.fieldContext_Service_instance(ctx, field)
 			case "version":
 				return ec.fieldContext_Service_version(ctx, field)
+			case "packageVersion":
+				return ec.fieldContext_Service_packageVersion(ctx, field)
 			case "details":
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
@@ -15954,6 +16012,35 @@ func (ec *executionContext) fieldContext_Runtime_manager(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Runtime_packageVersion(ctx context.Context, field graphql.CollectedField, obj *model.Runtime) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Runtime_packageVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.PackageVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Runtime_packageVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Runtime",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Runtime_firstSeenAt(ctx context.Context, field graphql.CollectedField, obj *model.Runtime) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16087,6 +16174,35 @@ func (ec *executionContext) _Service_version(ctx context.Context, field graphql.
 }
 
 func (ec *executionContext) fieldContext_Service_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Service_packageVersion(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_packageVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.PackageVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_packageVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
@@ -16311,6 +16427,8 @@ func (ec *executionContext) fieldContext_ServiceList_items(_ context.Context, fi
 				return ec.fieldContext_Service_instance(ctx, field)
 			case "version":
 				return ec.fieldContext_Service_version(ctx, field)
+			case "packageVersion":
+				return ec.fieldContext_Service_packageVersion(ctx, field)
 			case "details":
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
@@ -20852,6 +20970,8 @@ func (ec *executionContext) _AppRuntime(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "packageVersion":
+			out.Values[i] = ec._AppRuntime_packageVersion(ctx, field, obj)
 		case "path":
 			out.Values[i] = ec._AppRuntime_path(ctx, field, obj)
 		case "source":
@@ -24893,6 +25013,8 @@ func (ec *executionContext) _Runtime(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "manager":
 			out.Values[i] = ec._Runtime_manager(ctx, field, obj)
+		case "packageVersion":
+			out.Values[i] = ec._Runtime_packageVersion(ctx, field, obj)
 		case "firstSeenAt":
 			out.Values[i] = ec._Runtime_firstSeenAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -24949,6 +25071,8 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "version":
 			out.Values[i] = ec._Service_version(ctx, field, obj)
+		case "packageVersion":
+			out.Values[i] = ec._Service_packageVersion(ctx, field, obj)
 		case "details":
 			out.Values[i] = ec._Service_details(ctx, field, obj)
 		case "host":

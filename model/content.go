@@ -16,8 +16,11 @@ type Runtime struct {
 	Version     string
 	Path        string
 	Manager     *string
-	FirstSeenAt time.Time
-	RemovedAt   *time.Time
+	// PackageVersion is the version of the system package, revision
+	// included; nil without package.
+	PackageVersion *string
+	FirstSeenAt    time.Time
+	RemovedAt      *time.Time
 }
 
 func (Runtime) TableName() string { return "runtimes" }
@@ -63,9 +66,12 @@ type Service struct {
 	Type        string
 	Instance    string `gorm:"default:default"`
 	Version     *string
-	Details     json.RawMessage `gorm:"type:jsonb;serializer:json;not null"`
-	FirstSeenAt time.Time
-	RemovedAt   *time.Time
+	// PackageVersion is the version of the system package, revision
+	// included; nil without package.
+	PackageVersion *string
+	Details        json.RawMessage `gorm:"type:jsonb;serializer:json;not null"`
+	FirstSeenAt    time.Time
+	RemovedAt      *time.Time
 }
 
 func (Service) TableName() string { return "services" }

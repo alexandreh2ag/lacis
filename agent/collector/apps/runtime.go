@@ -37,7 +37,8 @@ func (c *collection) runtime(a *app) *snapshot.AppRuntime {
 	}
 	for _, p := range a.processes {
 		if path.Base(p.Exe) == "node" {
-			return &snapshot.AppRuntime{Type: "node", Version: c.runtimeVersion("node", p.Exe), Path: p.Exe, Source: RuntimeSourceProcess}
+			r := c.runtimeAt("node", p.Exe)
+			return &snapshot.AppRuntime{Type: "node", Version: r.Version, PackageVersion: r.PackageVersion, Path: p.Exe, Source: RuntimeSourceProcess}
 		}
 	}
 	for _, l := range a.launchers {
@@ -52,7 +53,8 @@ func (c *collection) runtime(a *app) *snapshot.AppRuntime {
 		if resolved, err := c.sys.Resolve(bin); err == nil {
 			bin = resolved
 		}
-		return &snapshot.AppRuntime{Type: "php", Version: c.runtimeVersion("php", bin), Path: bin, Source: RuntimeSourceLauncher}
+		r := c.runtimeAt("php", bin)
+		return &snapshot.AppRuntime{Type: "php", Version: r.Version, PackageVersion: r.PackageVersion, Path: bin, Source: RuntimeSourceLauncher}
 	}
 	return c.nvmrcRuntime(a)
 }
@@ -66,21 +68,21 @@ func (c *collection) fpmRuntime(target string) *snapshot.AppRuntime {
 		}
 		for _, pool := range svc.Pools {
 			if normalizeAddr(pool.Listen) == addr {
-				return &snapshot.AppRuntime{Type: "php", Version: svc.Version, Source: RuntimeSourceFPMPool}
+				return &snapshot.AppRuntime{Type: "php", Version: svc.Version, PackageVersion: svc.PackageVersion, Source: RuntimeSourceFPMPool}
 			}
 		}
 	}
 	return nil
 }
 
-// runtimeVersion returns the version of the runtime collected at path.
-func (c *collection) runtimeVersion(typ, binary string) string {
+// runtimeAt returns the runtime collected at path; zero when none was.
+func (c *collection) runtimeAt(typ, binary string) snapshot.Runtime {
 	for _, r := range c.out.Runtimes {
 		if r.Type == typ && r.Path == binary {
-			return r.Version
+			return r
 		}
 	}
-	return ""
+	return snapshot.Runtime{}
 }
 
 // nvmrcRuntime resolves the .nvmrc of an app against the nvm versions
@@ -109,7 +111,7 @@ func (c *collection) nvmrcRuntime(a *app) *snapshot.AppRuntime {
 		// An alias such as lts/* or a version not installed is kept as is.
 		return &snapshot.AppRuntime{Type: "node", Version: wanted, Source: RuntimeSourceNvmrc}
 	}
-	return &snapshot.AppRuntime{Type: "node", Version: best.Version, Path: best.Path, Source: RuntimeSourceNvmrc}
+	return &snapshot.AppRuntime{Type: "node", Version: best.Version, PackageVersion: best.PackageVersion, Path: best.Path, Source: RuntimeSourceNvmrc}
 }
 
 // maxNvmrc bounds the .nvmrc read: it holds one version.

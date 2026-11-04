@@ -286,10 +286,12 @@ func (c *Collector) Collect(stdCtx stdContext.Context, ctx *context.Context, sys
 	for i := range c.found {
 		d := &c.found[i]
 		d.sys, d.stdCtx = sys, stdCtx
+		version, packageVersion := d.version(packages)
 		svc := snapshot.Service{
-			Type:    d.detector.typ,
-			Version: d.version(packages),
-			Listen:  listen(listeners, tree(children, d.process.PID)),
+			Type:           d.detector.typ,
+			Version:        version,
+			PackageVersion: packageVersion,
+			Listen:         listen(listeners, tree(children, d.process.PID)),
 		}
 		if svc.Version == "" && d.detector.versionRe != nil {
 			svc.Version = d.binaryVersion()
@@ -325,8 +327,9 @@ func (d *detection) binaryVersion() string {
 	return ""
 }
 
-// version returns the upstream version of the first installed package.
-func (d *detection) version(packages system.Packages) string {
+// version returns the upstream version of the first installed package, and
+// its version as the package manager gives it.
+func (d *detection) version(packages system.Packages) (version, packageVersion string) {
 	for _, name := range d.detector.packages {
 		if strings.Contains(name, "%s") {
 			if d.pathVersion == "" {
@@ -336,10 +339,10 @@ func (d *detection) version(packages system.Packages) string {
 		}
 		if v, ok := packages[name]; ok {
 			d.pkg = name
-			return system.UpstreamVersion(v)
+			return system.UpstreamVersion(v), v
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // tree returns pid and its descendants.

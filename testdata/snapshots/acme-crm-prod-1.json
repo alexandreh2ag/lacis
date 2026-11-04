@@ -55,6 +55,7 @@
     {
       "type": "php",
       "version": "8.2.29",
+      "package_version": "8.2.29-1+0~20250707.64+debian12~1.gbpb2a9f1",
       "path": "/usr/bin/php8.2"
     }
   ],
@@ -62,6 +63,7 @@
     {
       "type": "php-fpm",
       "version": "8.2.29",
+      "package_version": "8.2.29-1+0~20250707.64+debian12~1.gbpb2a9f1",
       "instance": "8.2",
       "listen": [
         "unix:/run/php/crm-api.sock"
@@ -78,6 +80,7 @@
     {
       "type": "redis",
       "version": "7.0.15",
+      "package_version": "5:7.0.15-1~deb12u4",
       "listen": [
         "unix:/run/redis/redis-server.sock"
       ]
@@ -127,6 +130,7 @@
       "runtime": {
         "type": "php",
         "version": "8.2.29",
+        "package_version": "8.2.29-1+0~20250707.64+debian12~1.gbpb2a9f1",
         "source": "fpm_pool"
       },
       "code": {

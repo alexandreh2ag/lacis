@@ -147,6 +147,12 @@ type Runtime {
   version: String!
   path: String!
   manager: String
+  """
+  The version of the system package holding the runtime, its packaging
+  revision included (8.1.34-9+deb.sury.org+1): distributions patch an
+  end-of-life version there and keep the version.
+  """
+  packageVersion: String
   firstSeenAt: Time!
 }
 
@@ -174,6 +180,8 @@ type Service {
   type: String!
   instance: String!
   version: String
+  "The version of the system package of the service, its packaging revision included."
+  packageVersion: String
   "Listen addresses, config path, cluster, pools or container."
   details: JSON
   host: Host!
@@ -225,6 +233,8 @@ type App {
 type AppRuntime {
   type: String!
   version: String!
+  "The version of the system package of the runtime or of its PHP-FPM, its packaging revision included."
+  packageVersion: String
   path: String
   source: String
 }

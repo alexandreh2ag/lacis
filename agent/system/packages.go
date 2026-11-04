@@ -98,9 +98,20 @@ func UpstreamVersion(v string) string {
 // Version returns the upstream version of the first installed package of
 // names, and that package; empty when none is installed.
 func (p Packages) Version(names ...string) (version, pkg string) {
+	raw, pkg := p.Raw(names...)
+	if pkg == "" {
+		return "", ""
+	}
+	return UpstreamVersion(raw), pkg
+}
+
+// Raw returns the version of the first installed package of names as the
+// package manager gives it, revision included, and that package; empty
+// when none is installed.
+func (p Packages) Raw(names ...string) (version, pkg string) {
 	for _, name := range names {
 		if v, ok := p[name]; ok {
-			return UpstreamVersion(v), name
+			return v, name
 		}
 	}
 	return "", ""

@@ -16,6 +16,8 @@ export const pages: Messages['pages'] = {
     version: 'Version',
     framework: 'Framework',
     runtime: 'Runtime',
+    packageVersion: 'package',
+    packageVersionHint: "Version of the system package, revision included: the patches of an end-of-life version only show there.",
     commit: 'Commit',
     domain: 'Domain',
     deployed: 'Deployed',

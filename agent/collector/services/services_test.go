@@ -178,13 +178,13 @@ func TestCollect(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, applicable)
 	assert.Equal(t, []snapshot.Service{
-		{Type: "clickhouse", Version: "24.8.4.13", Listen: []string{"127.0.0.1:8123"}},
-		{Type: "elasticsearch", Version: "8.15.0", Listen: []string{"0.0.0.0:9200", "0.0.0.0:9300"}},
+		{Type: "clickhouse", Version: "24.8.4.13", PackageVersion: "24.8.4.13", Listen: []string{"127.0.0.1:8123"}},
+		{Type: "elasticsearch", Version: "8.15.0", PackageVersion: "8.15.0", Listen: []string{"0.0.0.0:9200", "0.0.0.0:9300"}},
 		{Type: "keycloak", Version: "25.0.6", Listen: []string{"0.0.0.0:8080"}, ConfigPath: "/opt/keycloak/conf/keycloak.conf"},
-		{Type: "mariadb", Version: "10.3.39", Listen: []string{"127.0.0.1:3306", "unix:/run/mysqld/mysqld.sock"}, ConfigPath: "/etc/mysql/my.cnf"},
-		{Type: "mongodb", Version: "7.0.14", Listen: []string{"127.0.0.1:27017"}, ConfigPath: "/etc/mongod.conf"},
+		{Type: "mariadb", Version: "10.3.39", PackageVersion: "1:10.3.39-0+deb10u2", Listen: []string{"127.0.0.1:3306", "unix:/run/mysqld/mysqld.sock"}, ConfigPath: "/etc/mysql/my.cnf"},
+		{Type: "mongodb", Version: "7.0.14", PackageVersion: "7.0.14", Listen: []string{"127.0.0.1:27017"}, ConfigPath: "/etc/mongod.conf"},
 		{
-			Type: "php-fpm", Version: "8.2.24", Instance: "8.2",
+			Type: "php-fpm", Version: "8.2.24", Instance: "8.2", PackageVersion: "8.2.24-1+deb12u1",
 			Listen:     []string{"127.0.0.1:9001", "unix:/run/php/php8.2-fpm.sock"},
 			ConfigPath: "/etc/php/8.2/fpm/php-fpm.conf",
 			Pools: []snapshot.FPMPool{
@@ -194,10 +194,10 @@ func TestCollect(t *testing.T) {
 			},
 		},
 		{Type: "postgresql", Version: "15.8", Instance: "/srv/pg15", Listen: []string{"127.0.0.1:5433"}},
-		{Type: "postgresql", Version: "16.4", Instance: "16/main", Cluster: "main", Listen: []string{"127.0.0.1:5432"}, ConfigPath: "/etc/postgresql/16/main/postgresql.conf"},
-		{Type: "rabbitmq", Version: "3.12.1"},
-		{Type: "redis", Version: "7.0.15", Instance: "127.0.0.1:6379", Listen: []string{"127.0.0.1:6379"}},
-		{Type: "redis", Version: "7.0.15", Instance: "127.0.0.1:6380", Listen: []string{"127.0.0.1:6380"}},
+		{Type: "postgresql", Version: "16.4", Instance: "16/main", PackageVersion: "16.4-1.pgdg120+1", Cluster: "main", Listen: []string{"127.0.0.1:5432"}, ConfigPath: "/etc/postgresql/16/main/postgresql.conf"},
+		{Type: "rabbitmq", Version: "3.12.1", PackageVersion: "3.12.1-1"},
+		{Type: "redis", Version: "7.0.15", Instance: "127.0.0.1:6379", PackageVersion: "5:7.0.15-1~deb12u1", Listen: []string{"127.0.0.1:6379"}},
+		{Type: "redis", Version: "7.0.15", Instance: "127.0.0.1:6380", PackageVersion: "5:7.0.15-1~deb12u1", Listen: []string{"127.0.0.1:6380"}},
 	}, out.Services)
 }
 
@@ -370,8 +370,8 @@ func TestCollect_VarnishVault(t *testing.T) {
 				h.process(300, 1, "/usr/bin/vault", "/usr/bin/vault", "login")
 			},
 			want: []snapshot.Service{
-				{Type: "varnish", Version: "7.1.1", Listen: []string{"0.0.0.0:6081"}},
-				{Type: "vault", Version: "1.15.2", Listen: []string{"0.0.0.0:8200"}},
+				{Type: "varnish", Version: "7.1.1", PackageVersion: "7.1.1-1.1", Listen: []string{"0.0.0.0:6081"}},
+				{Type: "vault", Version: "1.15.2", PackageVersion: "1.15.2-1", Listen: []string{"0.0.0.0:8200"}},
 			},
 		},
 		{

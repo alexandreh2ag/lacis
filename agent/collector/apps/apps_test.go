@@ -151,11 +151,11 @@ func TestCollect(t *testing.T) {
 		Runtimes: []snapshot.Runtime{
 			{Type: "node", Version: "20.9.0", Path: "/home/deploy/.nvm/versions/node/v20.9.0/bin/node", Manager: "nvm"},
 			{Type: "node", Version: "20.11.1", Path: "/home/deploy/.nvm/versions/node/v20.11.1/bin/node", Manager: "nvm"},
-			{Type: "php", Version: "8.2.24", Path: "/usr/bin/php8.2"},
+			{Type: "php", Version: "8.2.24", Path: "/usr/bin/php8.2", PackageVersion: "8.2.24-1+deb12u1"},
 		},
 		Services: []snapshot.Service{
 			{Type: "php-fpm", Version: "8.2.24", Pools: []snapshot.FPMPool{{Name: "client", Listen: "unix:/run/php/client.sock"}}},
-			{Type: "php-fpm", Version: "7.0.33", Pools: []snapshot.FPMPool{{Name: "www", Listen: "127.0.0.1:9000"}}},
+			{Type: "php-fpm", Version: "7.0.33", PackageVersion: "7.0.33-0+deb9u12", Pools: []snapshot.FPMPool{{Name: "www", Listen: "127.0.0.1:9000"}}},
 		},
 		Webservers: []snapshot.Webserver{
 			{
@@ -193,7 +193,7 @@ func TestCollect(t *testing.T) {
 		},
 		{
 			Path: "/home/web/var/www/siteweb/staging/www", Name: "siteweb", Role: "web", Project: "talents", Env: "staging",
-			Runtime:      &snapshot.AppRuntime{Type: "php", Version: "7.0.33", Source: "fpm_pool"},
+			Runtime:      &snapshot.AppRuntime{Type: "php", Version: "7.0.33", PackageVersion: "7.0.33-0+deb9u12", Source: "fpm_pool"},
 			Code:         &snapshot.Code{Source: "deploy_info", Version: "1.0.0", Commit: "abc"},
 			Vhosts:       []string{"staging.talents.example.com"},
 			Launchers:    []snapshot.Launcher{},
@@ -245,7 +245,7 @@ func TestCollect(t *testing.T) {
 		},
 		{
 			Path: "/var/www/worker", Name: "worker", Role: "worker", Project: "client", Env: "staging",
-			Runtime:      &snapshot.AppRuntime{Type: "php", Version: "8.2.24", Path: "/usr/bin/php8.2", Source: "launcher"},
+			Runtime:      &snapshot.AppRuntime{Type: "php", Version: "8.2.24", Path: "/usr/bin/php8.2", PackageVersion: "8.2.24-1+deb12u1", Source: "launcher"},
 			Launchers:    []snapshot.Launcher{{Type: "supervisor", Name: "messenger", Role: "worker", Command: "php", Directory: "/var/www/worker", User: "deploy"}},
 			Dependencies: []snapshot.Dependency{},
 		},

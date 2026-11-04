@@ -62,6 +62,7 @@
     {
       "type": "elasticsearch",
       "version": "8.15.0",
+      "package_version": "8.15.0",
       "listen": [
         "[::]:9200",
         "[::]:9300"

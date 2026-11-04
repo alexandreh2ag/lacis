@@ -67,7 +67,7 @@ func TestHistory_Normalize(t *testing.T) {
 	assert.Equal(t, []string{
 		`host changed {"hostname":"acme-crm-prod-1","kernel":"6.8.12-4-pve"} → {"hostname":"acme-crm-prod-1","kernel":"6.1.0-27-amd64"}`,
 		`service changed {"instance":"8.2","type":"php-fpm","version":"8.2.29"} → {"instance":"8.2","type":"php-fpm","version":"8.2.30"}`,
-		`service removed {"instance":"default","type":"redis","version":"7.0.15"} → `,
+		`service removed {"instance":"default","package_version":"5:7.0.15-1~deb12u4","type":"redis","version":"7.0.15"} → `,
 	}, got[:3])
 	require.Len(t, got, 4)
 	var before, after map[string]any
@@ -87,7 +87,36 @@ func TestHistory_Normalize(t *testing.T) {
 
 	// The Redis comes back.
 	f.ingest(load(t, "acme-crm-prod-1", func(s *snapshot.Snapshot) { s.CollectedAt = s.CollectedAt.Add(2 * time.Hour) }))
-	assert.Contains(t, events(t, f, host), `service added  → {"instance":"default","type":"redis","version":"7.0.15"}`)
+	assert.Contains(t, events(t, f, host), `service added  → {"instance":"default","package_version":"5:7.0.15-1~deb12u4","type":"redis","version":"7.0.15"}`)
+}
+
+// A package patched by the distribution, the version unchanged, is a
+// change of the runtime and of the service, not a deployment of the apps.
+func TestHistory_PackagePatch(t *testing.T) {
+	f := newNormalizeFixture(t)
+	patch := func(revision string, at time.Duration) func(*snapshot.Snapshot) {
+		return func(s *snapshot.Snapshot) {
+			s.Runtimes[0].PackageVersion = "8.2.29-" + revision
+			s.Services[0].PackageVersion = "8.2.29-" + revision
+			for i := range s.Apps {
+				if rt := s.Apps[i].Runtime; rt != nil && rt.Source == "fpm_pool" {
+					rt.PackageVersion = "8.2.29-" + revision
+				}
+			}
+			s.CollectedAt = s.CollectedAt.Add(at)
+		}
+	}
+	host := f.ingest(load(t, "acme-crm-prod-1", patch("8", 0)))
+	f.ingest(load(t, "acme-crm-prod-1", patch("9", time.Hour)))
+	assert.Equal(t, []string{
+		`runtime changed {"package_version":"8.2.29-8","path":"/usr/bin/php8.2","type":"php"} → {"package_version":"8.2.29-9","path":"/usr/bin/php8.2","type":"php"}`,
+		`service changed {"instance":"8.2","package_version":"8.2.29-8","type":"php-fpm"} → {"instance":"8.2","package_version":"8.2.29-9","type":"php-fpm"}`,
+	}, events(t, f, host)[1:])
+
+	runtimes, err := f.repos.Runtime.FindByHost(ctx, host.ID)
+	require.NoError(t, err)
+	require.Len(t, runtimes, 1)
+	assert.Equal(t, "8.2.29-9", *runtimes[0].PackageVersion)
 }
 
 // The links of an app change when its database enrolls: the external
