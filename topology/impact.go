@@ -1,7 +1,6 @@
 package topology
 
 import (
-	"net/netip"
 	"slices"
 	"strings"
 
@@ -53,8 +52,10 @@ type step struct {
 // BuildImpact walks the links from the node of the graph of the filter,
 // following through a webserver only the routes of the names concerned:
 // an app calling the traefik of production for a staging domain does not
-// depend on the production backends of that traefik.
-func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction) (*Impact, error) {
+// depend on the production backends of that traefik. Through proxies, the
+// webservers are crossed without taking a level, and left out of the
+// levels: an app behind a traefik then an nginx is a direct neighbour.
+func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction, throughProxies bool) (*Impact, error) {
 	b, err := prepare(inv, f)
 	if err != nil {
 		return nil, err
@@ -96,13 +97,17 @@ func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction) (*I
 	edges := map[string]bool{}
 	for level := 1; len(frontier) > 0; level++ {
 		var further []step
-		for _, s := range frontier {
+		// A webserver crossed through proxies joins the frontier of its
+		// level: the loop goes on over it.
+		for k := 0; k < len(frontier); k++ {
+			s := frontier[k]
 			for _, i := range next[s.id] {
 				r := links[i]
-				near, far := r.to, r.from
+				near, far, farKind := r.to, r.from, r.fromKind
 				if dir == Needs {
-					near, far = r.from, r.to
+					near, far, farKind = r.from, r.to, r.toKind
 				}
+				proxy := throughProxies && farKind == KindWebserver
 				names, ok := cross(r, s.names, dir)
 				if !ok {
 					continue
@@ -115,7 +120,7 @@ func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction) (*I
 					}
 				}
 				for _, v := range b.view(far, near) {
-					if l, ok := out.Levels[v]; !target(v) && drawn[v] && (!ok || level < l) {
+					if l, ok := out.Levels[v]; !proxy && !target(v) && drawn[v] && (!ok || level < l) {
 						out.Levels[v] = level
 					}
 				}
@@ -127,7 +132,11 @@ func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction) (*I
 				if names == nil {
 					whole[far] = true
 				}
-				further = append(further, step{id: far, names: names})
+				if proxy {
+					frontier = append(frontier, step{id: far, names: names})
+				} else {
+					further = append(further, step{id: far, names: names})
+				}
 			}
 		}
 		frontier = further
@@ -146,7 +155,7 @@ func (b *builder) walked() []raw {
 	rawOf := func(l *link) raw {
 		r := raw{from: l.from, to: l.to, fromKind: l.fromKind, toKind: l.toKind, domains: l.detail.Domains}
 		if l.toKind == KindWebserver && l.fromKind != KindWebserver {
-			r.target = nameOf(l.detail.Target)
+			r.target = domainmatch.NameOf(l.detail.Target)
 		}
 		return r
 	}
@@ -204,7 +213,7 @@ func walk(r raw, names []string, dir Direction) ([]string, bool) {
 			if names == nil {
 				return r.domains, true
 			}
-			routed := routedNames(names, r.domains)
+			routed := domainmatch.Routed(names, r.domains)
 			return routed, len(routed) > 0
 		}
 		// An app is down when it calls one of them; one calling by IP may
@@ -219,7 +228,7 @@ func walk(r raw, names []string, dir Direction) ([]string, bool) {
 		return []string{r.target}, true
 	}
 	if r.fromKind == model.LinkNodeWebserver && names != nil {
-		if len(r.domains) > 0 && len(routedNames(names, r.domains)) == 0 {
+		if len(r.domains) > 0 && len(domainmatch.Routed(names, r.domains)) == 0 {
 			return nil, false
 		}
 		if r.toKind == model.LinkNodeWebserver {
@@ -227,37 +236,4 @@ func walk(r raw, names []string, dir Direction) ([]string, bool) {
 		}
 	}
 	return nil, true
-}
-
-// routedNames keeps the names the domains route.
-func routedNames(names, domains []string) []string {
-	out := []string{}
-	for _, n := range names {
-		if slices.ContainsFunc(domains, func(d string) bool { return domainmatch.Match(d, n) || domainmatch.Match(n, d) }) {
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
-// nameOf is the name an address calls; an IP or a socket calls none, so
-// that nothing narrows the routes.
-func nameOf(target string) string {
-	host := target
-	if _, rest, ok := strings.Cut(host, "://"); ok {
-		host = rest
-	}
-	host, _, _ = strings.Cut(host, "/")
-	if rest, ok := strings.CutPrefix(host, "["); ok {
-		host, _, _ = strings.Cut(rest, "]")
-	} else if h, _, ok := strings.Cut(host, ":"); ok {
-		host = h
-	}
-	if host == "" {
-		return ""
-	}
-	if _, err := netip.ParseAddr(host); err == nil {
-		return ""
-	}
-	return host
 }

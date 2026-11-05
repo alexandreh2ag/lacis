@@ -32,7 +32,7 @@ func NewServer(cfg config.GraphQLConfig, r *resolver.Resolver) *handler.Server {
 	gc.Complexity.Namespace.Graph = func(childComplexity int, _ graph.GraphLevel, _ *graph.GraphFilter) int {
 		return GraphCost + childComplexity
 	}
-	gc.Complexity.Namespace.Impact = func(childComplexity int, _ graph.GraphLevel, _ *graph.GraphFilter, _ string, _ graph.ImpactDirection) int {
+	gc.Complexity.Namespace.Impact = func(childComplexity int, _ graph.GraphLevel, _ *graph.GraphFilter, _ string, _ graph.ImpactDirection, _ *bool) int {
 		return GraphCost + childComplexity
 	}
 	srv := handler.New(graph.NewExecutableSchema(gc))

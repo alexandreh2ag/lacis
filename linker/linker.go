@@ -98,9 +98,11 @@ type Options struct {
 // Resolve computes the links of the inventory. The links have no id yet.
 func Resolve(inv *model.Inventory, opts Options, now time.Time) []model.Link {
 	r := newResolver(inv, opts)
-	r.dependencies()
+	// The routes of the webservers first: a name several of them route
+	// leads to the one in front, known by its routes to the others.
 	r.vhosts()
 	r.proxies()
+	r.dependencies()
 	out := make([]model.Link, 0, len(r.links))
 	for _, l := range r.links {
 		l.link.NamespaceID, l.link.ComputedAt = inv.Namespace.ID, now
@@ -600,6 +602,7 @@ func (r *resolver) route(name string, resolved []netip.Addr) []target {
 			}
 		}
 	}
+	candidates = r.inFront(candidates, name)
 	if len(candidates) > 1 {
 		confidence = model.LinkConfidenceAmbiguous
 	}
@@ -608,6 +611,53 @@ func (r *resolver) route(name string, resolved []netip.Addr) []target {
 		out = append(out, target{node: node{Type: model.LinkNodeWebserver, ID: id}, rule: RuleRoute, confidence: confidence, cdn: behind})
 	}
 	return out
+}
+
+// inFront leaves out the webservers another of them routes the name to:
+// the nginx behind a Traefik knows the name too, the request reaches the
+// Traefik first.
+func (r *resolver) inFront(ids []uuid.UUID, name string) []uuid.UUID {
+	if len(ids) < 2 {
+		return ids
+	}
+	var out []uuid.UUID
+	for _, id := range ids {
+		if !slices.ContainsFunc(ids, func(front uuid.UUID) bool { return front != id && r.routesTo(front, id, name) }) {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		return ids // webservers routing the name to one another
+	}
+	return out
+}
+
+// routesTo tells whether a webserver routes a name to another, directly
+// or through other webservers.
+func (r *resolver) routesTo(front, back uuid.UUID, name string) bool {
+	seen := map[uuid.UUID]bool{front: true}
+	queue := []uuid.UUID{front}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, p := range r.links {
+			l := p.link
+			if l.FromType != model.LinkNodeWebserver || l.FromID != cur || l.ToType != model.LinkNodeWebserver || l.ToID == nil {
+				continue
+			}
+			if len(p.detail.Domains) > 0 && len(domainmatch.Routed([]string{name}, p.detail.Domains)) == 0 {
+				continue
+			}
+			if *l.ToID == back {
+				return true
+			}
+			if !seen[*l.ToID] {
+				seen[*l.ToID] = true
+				queue = append(queue, *l.ToID)
+			}
+		}
+	}
+	return false
 }
 
 // ip resolves an IP seen from a host.

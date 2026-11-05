@@ -50,7 +50,7 @@ func hostNode(id map[string]uuid.UUID, k string) string { return "host:" + id[k]
 
 func TestBuildImpact_Dependents(t *testing.T) {
 	inv, id := proxied(t)
-	got, err := BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "db"), Dependents)
+	got, err := BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "db"), Dependents, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{hostNode(id, "webProd"): 1, hostNode(id, "rp"): 3, hostNode(id, "workerProd"): 4}, got.Levels,
 		"the staging worker calls traefik for a staging domain: the database of production is not its business")
@@ -63,12 +63,12 @@ func TestBuildImpact_Dependents(t *testing.T) {
 
 func TestBuildImpact_Needs(t *testing.T) {
 	inv, id := proxied(t)
-	got, err := BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "workerStg"), Needs)
+	got, err := BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "workerStg"), Needs, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{hostNode(id, "rp"): 1, hostNode(id, "webStg"): 2}, got.Levels,
 		"traefik is only needed for api.stg.example, routed to staging")
 
-	got, err = BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "workerProd"), Needs)
+	got, err = BuildImpact(inv, Filter{Level: LevelHost}, hostNode(id, "workerProd"), Needs, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{hostNode(id, "rp"): 1, hostNode(id, "webProd"): 2, hostNode(id, "db"): 4}, got.Levels)
 }
@@ -76,7 +76,7 @@ func TestBuildImpact_Needs(t *testing.T) {
 func TestBuildImpact_OpenedZone(t *testing.T) {
 	inv, id := proxied(t)
 	zone := hostNode(id, "db")
-	got, err := BuildImpact(inv, Filter{Level: LevelHost, Expand: []string{zone}}, zone, Dependents)
+	got, err := BuildImpact(inv, Filter{Level: LevelHost, Expand: []string{zone}}, zone, Dependents, false)
 	require.NoError(t, err)
 	assert.Contains(t, got.Levels, hostNode(id, "webProd"), "an opened zone stands for its content")
 	assert.NotContains(t, got.Levels, "item:"+zone+"|service|mariadb")
@@ -99,7 +99,7 @@ func TestBuildImpact_AppLevel(t *testing.T) {
 	node := func(kind, k string) string { return kind + ":" + id[k].String() }
 	f := Filter{Level: LevelApp}
 
-	got, err := BuildImpact(inv, f, node("service", "mariadb"), Dependents)
+	got, err := BuildImpact(inv, f, node("service", "mariadb"), Dependents, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{node("app", "site"): 1, node("webserver", "traefik"): 2, node("app", "jobProd"): 3}, got.Levels,
 		"nginx is folded into site: traefik routes to site directly")
@@ -109,34 +109,29 @@ func TestBuildImpact_AppLevel(t *testing.T) {
 		node("app", "jobProd") + "→" + node("webserver", "traefik"),
 	}, got.Edges)
 
-	got, err = BuildImpact(inv, f, node("app", "jobProd"), Needs)
+	got, err = BuildImpact(inv, f, node("app", "jobProd"), Needs, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{node("webserver", "traefik"): 1, node("app", "site"): 2, node("service", "mariadb"): 3}, got.Levels)
 
-	got, err = BuildImpact(inv, f, node("app", "site"), Needs)
+	got, err = BuildImpact(inv, f, node("service", "mariadb"), Dependents, true)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{node("app", "site"): 1, node("app", "jobProd"): 2}, got.Levels, "through proxies, traefik takes no level")
+	assert.Contains(t, got.Edges, node("app", "jobProd")+"→"+node("webserver", "traefik"))
+
+	got, err = BuildImpact(inv, f, node("app", "jobProd"), Needs, true)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{node("app", "site"): 1, node("service", "mariadb"): 2}, got.Levels)
+
+	got, err = BuildImpact(inv, f, node("app", "site"), Needs, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{node("service", "mariadb"): 1}, got.Levels, "site does not need blog, served by the same nginx")
 
-	got, err = BuildImpact(inv, f, node("app", "blog"), Dependents)
+	got, err = BuildImpact(inv, f, node("app", "blog"), Dependents, false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{node("webserver", "traefik"): 1}, got.Levels,
 		"neither site nor jobProd, calling prod.example, depends on blog")
 	assert.Equal(t, []string{node("webserver", "traefik") + "→" + node("app", "blog")}, got.Edges)
 
-	_, err = BuildImpact(inv, Filter{Level: "rack"}, node("app", "blog"), Dependents)
+	_, err = BuildImpact(inv, Filter{Level: "rack"}, node("app", "blog"), Dependents, false)
 	assert.Error(t, err)
-}
-
-func TestNameOf(t *testing.T) {
-	for in, want := range map[string]string{
-		"https://api.stg.example/v1": "api.stg.example",
-		"prod.example:443":           "prod.example",
-		"redis.local":                "redis.local",
-		"10.0.1.5:6379":              "",
-		"[::1]:80":                   "",
-		"/run/php/fpm.sock":          "",
-		"":                           "",
-	} {
-		assert.Equal(t, want, nameOf(in), in)
-	}
 }

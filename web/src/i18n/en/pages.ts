@@ -43,7 +43,7 @@ export const pages: Messages['pages'] = {
     links: (n: number) => `${n} link${s(n)}`,
     deployments: (n: number) => `${n} deployment${s(n)}`,
     nouns: { hosts: 'hosts', apps: 'apps', links: 'links', deployments: 'deployments', targets: 'targets', components: 'components', containers: 'containers', projects: 'projects', namespaces: 'namespaces' },
-    kinds: { services: 'services', externals: 'external', proxies: 'proxies', hosts: 'hosts', webservers: 'webservers', runtimes: 'runtimes' },
+    kinds: { apps: 'apps', services: 'services', externals: 'external', proxies: 'proxies', hosts: 'hosts', webservers: 'webservers', runtimes: 'runtimes' },
   },
   login: {
     intro: 'Log in to see the map of your infrastructure.',
@@ -210,8 +210,8 @@ export const pages: Messages['pages'] = {
     apps: 'Apps',
     divergingVersions: 'Diverging versions',
     appInEnv: (app: string, env: string) => `${app} in ${env}`,
-    depsSummary: (all: number, services: number, externals: number, proxies: number) =>
-      `${all} · ${services} service${s(services)} · ${externals} external · ${proxies} prox${proxies !== 1 ? 'ies' : 'y'}`,
+    depsSummary: (all: number, apps: number, services: number, externals: number, proxies: number) =>
+      `${all} · ${apps} app${s(apps)} · ${services} service${s(services)} · ${externals} external · ${proxies} prox${proxies !== 1 ? 'ies' : 'y'}`,
   },
   host: {
     failedTitle: 'Host',
@@ -291,10 +291,10 @@ export const pages: Messages['pages'] = {
     searchLinks: 'Search a target, a key',
     resolvedBy: 'Resolved by',
     indirectDeps: 'Indirect dependencies',
-    indirectDepsHelp: 'What the app needs without calling it itself: level 1, what it calls; level 2, what those need, and so on. A proxy is followed only for the domains asked of it.',
+    indirectDepsHelp: 'What the direct dependencies need in turn: level 2, what they need; level 3, what those need, and so on. The proxies crossed take no level, and are followed only for the domains asked of them.',
     needsNothing: 'The app needs nothing else.',
     indirectUsers: 'Indirect users',
-    indirectUsersHelp: 'What stops working without it, even without calling it directly: level 1, what serves or calls it (a proxy); level 2, the apps going through that proxy for its domains, and so on.',
+    indirectUsersHelp: 'What stops working without it without calling it directly: level 2, what calls its direct users; level 3, what calls those, and so on. The proxies crossed take no level.',
     nobodyDepends: 'Nothing else depends on the app.',
     noConfig: 'No dependency read in the configuration.',
     scheme: 'Scheme',

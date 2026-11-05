@@ -1,57 +1,31 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Copyable } from './Copy'
 import { TechLogo } from './Icon'
 import { FilterBar, type FilterField } from './FilterBar'
+import { ExpandAll, hostOf, mergeRoutes, nameOf, PathBadges, PathDetail, PathToggle, routeOf, crosses, techOf, useExpanded, Via,
+  type End, type PathLink, type Route } from './LinkPath'
 import { Pager, SearchInput, SortHeader, useTable } from './Listing'
-import { graphql } from '@/graphql'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 
-// UsedByLink is what UsedBy needs of a link to a component.
-export const UsedByLink = graphql(`
-  fragment UsedByHost on Host { id hostname project { slug } environment { slug } }
-  fragment UsedByLink on Link {
-    id key confidence
-    from {
-      __typename
-      ... on App { id name framework host { ...UsedByHost } }
-      ... on Service { id type instance host { ...UsedByHost } }
-      ... on Webserver { id type host { ...UsedByHost } }
-      ... on Host { ...UsedByHost }
-      ... on External { target reason }
-    }
-  }
-`)
+export { hostOf, nameOf, techOf, type End } from './LinkPath'
 
-interface HostRef {
-  id: string
-  hostname: string
-  project?: { slug: string } | null
-  environment?: { slug: string } | null
-}
-
-// End is the end of a link, as the pages query it.
-export type End =
-  | { __typename: 'App'; id: string; name: string; framework?: string | null; host: HostRef }
-  | { __typename: 'Service'; id: string; type: string; instance: string; host: HostRef }
-  | { __typename: 'Webserver'; id: string; type: string; host: HostRef }
-  | ({ __typename: 'Host' } & HostRef)
-  | { __typename: 'External'; target: string; reason?: string | null }
-
-// UsedByRow is a link to a component: who uses it, and which one.
+// UsedByRow is an effective link to a component: who uses it, and which
+// one.
 export interface UsedByRow {
-  id: string
-  key?: string | null
-  confidence: string
-  from: End
+  link: PathLink
   // target names the component used, on the host page or the project page.
   target: { name: string; tech: string; host?: { id: string; hostname: string } }
 }
 
-// UsedByGroup is one consumer of the components, whatever the hosts it runs
-// on and the components it uses: an app, a service or a webserver of a
-// project and an env.
+// usedByRows are the effective links to a component.
+export function usedByRows(links: PathLink[], target: UsedByRow['target']): UsedByRow[] {
+  return links.map((link) => ({ link, target }))
+}
+
+// UsedByGroup is one consumer of one component, whatever the hosts it runs
+// on: an app of a project and an env, so that its route tells one link.
 export interface UsedByGroup {
   id: string
   from: End
@@ -60,25 +34,31 @@ export interface UsedByGroup {
   targets: { name: string; tech: string }[]
   keys: string[]
   confidence: string
+  // routes are the paths of its requests, merged across the hosts.
+  routes: Route[]
 }
 
-// mergeUsedBy groups the links by consumer, project and env, whatever the
-// hosts and the components: the listing says who uses the entity, once.
+// mergeUsedBy groups the links by consumer, project, env and component
+// used, whatever the hosts: the listing says who uses what, once.
 export function mergeUsedBy(rows: UsedByRow[]): UsedByGroup[] {
-  const out = new Map<string, UsedByGroup>()
+  const out = new Map<string, UsedByGroup & { all: Route[] }>()
   for (const r of rows) {
-    const host = hostOf(r.from)
+    const from = r.link.from
+    const host = hostOf(from)
     const project = host?.project?.slug
     const env = host?.environment?.slug
-    const id = [r.from.__typename, techOf(r.from), nameOf(r.from), project, env].join('\u0000')
-    const g = out.get(id) ?? { id, from: r.from, project, env, targets: [], keys: [], confidence: r.confidence }
+    const id = [from.__typename, techOf(from), nameOf(from), project, env, r.target.tech, r.target.name].join('\u0000')
+    const g = out.get(id) ?? { id, from, project, env, targets: [], keys: [], confidence: r.link.confidence, routes: [], all: [] }
     if (!g.targets.some((x) => x.name === r.target.name && x.tech === r.target.tech)) g.targets.push({ name: r.target.name, tech: r.target.tech })
-    if (r.key && !g.keys.includes(r.key)) g.keys.push(r.key)
-    if (r.confidence !== 'EXACT') g.confidence = r.confidence
+    if (r.link.key && !g.keys.includes(r.link.key)) g.keys.push(r.link.key)
+    if (r.link.confidence !== 'EXACT') g.confidence = r.link.confidence
+    g.all.push(routeOf(r.link))
     out.set(id, g)
   }
-  for (const g of out.values()) g.targets.sort((a, b) => a.name.localeCompare(b.name))
-  return [...out.values()]
+  return [...out.values()].map(({ all, ...g }) => {
+    g.targets.sort((a, b) => a.name.localeCompare(b.name))
+    return { ...g, routes: mergeRoutes(all) }
+  })
 }
 
 // splitUsedBy sets apart the links the entity makes to itself, then merges
@@ -90,39 +70,21 @@ export function splitUsedBy(rows: UsedByRow[], isSelf: (r: UsedByRow) => boolean
   return { others: mergeUsedBy(others), self: mergeUsedBy(self) }
 }
 
-export function hostOf(e: End): HostRef | null {
-  if (e.__typename === 'External') return null
-  return e.__typename === 'Host' ? e : e.host
-}
-
-export function nameOf(e: End): string {
-  switch (e.__typename) {
-    case 'App': return e.name
-    case 'Service': return e.instance && e.instance !== 'default' ? `${e.type} ${e.instance}` : e.type
-    case 'Webserver': return e.type
-    case 'Host': return e.hostname
-    default: return e.target
-  }
-}
-
-export function techOf(e: End): string {
-  switch (e.__typename) {
-    case 'App': return e.framework ?? 'app'
-    case 'Service': case 'Webserver': return e.type
-    case 'Host': return 'host'
-    default: return 'ext'
-  }
-}
-
 // UsedBy lists who uses the components of a host, a project or an app: one
-// row per consumer, project and env, without the hosts.
-export function UsedBy({ ns, rows, fields = [], emptyText }: { ns: string; rows: UsedByGroup[]; fields?: FilterField[]; emptyText?: string }) {
+// row per consumer, project, env and component, without the hosts. A row whose
+// requests cross proxies unfolds their route.
+export function UsedBy({ ns, rows, fields = [], emptyText, isSelf }: {
+  ns: string; rows: UsedByGroup[]; fields?: FilterField[]; emptyText?: string
+  // isSelf tells the entity using itself, badged.
+  isSelf?: (g: UsedByGroup) => boolean
+}) {
   const m = useT().components.usedBy
   const t = useTable(rows,
     (r) => [nameOf(r.from), r.project ?? '', r.env ?? '', ...r.targets.map((x) => x.name), ...r.keys],
     (r, by) => by === 'project' ? r.project ?? '' : by === 'env' ? r.env ?? ''
       : by === 'target' ? r.targets.map((x) => x.name).join() : by === 'confidence' ? r.confidence : nameOf(r.from) + (r.env ?? ''),
     'from')
+  const x = useExpanded(rows.filter((r) => crosses(r.routes)).map((r) => r.id))
   const empty = <p className="lc-muted m-0">{emptyText ?? m.empty}</p>
   // Without filter to clear, the empty listing says so alone.
   if (rows.length === 0 && !fields.some((f) => f.value !== null)) return empty
@@ -130,44 +92,59 @@ export function UsedBy({ ns, rows, fields = [], emptyText }: { ns: string; rows:
   return (
     <>
       <FilterBar search={<SearchInput value={t.q} onChange={t.setQ} placeholder={m.search} width={320} />}
-        fields={fields} count={m.count(rows.length)} />
+        fields={fields} count={m.links(rows.length)} actions={x.some ? <ExpandAll anyOpen={x.anyOpen} onClick={x.toggleAll} /> : null} />
       {rows.length === 0 ? empty : null}
       <div className="overflow-x-auto rounded-lg border border-border" hidden={rows.length === 0}><table className="lc-table">
         <thead><tr>
+          <th className="lc-path__cell" />
           {head(m.from, 'from')}{head(m.project, 'project')}{head(m.env, 'env')}{head(m.target, 'target')}<th>{m.key}</th>{head(m.confidence, 'confidence')}
         </tr></thead>
         <tbody>{t.shown.map((r) => (
-          <tr key={r.id}>
-            <td>
-              <span className="inline-flex items-center gap-2">
-                <span className="lc-node__techs"><TechLogo tech={techOf(r.from)} /></span>
-                {r.from.__typename === 'External' ? <Copyable value={r.from.target} />
-                  : r.from.__typename === 'App' ? <Link className="font-semibold" to={`/${ns}/apps/${r.from.id}`}>{nameOf(r.from)}</Link>
-                  : <span className="font-semibold">{nameOf(r.from)}</span>}
-              </span>
-            </td>
-            <td>{r.project ? <Link to={`/${ns}/projects/${r.project}`}>{r.project}</Link> : <span className="lc-muted">—</span>}</td>
-            <td>{r.env}</td>
-            <td>
-              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {r.targets.map((x) => (
-                  <span key={x.tech + x.name} className="inline-flex items-center gap-2">
-                    <span className="lc-node__techs"><TechLogo tech={x.tech} /></span>
-                    <span>{x.name}</span>
-                  </span>
-                ))}
-              </span>
-            </td>
-            <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>
-              <div className="flex flex-wrap gap-x-3">{r.keys.map((k) => <Copyable key={k} value={k} />)}</div>
-            </td>
-            <td>{confidenceText(r.confidence)}</td>
-          </tr>
+          <Fragment key={r.id}>
+            <tr>
+              <PathToggle shown={crosses(r.routes)} open={x.isOpen(r.id)} onToggle={() => x.toggle(r.id)} />
+              <td>
+                <span className="inline-flex items-center gap-2">
+                  <span className="lc-node__techs"><TechLogo tech={techOf(r.from)} /></span>
+                  <EndName ns={ns} end={r.from} />
+                  <PathBadges self={isSelf?.(r)} />
+                  <Via routes={r.routes} />
+                </span>
+              </td>
+              <td>{r.project ? <Link to={`/${ns}/projects/${r.project}`}>{r.project}</Link> : <span className="lc-muted">—</span>}</td>
+              <td>{r.env}</td>
+              <td>
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {r.targets.map((y) => (
+                    <span key={y.tech + y.name} className="inline-flex items-center gap-2">
+                      <span className="lc-node__techs"><TechLogo tech={y.tech} /></span>
+                      <span>{y.name}</span>
+                    </span>
+                  ))}
+                </span>
+              </td>
+              <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>
+                <div className="flex flex-wrap gap-x-3">{r.keys.map((k) => <Copyable key={k} value={k} />)}</div>
+              </td>
+              <td>{confidenceText(r.confidence)}</td>
+            </tr>
+            {x.isOpen(r.id) ? <PathDetail routes={r.routes.filter((y) => y.length > 2)} colSpan={7} /> : null}
+          </Fragment>
         ))}</tbody>
       </table></div>
       <Pager page={t.page} size={t.size} total={t.list.length} noun={m.noun} onPage={t.setPage} onSize={t.setSize} />
     </>
   )
+}
+
+// EndName names an end of a link, a link to its page where it has one.
+export function EndName({ ns, end }: { ns: string; end: End }) {
+  switch (end.__typename) {
+    case 'External': return <Copyable value={end.target} />
+    case 'App': return <Link className="font-semibold" to={`/${ns}/apps/${end.id}`}>{nameOf(end)}</Link>
+    case 'Host': return <Link className="lc-mono" to={`/${ns}/hosts/${end.id}`}>{end.hostname}</Link>
+    default: return <span className="font-semibold">{nameOf(end)}</span>
+  }
 }
 
 // UsedBySection titles one listing of the tab.

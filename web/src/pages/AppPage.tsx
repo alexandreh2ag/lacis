@@ -1,13 +1,16 @@
 import { useQuery } from '@apollo/client'
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { PackageVersion } from '@/components/PackageVersion'
 import { Copyable, CopyButton } from '@/components/Copy'
+import { FilterBar } from '@/components/FilterBar'
 import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
-import { hostOf, nameOf, splitUsedBy, techOf, UsedBy, UsedBySection, type End, type UsedByRow } from '@/components/UsedBy'
+import { crosses, ExpandAll, hostOf, mergeRoutes, nameOf, PathBadges, PathDetail, PathToggle, routeOf, ruleOf, techOf, useExpanded, Via,
+  type End, type PathLink, type Route } from '@/components/LinkPath'
+import { EndName, mergeUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { AppPageQuery } from '@/graphql/graphql'
 import { useT } from '@/i18n'
@@ -29,18 +32,8 @@ const AppPageDoc = graphql(`
         environment { slug }
         host { id hostname status lastSeenAt }
         dependencies { key scheme port path target unparsed }
-        links {
-          id key confidence rule reason detail
-          to {
-            __typename
-            ... on App { id name framework host { ...UsedByHost } }
-            ... on Service { id type instance host { ...UsedByHost } }
-            ... on Webserver { id type host { ...UsedByHost } }
-            ... on Host { ...UsedByHost }
-            ... on External { target reason }
-          }
-        }
-        dependents { ...UsedByLink }
+        uses { ...EffectiveLink }
+        usedBy { ...EffectiveLink }
       }
     }
   }
@@ -58,7 +51,8 @@ const SiblingsDoc = graphql(`
 `)
 
 // The impact of the app, both ways, at the level of the apps: what it
-// reaches through proxies, and who reaches it through them.
+// reaches through proxies, and who reaches it through them, the proxies
+// crossed without taking a level.
 const ChainDoc = graphql(`
   query AppChain($ns: String!, $node: String!) {
     namespace(slug: $ns) {
@@ -66,8 +60,8 @@ const ChainDoc = graphql(`
       graph(level: APP, filter: { status: [ACTIVE, STALE, INACTIVE] }) {
         nodes { id kind label project env entity { __typename ... on App { id } ... on Host { id } } }
       }
-      needs: impact(level: APP, filter: { status: [ACTIVE, STALE, INACTIVE] }, node: $node, direction: NEEDS) { nodes { id level } }
-      dependents: impact(level: APP, filter: { status: [ACTIVE, STALE, INACTIVE] }, node: $node, direction: DEPENDENTS) { nodes { id level } }
+      needs: impact(level: APP, filter: { status: [ACTIVE, STALE, INACTIVE] }, node: $node, direction: NEEDS, throughProxies: true) { nodes { id level } }
+      dependents: impact(level: APP, filter: { status: [ACTIVE, STALE, INACTIVE] }, node: $node, direction: DEPENDENTS, throughProxies: true) { nodes { id level } }
     }
   }
 `)
@@ -76,23 +70,8 @@ type App = NonNullable<NonNullable<AppPageQuery['namespace']>['app']>
 type ChainNode = { id: string; kind: string; label: string; project?: string | null; env?: string | null
   entity?: { __typename: string; id?: string } | null; level: number }
 
-// EndCell is the other end of a link: what it is, whatever its host.
-function EndCell({ ns, end }: { ns: string; end: End }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="lc-node__techs"><TechLogo tech={techOf(end)} /></span>
-      {end.__typename === 'External' ? <Copyable value={end.target} />
-        : end.__typename === 'App' ? <Link className="font-semibold" to={`/${ns}/apps/${end.id}`}>{nameOf(end)}</Link>
-        : end.__typename === 'Host' ? <Link className="lc-mono" to={`/${ns}/hosts/${end.id}`}>{end.hostname}</Link>
-        : <span className="font-semibold">{nameOf(end)}</span>}
-    </span>
-  )
-}
-
-type AppLink = App['links'][number]
-
-// Use is what the app uses, whatever the hosts it runs on: the links to
-// one component of a project and an env, merged.
+// Use is what the app uses, whatever the hosts it runs on: the effective
+// links to one component of a project and an env, merged.
 interface Use {
   id: string
   to: End
@@ -101,23 +80,27 @@ interface Use {
   keys: string[]
   resolved: string[]
   confidence: string
+  deadEnd: boolean
+  routes: Route[]
 }
 
-function usesOf(links: AppLink[]): Use[] {
-  const out = new Map<string, Use>()
+export function usesOf(links: PathLink[]): Use[] {
+  const out = new Map<string, Use & { all: Route[] }>()
   for (const l of links) {
     const host = hostOf(l.to)
     const project = host?.project?.slug
     const env = host?.environment?.slug
     const id = [l.to.__typename, techOf(l.to), nameOf(l.to), project, env].join('\u0000')
-    const u = out.get(id) ?? { id, to: l.to, project, env, keys: [], resolved: [], confidence: l.confidence }
+    const u = out.get(id) ?? { id, to: l.to, project, env, keys: [], resolved: [], confidence: l.confidence, deadEnd: false, routes: [], all: [] }
     if (l.key && !u.keys.includes(l.key)) u.keys.push(l.key)
-    const how = [l.rule, l.reason, cdnOf(l.detail)].filter(Boolean).join(' · ')
+    const how = l.path[0] ? ruleOf(l.path[0]) : ''
     if (how && !u.resolved.includes(how)) u.resolved.push(how)
     if (l.confidence !== 'EXACT') u.confidence = l.confidence
+    u.deadEnd ||= l.deadEnd
+    u.all.push(routeOf(l))
     out.set(id, u)
   }
-  return [...out.values()]
+  return [...out.values()].map(({ all, ...u }) => ({ ...u, routes: mergeRoutes(all) }))
 }
 
 export function AppPage() {
@@ -130,8 +113,8 @@ export function AppPage() {
   const launchers = useMemo(() => launchersOf(a?.launchers), [a?.launchers])
   const tabs = [
     { id: 'general', label: ts.general },
-    { id: 'uses', label: ta.tabs.uses, count: a?.links.length },
-    { id: 'used-by', label: ts.usedBy, count: a ? usedByOf(a).others.length : undefined },
+    { id: 'uses', label: ta.tabs.uses, count: a ? usesOf(a.uses).length : undefined },
+    { id: 'used-by', label: ts.usedBy, count: a ? usedByOf(a).length : undefined },
     { id: 'config', label: ta.tabs.config, count: a?.dependencies.length },
     { id: 'workers', label: ta.tabs.workers, count: a ? launchers.length : undefined },
     { id: 'scheduled', label: ta.tabs.scheduled, count: a ? launchers.reduce((n, l) => n + l.tasks.length, 0) : undefined },
@@ -259,7 +242,8 @@ function Siblings({ ns, app: a }: { ns: string; app: App }) {
   )
 }
 
-// useChain is the impact of the app one way, the app itself left out.
+// useChain is the impact of the app one way from level 2, the app itself
+// left out: level 1 is what the direct links already list.
 function useChain(ns: string, a: App, way: 'needs' | 'dependents'): ChainNode[] | null {
   const { data } = useQuery(ChainDoc, { variables: { ns, node: `app:${a.id}` } })
   return useMemo(() => {
@@ -267,7 +251,7 @@ function useChain(ns: string, a: App, way: 'needs' | 'dependents'): ChainNode[] 
     if (!n) return null
     const byId = new Map(n.graph.nodes.map((x) => [x.id, x]))
     return n[way].nodes.flatMap((x) => {
-      const node = byId.get(x.id)
+      const node = x.level >= 2 ? byId.get(x.id) : undefined
       return node ? [{ ...node, level: x.level } as ChainNode] : []
     })
   }, [data, way])
@@ -294,9 +278,6 @@ function Chain({ ns, nodes: all, empty }: { ns: string; nodes: ChainNode[] | nul
   const nodes = useMemo(() => all && byConsumer(all), [all])
   if (!nodes) return <span className="lc-muted">{ts.loading}</span>
   if (!nodes.length) return <p className="lc-muted m-0">{empty}</p>
-  // A webserver drawn inside the app takes a level: the levels shown
-  // follow one another from 1.
-  const steps = [...new Set(nodes.map((n) => n.level))].sort((x, y) => x - y)
   return (
     <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
       <thead><tr><th className="lc-num">{t.pages.app.level}</th><th>{t.pages.app.node}</th><th>{ts.type}</th><th>{ts.project}</th><th>{ts.env}</th></tr></thead>
@@ -304,7 +285,7 @@ function Chain({ ns, nodes: all, empty }: { ns: string; nodes: ChainNode[] | nul
         const appId = n.entity?.__typename === 'App' ? n.entity.id : null
         return (
           <tr key={n.id}>
-            <td className="lc-num">{steps.indexOf(n.level) + 1}</td>
+            <td className="lc-num">{n.level}</td>
             <td>{appId ? <Link className="font-semibold" to={`/${ns}/apps/${appId}`}>{n.label}</Link> : <span className="font-semibold">{n.label}</span>}</td>
             <td className="text-ink-muted">{t.pages.app.kinds[n.kind] ?? n.kind.toLowerCase()}</td>
             <td>{n.project ? <Link to={`/${ns}/projects/${n.project}`}>{n.project}</Link> : null}</td>
@@ -316,12 +297,14 @@ function Chain({ ns, nodes: all, empty }: { ns: string; nodes: ChainNode[] | nul
   )
 }
 
-// Uses lists the links of the app, then all it needs through them.
+// Uses lists what the app uses, through the proxies, then all it needs
+// through them.
 function Uses({ ns, app: a }: { ns: string; app: App }) {
-  const uses = useMemo(() => usesOf(a.links), [a])
+  const uses = useMemo(() => usesOf(a.uses), [a])
   const tbl = useTable(uses,
     (u) => [nameOf(u.to), u.project ?? '', u.env ?? '', ...u.keys, ...u.resolved],
     (u, by) => by === 'key' ? u.keys.join() : by === 'confidence' ? u.confidence : by === 'project' ? u.project ?? '' : by === 'env' ? u.env ?? '' : nameOf(u.to), 'target')
+  const x = useExpanded(uses.filter((u) => crosses(u.routes)).map((u) => u.id))
   const chain = useChain(ns, a, 'needs')
   const t = useT()
   const ta = t.pages.app
@@ -333,18 +316,30 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
         <h2 className="title m-0">{ta.directLinks}</h2>
         {uses.length === 0 ? <p className="lc-muted m-0">{ta.noDependency}</p> : (
           <>
-            <SearchInput value={tbl.q} onChange={tbl.setQ} placeholder={ta.searchLinks} width={300} />
+            <FilterBar search={<SearchInput value={tbl.q} onChange={tbl.setQ} placeholder={ta.searchLinks} width={300} />} fields={[]}
+              actions={x.some ? <ExpandAll anyOpen={x.anyOpen} onClick={x.toggleAll} /> : null} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-              <thead><tr>{head(ts.target, 'target')}{head(ts.project, 'project')}{head(ts.env, 'env')}{head(ts.key, 'key')}<th>{ta.resolvedBy}</th>{head(ts.confidence, 'confidence')}</tr></thead>
+              <thead><tr><th className="lc-path__cell" />{head(ts.target, 'target')}{head(ts.project, 'project')}{head(ts.env, 'env')}{head(ts.key, 'key')}<th>{ta.resolvedBy}</th>{head(ts.confidence, 'confidence')}</tr></thead>
               <tbody>{tbl.shown.map((u) => (
-                <tr key={u.id}>
-                  <td><EndCell ns={ns} end={u.to} /></td>
-                  <td>{u.project ? <Link to={`/${ns}/projects/${u.project}`}>{u.project}</Link> : <span className="lc-muted">—</span>}</td>
-                  <td>{u.env}</td>
-                  <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}><div className="flex flex-wrap gap-x-3">{u.keys.map((k) => <Copyable key={k} value={k} />)}</div></td>
-                  <td className="text-ink-muted">{u.resolved.join(', ')}</td>
-                  <td>{confidenceText(u.confidence)}</td>
-                </tr>
+                <Fragment key={u.id}>
+                  <tr>
+                    <PathToggle shown={crosses(u.routes)} open={x.isOpen(u.id)} onToggle={() => x.toggle(u.id)} />
+                    <td>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="lc-node__techs"><TechLogo tech={techOf(u.to)} /></span>
+                        <EndName ns={ns} end={u.to} />
+                        <PathBadges deadEnd={u.deadEnd} />
+                        <Via routes={u.routes} />
+                      </span>
+                    </td>
+                    <td>{u.project ? <Link to={`/${ns}/projects/${u.project}`}>{u.project}</Link> : <span className="lc-muted">—</span>}</td>
+                    <td>{u.env}</td>
+                    <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}><div className="flex flex-wrap gap-x-3">{u.keys.map((k) => <Copyable key={k} value={k} />)}</div></td>
+                    <td className="text-ink-muted">{u.resolved.join(', ')}</td>
+                    <td>{confidenceText(u.confidence)}</td>
+                  </tr>
+                  {x.isOpen(u.id) ? <PathDetail routes={u.routes.filter((r) => r.length > 2)} colSpan={7} /> : null}
+                </Fragment>
               ))}</tbody>
             </table></div>
             <Pager page={tbl.page} size={tbl.size} total={tbl.list.length} noun={ts.nouns.links} onPage={tbl.setPage} onSize={tbl.setSize} />
@@ -360,34 +355,26 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
   )
 }
 
-// usedByOf merges the links to the app by who makes them, the app itself
-// and what runs on its host set apart.
+// usedByOf merges the effective links to the app by who makes them.
 function usedByOf(a: App) {
-  const isSelf = (r: UsedByRow) => {
-    const host = hostOf(r.from)
-    if (host?.id === a.host.id) return true
-    return r.from.__typename === 'App' && r.from.name === a.name
-      && host?.project?.slug === a.project?.slug && host?.environment?.slug === a.environment?.slug
-  }
-  return splitUsedBy(a.dependents.map((l) => ({ ...l, target: { name: a.name, tech: a.framework ?? 'app' } })), isSelf)
+  return mergeUsedBy(usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' }))
 }
 
-// UsedByTab lists the links to the app, then all that reaches it through
-// them.
+// UsedByTab lists who uses the app, the app itself included, then all
+// that reaches it through them.
 function UsedByTab({ ns, app: a }: { ns: string; app: App }) {
   const rows = useMemo(() => usedByOf(a), [a])
   const chain = useChain(ns, a, 'dependents')
   const t = useT()
   const ta = t.pages.app
-  const m = t.components.usedBy
+  // The app calling itself, from any of its hosts, is badged.
+  const isSelf = (g: UsedByGroup) => g.from.__typename === 'App' && g.from.name === a.name
+    && g.project === (a.project?.slug ?? hostOf(g.from)?.project?.slug) && g.env === (a.environment?.slug ?? hostOf(g.from)?.environment?.slug)
   return (
     <div className="flex flex-col gap-6">
-      <UsedBySection title={ta.directLinks}><UsedBy ns={ns} rows={rows.others} /></UsedBySection>
+      <UsedBySection title={ta.directLinks}><UsedBy ns={ns} rows={rows} isSelf={isSelf} /></UsedBySection>
       <UsedBySection title={ta.indirectUsers} help={ta.indirectUsersHelp}>
         <Chain ns={ns} nodes={chain} empty={ta.nobodyDepends} />
-      </UsedBySection>
-      <UsedBySection title={m.self} help={m.selfHelp.app}>
-        <UsedBy ns={ns} rows={rows.self} emptyText={m.selfEmpty} />
       </UsedBySection>
     </div>
   )
@@ -407,7 +394,7 @@ function targetText(target: unknown): string {
 // Config lists the dependencies read in the configuration of the app; a
 // key no link resolves is told.
 function Config({ app: a }: { app: App }) {
-  const resolved = new Set(a.links.map((l) => l.key).filter(Boolean))
+  const resolved = new Set(a.uses.map((l) => l.key).filter(Boolean))
   const t = useT()
   const ta = t.pages.app
   if (!a.dependencies.length) return <p className="lc-muted m-0">{ta.noConfig}</p>
@@ -476,11 +463,4 @@ function Scheduled({ launchers }: { launchers: Launcher[] }) {
       ))}</tbody>
     </table></div>
   )
-}
-
-// cdnOf is the name of the CDN a link goes through, as linking.cdns names
-// it; none for the unnamed ranges, which the cdn reason already tells.
-function cdnOf(detail: unknown): string | undefined {
-  const name = str(field(detail, 'cdn'))
-  return name && name !== 'cdn' ? name : undefined
 }

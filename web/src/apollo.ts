@@ -19,6 +19,12 @@ const http = new HttpLink({ uri: 'graphql', credentials: 'same-origin' })
 export const client = new ApolloClient({
   link: from([errors, http]),
   cache: new InMemoryCache({
+    // The members of the unions, so that a fragment on a union matches
+    // them (graph/schema).
+    possibleTypes: {
+      LinkEnd: ['App', 'Service', 'Webserver', 'Host', 'External'],
+      Component: ['Service', 'Webserver'],
+    },
     typePolicies: {
       // Ids are unique per type; namespaces are known by slug too.
       Namespace: { keyFields: ['id'] },

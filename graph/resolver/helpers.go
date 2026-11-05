@@ -11,6 +11,7 @@ import (
 	"github.com/alexandreh2ag/lacis/graph"
 	"github.com/alexandreh2ag/lacis/graph/union"
 	"github.com/alexandreh2ag/lacis/linker"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/service"
 	"github.com/google/uuid"
@@ -68,6 +69,15 @@ func (r *Resolver) history(ctx context.Context, namespace string, f service.Hist
 		rows = rows[:limit]
 	}
 	return &graph.ChangeEventList{Items: rows, HasMore: more}, nil
+}
+
+// usedBy are the effective links to an app, a service or a webserver.
+func (r *Resolver) usedBy(ctx context.Context, namespaceID, id uuid.UUID) ([]linkpath.Path, error) {
+	x, err := r.index(ctx, namespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return orEmpty(x.paths.UsedBy(id)), nil
 }
 
 // detail decodes the detail of a link.

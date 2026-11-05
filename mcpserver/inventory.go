@@ -3,10 +3,12 @@ package mcpserver
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/techversion"
 	"github.com/google/uuid"
@@ -21,6 +23,8 @@ type index struct {
 	apps       map[uuid.UUID]*model.App
 	services   map[uuid.UUID]*model.Service
 	webservers map[uuid.UUID]*model.Webserver
+	// paths are the effective links, through the proxies.
+	paths *linkpath.Graph
 }
 
 func newIndex(inv *model.Inventory) *index {
@@ -44,6 +48,7 @@ func newIndex(inv *model.Inventory) *index {
 	for i := range inv.Webservers {
 		x.webservers[inv.Webservers[i].ID] = &inv.Webservers[i]
 	}
+	x.paths = linkpath.New(inv.Links)
 	return x
 }
 
@@ -412,13 +417,19 @@ type End struct {
 	Env     string `json:"env,omitempty"`
 }
 
-// LinkOut is a link of the graph: From uses To.
+// LinkOut is a link of the graph: From uses To. The links of an app, and
+// to an app or a service, are effective: a link to a webserver goes on
+// along the routes of the name called, Via naming the webservers crossed.
 type LinkOut struct {
 	From       End    `json:"from"`
 	To         End    `json:"to"`
 	Source     string `json:"source" jsonschema:"what proves the link: env, traefik, webserver, launcher or process"`
-	Confidence string `json:"confidence" jsonschema:"exact, inferred or ambiguous"`
-	Detail     any    `json:"detail,omitempty"`
+	Confidence string `json:"confidence" jsonschema:"exact, inferred or ambiguous; the weakest of the links crossed"`
+	// Via are the proxies crossed from From to To, in order.
+	Via []End `json:"via,omitempty" jsonschema:"the webservers (reverse proxies, load balancers) the requests cross from 'from' to 'to', in order"`
+	// DeadEnd tells the last webserver routes the name called nowhere known.
+	DeadEnd bool `json:"dead_end,omitempty" jsonschema:"true when 'to' is a webserver whose routes lead nowhere known for the name called"`
+	Detail  any  `json:"detail,omitempty"`
 }
 
 func (x *index) end(kind string, id *uuid.UUID, external *string) End {
@@ -460,19 +471,51 @@ const (
 	DirectionBoth         = "both"
 )
 
-// links are the links from or to the entities of ids.
+// links are the links from or to the entities of ids: effective for the
+// apps and the services, as they are for the webservers and the hosts.
 func (x *index) links(ids map[uuid.UUID]bool, direction string) []LinkOut {
 	var out []LinkOut
-	for _, l := range x.inv.Links {
-		from := ids[l.FromID]
-		to := l.ToID != nil && ids[*l.ToID]
-		if (direction == DirectionDependents && !to) || (direction == DirectionDependencies && !from) || (direction == DirectionBoth && !from && !to) {
-			continue
+	seen := map[string]bool{}
+	add := func(paths []linkpath.Path) {
+		for _, p := range paths {
+			key := fmt.Sprint(p.Links)
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, x.pathOut(p))
+			}
 		}
-		out = append(out, LinkOut{From: x.end(l.FromType, &l.FromID, nil), To: x.end(l.ToType, l.ToID, l.ExternalTarget),
-			Source: l.Source, Confidence: l.Confidence, Detail: raw(l.Detail)})
+	}
+	effective := func(kind string) bool { return kind == model.LinkNodeApp || kind == model.LinkNodeService }
+	usedBy := map[uuid.UUID]bool{}
+	for i := range x.inv.Links {
+		l := &x.inv.Links[i]
+		if direction != DirectionDependents && ids[l.FromID] {
+			if effective(l.FromType) {
+				add(x.paths.From(l))
+			} else {
+				add([]linkpath.Path{{Links: []*model.Link{l}}})
+			}
+		}
+		if direction != DirectionDependencies && l.ToID != nil && ids[*l.ToID] {
+			if !effective(l.ToType) {
+				add([]linkpath.Path{{Links: []*model.Link{l}}})
+			} else if !usedBy[*l.ToID] {
+				usedBy[*l.ToID] = true
+				add(x.paths.UsedBy(*l.ToID))
+			}
+		}
 	}
 	return out
+}
+
+func (x *index) pathOut(p linkpath.Path) LinkOut {
+	first, last := p.First(), p.Last()
+	o := LinkOut{From: x.end(first.FromType, &first.FromID, nil), To: x.end(last.ToType, last.ToID, last.ExternalTarget),
+		Source: first.Source, Confidence: p.Confidence(), DeadEnd: p.DeadEnd, Detail: raw(first.Detail)}
+	for _, l := range p.Links[1:] {
+		o.Via = append(o.Via, x.end(l.FromType, &l.FromID, nil))
+	}
+	return o
 }
 
 // entitiesOf are the ids of a host and of all it holds.

@@ -18,6 +18,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/alexandreh2ag/lacis/graph/scalar"
 	"github.com/alexandreh2ag/lacis/graph/union"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/repository"
 	"github.com/alexandreh2ag/lacis/service"
@@ -49,6 +50,7 @@ type ResolverRoot interface {
 	Account() AccountResolver
 	Agent() AgentResolver
 	App() AppResolver
+	EffectiveLink() EffectiveLinkResolver
 	Environment() EnvironmentResolver
 	Host() HostResolver
 	HostIP() HostIPResolver
@@ -126,6 +128,8 @@ type ComplexityRoot struct {
 		ResolvedPath     func(childComplexity int) int
 		Role             func(childComplexity int) int
 		Runtime          func(childComplexity int) int
+		UsedBy           func(childComplexity int) int
+		Uses             func(childComplexity int) int
 		Vhosts           func(childComplexity int) int
 	}
 
@@ -208,6 +212,15 @@ type ComplexityRoot struct {
 		Source   func(childComplexity int) int
 		Target   func(childComplexity int) int
 		Unparsed func(childComplexity int) int
+	}
+
+	EffectiveLink struct {
+		Confidence func(childComplexity int) int
+		DeadEnd    func(childComplexity int) int
+		From       func(childComplexity int) int
+		Key        func(childComplexity int) int
+		Path       func(childComplexity int) int
+		To         func(childComplexity int) int
 	}
 
 	EnrollmentToken struct {
@@ -407,7 +420,7 @@ type ComplexityRoot struct {
 		Host              func(childComplexity int, id uuid.UUID) int
 		Hosts             func(childComplexity int, filter *HostFilter, sort *HostSort, page *PageInput) int
 		ID                func(childComplexity int) int
-		Impact            func(childComplexity int, level GraphLevel, filter *GraphFilter, node string, direction ImpactDirection) int
+		Impact            func(childComplexity int, level GraphLevel, filter *GraphFilter, node string, direction ImpactDirection, throughProxies *bool) int
 		InactiveAfter     func(childComplexity int) int
 		Name              func(childComplexity int) int
 		Networks          func(childComplexity int) int
@@ -539,6 +552,7 @@ type ComplexityRoot struct {
 		Instance       func(childComplexity int) int
 		PackageVersion func(childComplexity int) int
 		Type           func(childComplexity int) int
+		UsedBy         func(childComplexity int) int
 		Version        func(childComplexity int) int
 	}
 
@@ -598,6 +612,7 @@ type ComplexityRoot struct {
 		Links       func(childComplexity int) int
 		Routing     func(childComplexity int) int
 		Type        func(childComplexity int) int
+		UsedBy      func(childComplexity int) int
 		Version     func(childComplexity int) int
 	}
 }
@@ -624,6 +639,16 @@ type AppResolver interface {
 	Dependencies(ctx context.Context, obj *model.App) ([]model.AppDependency, error)
 	Links(ctx context.Context, obj *model.App) ([]model.Link, error)
 	Dependents(ctx context.Context, obj *model.App) ([]model.Link, error)
+	Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
+	UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
+}
+type EffectiveLinkResolver interface {
+	From(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error)
+	To(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error)
+	Key(ctx context.Context, obj *linkpath.Path) (*string, error)
+	Confidence(ctx context.Context, obj *linkpath.Path) (LinkConfidence, error)
+
+	Path(ctx context.Context, obj *linkpath.Path) ([]model.Link, error)
 }
 type EnvironmentResolver interface {
 	Usage(ctx context.Context, obj *model.Environment) (*CatalogUsage, error)
@@ -705,7 +730,7 @@ type NamespaceResolver interface {
 	Webserver(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.Webserver, error)
 	History(ctx context.Context, obj *model.Namespace, filter *HistoryFilter, page *PageInput) (*ChangeEventList, error)
 	Graph(ctx context.Context, obj *model.Namespace, level GraphLevel, filter *GraphFilter) (*Graph, error)
-	Impact(ctx context.Context, obj *model.Namespace, level GraphLevel, filter *GraphFilter, node string, direction ImpactDirection) (*GraphImpact, error)
+	Impact(ctx context.Context, obj *model.Namespace, level GraphLevel, filter *GraphFilter, node string, direction ImpactDirection, throughProxies *bool) (*GraphImpact, error)
 }
 type NetworkResolver interface {
 	Cidrs(ctx context.Context, obj *model.Network) ([]string, error)
@@ -737,6 +762,7 @@ type ServiceResolver interface {
 	Host(ctx context.Context, obj *model.Service) (*model.Host, error)
 
 	Dependents(ctx context.Context, obj *model.Service) ([]model.Link, error)
+	UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Path, error)
 }
 type TaskRunResolver interface {
 	ID(ctx context.Context, obj *service.TaskRun) (string, error)
@@ -755,6 +781,7 @@ type WebserverResolver interface {
 
 	Dependents(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
 	Links(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
+	UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Path, error)
 }
 
 type executableSchema struct {
@@ -1032,6 +1059,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.App.Runtime(childComplexity), true
+	case "App.usedBy":
+		if e.complexity.App.UsedBy == nil {
+			break
+		}
+
+		return e.complexity.App.UsedBy(childComplexity), true
+	case "App.uses":
+		if e.complexity.App.Uses == nil {
+			break
+		}
+
+		return e.complexity.App.Uses(childComplexity), true
 	case "App.vhosts":
 		if e.complexity.App.Vhosts == nil {
 			break
@@ -1354,6 +1393,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Dependency.Unparsed(childComplexity), true
+
+	case "EffectiveLink.confidence":
+		if e.complexity.EffectiveLink.Confidence == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.Confidence(childComplexity), true
+	case "EffectiveLink.deadEnd":
+		if e.complexity.EffectiveLink.DeadEnd == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.DeadEnd(childComplexity), true
+	case "EffectiveLink.from":
+		if e.complexity.EffectiveLink.From == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.From(childComplexity), true
+	case "EffectiveLink.key":
+		if e.complexity.EffectiveLink.Key == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.Key(childComplexity), true
+	case "EffectiveLink.path":
+		if e.complexity.EffectiveLink.Path == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.Path(childComplexity), true
+	case "EffectiveLink.to":
+		if e.complexity.EffectiveLink.To == nil {
+			break
+		}
+
+		return e.complexity.EffectiveLink.To(childComplexity), true
 
 	case "EnrollmentToken.agents":
 		if e.complexity.EnrollmentToken.Agents == nil {
@@ -2410,7 +2486,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Namespace.Impact(childComplexity, args["level"].(GraphLevel), args["filter"].(*GraphFilter), args["node"].(string), args["direction"].(ImpactDirection)), true
+		return e.complexity.Namespace.Impact(childComplexity, args["level"].(GraphLevel), args["filter"].(*GraphFilter), args["node"].(string), args["direction"].(ImpactDirection), args["throughProxies"].(*bool)), true
 	case "Namespace.inactiveAfter":
 		if e.complexity.Namespace.InactiveAfter == nil {
 			break
@@ -3006,6 +3082,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.Type(childComplexity), true
+	case "Service.usedBy":
+		if e.complexity.Service.UsedBy == nil {
+			break
+		}
+
+		return e.complexity.Service.UsedBy(childComplexity), true
 	case "Service.version":
 		if e.complexity.Service.Version == nil {
 			break
@@ -3241,6 +3323,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Webserver.Type(childComplexity), true
+	case "Webserver.usedBy":
+		if e.complexity.Webserver.UsedBy == nil {
+			break
+		}
+
+		return e.complexity.Webserver.UsedBy(childComplexity), true
 	case "Webserver.version":
 		if e.complexity.Webserver.Version == nil {
 			break
@@ -3995,6 +4083,11 @@ func (ec *executionContext) field_Namespace_impact_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["direction"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "throughProxies", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["throughProxies"] = arg4
 	return args, nil
 }
 
@@ -5590,6 +5683,92 @@ func (ec *executionContext) fieldContext_App_dependents(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _App_uses(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_App_uses,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.App().Uses(ctx, obj)
+		},
+		nil,
+		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_App_uses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "App",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_EffectiveLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_EffectiveLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_EffectiveLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
+			case "path":
+				return ec.fieldContext_EffectiveLink_path(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _App_usedBy(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_App_usedBy,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.App().UsedBy(ctx, obj)
+		},
+		nil,
+		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_App_usedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "App",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_EffectiveLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_EffectiveLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_EffectiveLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
+			case "path":
+				return ec.fieldContext_EffectiveLink_path(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AppCode_source(ctx context.Context, field graphql.CollectedField, obj *AppCode) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5942,6 +6121,10 @@ func (ec *executionContext) fieldContext_AppList_items(_ context.Context, field 
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "uses":
+				return ec.fieldContext_App_uses(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_App_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type App", field.Name)
 		},
@@ -7136,6 +7319,202 @@ func (ec *executionContext) fieldContext_Dependency_unparsed(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_from(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_from,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.EffectiveLink().From(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_to(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_to,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.EffectiveLink().To(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_key(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_key,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.EffectiveLink().Key(ctx, obj)
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_confidence(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_confidence,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.EffectiveLink().Confidence(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkConfidence2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkConfidence does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_deadEnd(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_deadEnd,
+		func(ctx context.Context) (any, error) {
+			return obj.DeadEnd, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_deadEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EffectiveLink_path(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EffectiveLink_path,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.EffectiveLink().Path(ctx, obj)
+		},
+		nil,
+		ec.marshalNLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLinkᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EffectiveLink_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EffectiveLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Link_id(ctx, field)
+			case "source":
+				return ec.fieldContext_Link_source(ctx, field)
+			case "confidence":
+				return ec.fieldContext_Link_confidence(ctx, field)
+			case "rule":
+				return ec.fieldContext_Link_rule(ctx, field)
+			case "reason":
+				return ec.fieldContext_Link_reason(ctx, field)
+			case "key":
+				return ec.fieldContext_Link_key(ctx, field)
+			case "from":
+				return ec.fieldContext_Link_from(ctx, field)
+			case "to":
+				return ec.fieldContext_Link_to(ctx, field)
+			case "detail":
+				return ec.fieldContext_Link_detail(ctx, field)
+			case "computedAt":
+				return ec.fieldContext_Link_computedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Link", field.Name)
 		},
 	}
 	return fc, nil
@@ -9768,6 +10147,8 @@ func (ec *executionContext) fieldContext_Host_services(_ context.Context, field 
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
 				return ec.fieldContext_Service_dependents(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Service_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 		},
@@ -9817,6 +10198,8 @@ func (ec *executionContext) fieldContext_Host_webservers(_ context.Context, fiel
 				return ec.fieldContext_Webserver_dependents(ctx, field)
 			case "links":
 				return ec.fieldContext_Webserver_links(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Webserver_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Webserver", field.Name)
 		},
@@ -9886,6 +10269,10 @@ func (ec *executionContext) fieldContext_Host_apps(_ context.Context, field grap
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "uses":
+				return ec.fieldContext_App_uses(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_App_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type App", field.Name)
 		},
@@ -13175,6 +13562,10 @@ func (ec *executionContext) fieldContext_Namespace_app(ctx context.Context, fiel
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "uses":
+				return ec.fieldContext_App_uses(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_App_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type App", field.Name)
 		},
@@ -13283,6 +13674,8 @@ func (ec *executionContext) fieldContext_Namespace_service(ctx context.Context, 
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
 				return ec.fieldContext_Service_dependents(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Service_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 		},
@@ -13391,6 +13784,8 @@ func (ec *executionContext) fieldContext_Namespace_webserver(ctx context.Context
 				return ec.fieldContext_Webserver_dependents(ctx, field)
 			case "links":
 				return ec.fieldContext_Webserver_links(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Webserver_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Webserver", field.Name)
 		},
@@ -13515,7 +13910,7 @@ func (ec *executionContext) _Namespace_impact(ctx context.Context, field graphql
 		ec.fieldContext_Namespace_impact,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Namespace().Impact(ctx, obj, fc.Args["level"].(GraphLevel), fc.Args["filter"].(*GraphFilter), fc.Args["node"].(string), fc.Args["direction"].(ImpactDirection))
+			return ec.resolvers.Namespace().Impact(ctx, obj, fc.Args["level"].(GraphLevel), fc.Args["filter"].(*GraphFilter), fc.Args["node"].(string), fc.Args["direction"].(ImpactDirection), fc.Args["throughProxies"].(*bool))
 		},
 		nil,
 		ec.marshalNGraphImpact2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐGraphImpact,
@@ -16767,6 +17162,49 @@ func (ec *executionContext) fieldContext_Service_dependents(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Service_usedBy(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_usedBy,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Service().UsedBy(ctx, obj)
+		},
+		nil,
+		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_usedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_EffectiveLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_EffectiveLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_EffectiveLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
+			case "path":
+				return ec.fieldContext_EffectiveLink_path(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ServiceList_items(ctx context.Context, field graphql.CollectedField, obj *ServiceList) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16809,6 +17247,8 @@ func (ec *executionContext) fieldContext_ServiceList_items(_ context.Context, fi
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
 				return ec.fieldContext_Service_dependents(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Service_usedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 		},
@@ -17992,6 +18432,49 @@ func (ec *executionContext) fieldContext_Webserver_links(_ context.Context, fiel
 				return ec.fieldContext_Link_computedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Link", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Webserver_usedBy(ctx context.Context, field graphql.CollectedField, obj *model.Webserver) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Webserver_usedBy,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Webserver().UsedBy(ctx, obj)
+		},
+		nil,
+		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Webserver_usedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Webserver",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_EffectiveLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_EffectiveLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_EffectiveLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
+			case "path":
+				return ec.fieldContext_EffectiveLink_path(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -21197,6 +21680,78 @@ func (ec *executionContext) _App(ctx context.Context, sel ast.SelectionSet, obj 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "uses":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._App_uses(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "usedBy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._App_usedBy(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -21720,6 +22275,222 @@ func (ec *executionContext) _Dependency(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var effectiveLinkImplementors = []string{"EffectiveLink"}
+
+func (ec *executionContext) _EffectiveLink(ctx context.Context, sel ast.SelectionSet, obj *linkpath.Path) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, effectiveLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EffectiveLink")
+		case "from":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EffectiveLink_from(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "to":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EffectiveLink_to(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "key":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EffectiveLink_key(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "confidence":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EffectiveLink_confidence(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "deadEnd":
+			out.Values[i] = ec._EffectiveLink_deadEnd(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "path":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EffectiveLink_path(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -25654,6 +26425,42 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "usedBy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_usedBy(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -26305,6 +27112,42 @@ func (ec *executionContext) _Webserver(ctx context.Context, sel ast.SelectionSet
 					}
 				}()
 				res = ec._Webserver_links(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "usedBy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Webserver_usedBy(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -27157,6 +28000,54 @@ func (ec *executionContext) marshalNDependency2ᚕgithubᚗcomᚋalexandreh2ag�
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNDependency2githubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐAppDependency(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEffectiveLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPath(ctx context.Context, sel ast.SelectionSet, v linkpath.Path) graphql.Marshaler {
+	return ec._EffectiveLink(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ(ctx context.Context, sel ast.SelectionSet, v []linkpath.Path) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEffectiveLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPath(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

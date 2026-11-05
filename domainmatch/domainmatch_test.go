@@ -89,3 +89,23 @@ func BenchmarkIndex_Lookup(b *testing.B) {
 		x.Lookup("www.site5000.example")
 	}
 }
+
+func TestNameOf(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://api.stg.example/v1": "api.stg.example",
+		"prod.example:443":           "prod.example",
+		"redis.local":                "redis.local",
+		"10.0.1.5:6379":              "",
+		"[::1]:80":                   "",
+		"/run/php/fpm.sock":          "",
+		"":                           "",
+	} {
+		assert.Equal(t, want, NameOf(in), in)
+	}
+}
+
+func TestRouted(t *testing.T) {
+	assert.Equal(t, []string{"api.example"}, Routed([]string{"api.example", "www.other"}, []string{"*.example"}))
+	assert.Equal(t, []string{"*.example"}, Routed([]string{"*.example"}, []string{"api.example"}))
+	assert.Empty(t, Routed([]string{"www.other"}, []string{"*.example"}))
+}

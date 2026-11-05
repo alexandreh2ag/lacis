@@ -90,6 +90,19 @@ models:
         resolver: true
   LinkEnd:
     model: github.com/alexandreh2ag/lacis/graph/union.LinkEnd
+  EffectiveLink:
+    model: github.com/alexandreh2ag/lacis/linkpath.Path
+    fields:
+      from:
+        resolver: true
+      to:
+        resolver: true
+      key:
+        resolver: true
+      confidence:
+        resolver: true
+      path:
+        resolver: true
   Component:
     model: github.com/alexandreh2ag/lacis/graph/union.Component
   ChangeEvent:

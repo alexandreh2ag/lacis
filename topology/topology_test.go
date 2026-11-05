@@ -190,7 +190,7 @@ func TestBuild_Isolate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, viaProxy(g), "without env nothing is isolated")
 
-	im, err := BuildImpact(inv, Filter{Envs: []string{"production"}, Isolate: true}, trfk, Needs)
+	im, err := BuildImpact(inv, Filter{Envs: []string{"production"}, Isolate: true}, trfk, Needs, false)
 	require.NoError(t, err)
 	assert.NotContains(t, im.Levels, staging, "the impact walks the same links")
 }

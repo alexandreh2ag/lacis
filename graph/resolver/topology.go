@@ -43,12 +43,12 @@ func (r *Resolver) topologyFilter(x *index, level graph.GraphLevel, filter *grap
 }
 
 // impact walks the links from a node of the graph.
-func (r *Resolver) impact(x *index, level graph.GraphLevel, filter *graph.GraphFilter, node string, dir graph.ImpactDirection) (*graph.GraphImpact, error) {
+func (r *Resolver) impact(x *index, level graph.GraphLevel, filter *graph.GraphFilter, node string, dir graph.ImpactDirection, throughProxies bool) (*graph.GraphImpact, error) {
 	d := topology.Dependents
 	if dir == graph.ImpactDirectionNeeds {
 		d = topology.Needs
 	}
-	im, err := topology.BuildImpact(x.inv, r.topologyFilter(x, level, filter), node, d)
+	im, err := topology.BuildImpact(x.inv, r.topologyFilter(x, level, filter), node, d, throughProxies)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +110,9 @@ func (r *Resolver) graph(x *index, level graph.GraphLevel, filter *graph.GraphFi
 	return out, nil
 }
 
-func orEmpty(s []string) []string {
+func orEmpty[T any](s []T) []T {
 	if s == nil {
-		return []string{}
+		return []T{}
 	}
 	return s
 }

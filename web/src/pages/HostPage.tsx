@@ -7,7 +7,7 @@ import { HistoryEvent } from '@/components/HistoryEvents'
 import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
 import { Tabs, useTab } from '@/components/Tabs'
-import { hostOf, splitUsedBy, UsedBy, UsedBySection } from '@/components/UsedBy'
+import { hostOf, splitUsedBy, UsedBy, usedByRows, UsedBySection } from '@/components/UsedBy'
 import { chipsField, FilterBar } from '@/components/FilterBar'
 import { Pager, SearchInput, SortHeader, StatusBadge } from '@/components/Listing'
 import { graphql } from '@/graphql'
@@ -28,14 +28,15 @@ const HostPageDoc = graphql(`
         ips { address prefixLength interface defaultRoute network { slug name } }
         runtimes { id type version path manager packageVersion firstSeenAt }
         containers { id name containerId image version state ports networks composeProject composeService firstSeenAt }
-        services { id type instance version packageVersion details firstSeenAt dependents { ...UsedByLink } }
-        webservers { id type version domains firstSeenAt dependents { ...UsedByLink } }
+        services { id type instance version packageVersion details firstSeenAt usedBy { ...EffectiveLink } }
+        webservers { id type version domains firstSeenAt usedBy { ...EffectiveLink } }
         apps {
           id name path role framework frameworkVersion vhosts firstSeenAt
           code { version commit branch deployedAt }
           runtime { type version packageVersion source }
           dependencies { key }
-          links { id }
+          uses { key }
+          usedBy { ...EffectiveLink }
         }
         history(page: { limit: 8 }) { items { id occurredAt hostname entityType kind before after } hasMore }
       }
@@ -84,10 +85,13 @@ export function HostPage() {
 }
 
 function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
+  // Who uses the components of the host, through the proxies: its apps,
+  // its services, and its webservers where a route ends at them.
   const usedBy = useMemo(() => splitUsedBy([
-    ...h.services.flatMap((s) => s.dependents.map((l) => ({ ...l, target: { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type } }))),
-    ...h.webservers.flatMap((w) => w.dependents.map((l) => ({ ...l, target: { name: w.type, tech: w.type } }))),
-  ], (r) => hostOf(r.from)?.id === h.id), [h])
+    ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type })),
+    ...h.webservers.flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type })),
+    ...h.apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' })),
+  ], (r) => hostOf(r.link.from)?.id === h.id), [h])
   const t = useT()
   const tabs = [
     { id: 'general', label: t.pages.shared.general },
@@ -165,7 +169,7 @@ function AppCard({ app }: { app: App }) {
         {app.framework ? <><dt>{ts.framework}</dt><dd>{app.framework} {app.frameworkVersion}</dd></> : null}
         {app.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}<PackageVersion version={app.runtime.version} packageVersion={app.runtime.packageVersion} /></span></dd></> : null}
         {app.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}
-        <dt>{ts.dependencies}</dt><dd>{app.dependencies.length} · {ts.links(app.links.length)}</dd>
+        <dt>{ts.dependencies}</dt><dd>{app.dependencies.length} · {ts.links(app.uses.length)}</dd>
       </dl>
     </div>
   )

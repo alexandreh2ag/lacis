@@ -112,7 +112,7 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "get_app", Annotations: readOnly("Get an app"),
 		Description: "Gives an app by id, name or path: project, env, framework, runtime, vhosts, the dependencies of its configuration, what it uses and who uses it."}, s.getApp)
 	add(s, srv, &mcp.Tool{Name: "links", Annotations: readOnly("Links of an entity"),
-		Description: "Lists the links of a host (and of everything on it) or of an app, service or webserver: who uses it (dependents), what it uses (dependencies), or both. Use it for impact questions, e.g. what breaks if a database host stops."}, s.links)
+		Description: "Lists the links of a host (and of everything on it) or of an app, service or webserver: who uses it (dependents), what it uses (dependencies), or both. The links of an app, and to an app or a service, go through the reverse proxies to the app or service at the end, the proxies crossed in via. Use it for impact questions, e.g. what breaks if a database host stops."}, s.links)
 	add(s, srv, &mcp.Tool{Name: "find_by_version", Annotations: readOnly("Find by version"),
 		Description: "Finds who uses a technology (php, node, mysql, nginx, symfony…) as a runtime installed on a host, the runtime of an app, a framework, a service, a webserver or a container image, optionally in a version compared with an operator, e.g. php lt 8.1. Versions compare number by number, cut to the parts given: eq 7.4 takes 7.4.33."}, s.findByVersion)
 	add(s, srv, &mcp.Tool{Name: "list_versions", Annotations: readOnly("Versions in use"),

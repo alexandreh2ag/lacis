@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/alexandreh2ag/lacis/graph"
 	"github.com/alexandreh2ag/lacis/linker"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/google/uuid"
 )
@@ -35,6 +36,8 @@ type index struct {
 	domains      map[uuid.UUID][]string
 	linksFrom    map[uuid.UUID][]model.Link
 	linksTo      map[uuid.UUID][]model.Link
+	// paths are the effective links, through the proxies.
+	paths *linkpath.Graph
 	// hostsIn are the hosts of each network.
 	hostsIn map[uuid.UUID][]*model.Host
 	// usage counts the hosts and the apps of each project and env.
@@ -110,6 +113,7 @@ func newIndex(inv *model.Inventory) *index {
 			x.domains[e.OwnerID] = append(x.domains[e.OwnerID], e.Address)
 		}
 	}
+	x.paths = linkpath.New(inv.Links)
 	for _, l := range inv.Links {
 		x.linksFrom[l.FromID] = append(x.linksFrom[l.FromID], l)
 		if l.ToID != nil {

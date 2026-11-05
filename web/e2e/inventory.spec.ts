@@ -76,3 +76,30 @@ test('the whole commands of the workers and their tasks are shown when their age
   await expect(page.getByRole('columnheader', { name: 'Commande' })).toBeVisible()
   await expect(page.getByRole('row', { name: /sync-contacts.*\*\/10 \* \* \* \*.*app:contacts:sync --batch=500.*crm-api-cron/ })).toBeVisible()
 })
+
+test('an app uses another through its proxies, the route unfolding under the row', async ({ page }) => {
+  await page.goto('acme/apps?q=shop-front')
+  await page.getByRole('link', { name: 'shop-front' }).first().click()
+  await page.getByRole('tab', { name: /Utilise/ }).click()
+  // shop-front calls api.shop.acme.example: through the traefik then the
+  // nginx of the api, it uses shop-api, not the traefik.
+  const row = page.locator('tbody tr', { has: page.getByRole('link', { name: 'shop-api' }) }).first()
+  await expect(row).toContainText('via traefik +1')
+  await expect(page.locator('.lc-path')).toHaveCount(0)
+  await row.getByRole('button', { name: 'Déplier le chemin' }).click()
+  const route = page.locator('.lc-path__table tbody tr')
+  await expect(route).toHaveCount(4)
+  await expect(route.nth(1)).toContainText('traefik')
+  await expect(route.nth(2)).toContainText('nginx')
+  await expect(route.nth(3)).toContainText('shop-api')
+  await page.getByRole('button', { name: 'Tout replier' }).click()
+  await expect(page.locator('.lc-path')).toHaveCount(0)
+
+  // shop-api is used by shop-front, not by the nginx serving it.
+  await row.getByRole('link', { name: 'shop-api' }).click()
+  await page.getByRole('tab', { name: /Utilisé par/ }).click()
+  await expect(page.getByRole('heading', { name: 'Liens internes' })).toHaveCount(0)
+  await expect(page.locator('tbody tr', { has: page.getByRole('link', { name: 'shop-front' }) })).toContainText('via traefik +1')
+  await page.getByRole('button', { name: 'Tout déplier' }).click()
+  await expect(page.locator('.lc-path')).toHaveCount(1)
+})

@@ -316,6 +316,42 @@ func TestNamespace_Entities(t *testing.T) {
 	}}`, got)
 }
 
+func TestNamespace_EffectiveLinks(t *testing.T) {
+	f := newFixture(t, reader())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil)
+	inv := inventory(t)
+	// front calls the api by its name, through the nginx serving it.
+	front, nginx := id(23), id(22)
+	inv.Apps = append(inv.Apps, model.App{Base: model.Base{ID: front}, NamespaceID: acmeID, HostID: id(12), Path: "/srv/front", Name: "front", Role: "web"})
+	d, err := json.Marshal(linker.Detail{Rule: linker.RuleRoute, Key: "API_URL", Target: "https://api.example"})
+	require.NoError(t, err)
+	inv.Links = append(inv.Links, model.Link{Base: model.Base{ID: id(54)}, NamespaceID: acmeID, FromType: model.LinkNodeApp, FromID: front,
+		ToType: model.LinkNodeWebserver, ToID: &nginx, Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: d, ComputedAt: now})
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inv, nil)
+
+	got := f.post(t, `{ namespace(slug:"acme") {
+		front: app(id:"`+front.String()+`") { uses { key confidence deadEnd to { __typename ... on App { name } } path { rule to { __typename } } } }
+		api: app(id:"`+id(20).String()+`") {
+			uses { key to { __typename } path { id } }
+			usedBy { key confidence deadEnd from { ... on App { name } } path { id } }
+		}
+		service(id:"`+id(21).String()+`") { usedBy { from { ... on App { name } } } }
+		webserver(id:"`+nginx.String()+`") { usedBy { key } }
+	} }`)
+	assert.JSONEq(t, `{"namespace":{
+		"front":{"uses":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"to":{"__typename":"App","name":"api"},
+			"path":[{"rule":"route","to":{"__typename":"Webserver"}},{"rule":"vhost","to":{"__typename":"App"}}]}]},
+		"api":{
+			"uses":[{"key":"DATABASE_URL","to":{"__typename":"Service"},"path":[{"id":"`+id(50).String()+`"}]},
+				{"key":"S3_URL","to":{"__typename":"External"},"path":[{"id":"`+id(51).String()+`"}]},
+				{"key":"CACHE_URL","to":{"__typename":"Host"},"path":[{"id":"`+id(53).String()+`"}]}],
+			"usedBy":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"from":{"name":"front"},
+				"path":[{"id":"`+id(54).String()+`"},{"id":"`+id(52).String()+`"}]}]},
+		"service":{"usedBy":[{"from":{"name":"api"}}]},
+		"webserver":{"usedBy":[]}
+	}}`, got)
+}
+
 func TestNamespace_EmptyFields(t *testing.T) {
 	f := newFixture(t, reader())
 	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil)

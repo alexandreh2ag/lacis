@@ -15,6 +15,7 @@
 package domainmatch
 
 import (
+	"net/netip"
 	"regexp"
 	"slices"
 	"strings"
@@ -143,6 +144,42 @@ func (x *Index[T]) Lookup(name string) []T {
 	out := make([]T, 0, len(hits))
 	for _, at := range hits {
 		out = append(out, x.values[at])
+	}
+	return out
+}
+
+// NameOf is the host name an address calls: https://api.example/v1 and
+// api.example:443 call api.example. An IP or a socket calls none, so that
+// nothing narrows the routes of the webserver it reaches.
+func NameOf(target string) string {
+	host := target
+	if _, rest, ok := strings.Cut(host, "://"); ok {
+		host = rest
+	}
+	host, _, _ = strings.Cut(host, "/")
+	if rest, ok := strings.CutPrefix(host, "["); ok {
+		host, _, _ = strings.Cut(rest, "]")
+	} else if h, _, ok := strings.Cut(host, ":"); ok {
+		host = h
+	}
+	if host == "" {
+		return ""
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return ""
+	}
+	return host
+}
+
+// Routed keeps the names the patterns route, either way: a name a pattern
+// serves, or a pattern standing for a name (a route by *.example.com
+// reached for *.example.com).
+func Routed(names, patterns []string) []string {
+	out := []string{}
+	for _, n := range names {
+		if slices.ContainsFunc(patterns, func(d string) bool { return Match(d, n) || Match(n, d) }) {
+			out = append(out, n)
+		}
 	}
 	return out
 }

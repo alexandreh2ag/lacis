@@ -42,7 +42,7 @@ export const pages = {
     links: (n: number) => `${n} lien${s(n)}`,
     deployments: (n: number) => `${n} déploiement${s(n)}`,
     nouns: { hosts: 'hosts', apps: 'apps', links: 'liens', deployments: 'déploiements', targets: 'cibles', components: 'composants', containers: 'conteneurs', projects: 'projets', namespaces: 'namespaces' },
-    kinds: { services: 'services', externals: 'externes', proxies: 'proxies', hosts: 'hosts', webservers: 'webservers', runtimes: 'runtimes' },
+    kinds: { apps: 'apps', services: 'services', externals: 'externes', proxies: 'proxies', hosts: 'hosts', webservers: 'webservers', runtimes: 'runtimes' },
   },
   login: {
     intro: 'Connectez-vous pour voir la carte de votre infrastructure.',
@@ -211,8 +211,8 @@ export const pages = {
     apps: 'Apps',
     divergingVersions: 'Versions divergentes',
     appInEnv: (app: string, env: string) => `${app} en ${env}`,
-    depsSummary: (all: number, services: number, externals: number, proxies: number) =>
-      `${all} · ${services} service${s(services)} · ${externals} externe${s(externals)} · ${proxies} prox${proxies > 1 ? 'ies' : 'y'}`,
+    depsSummary: (all: number, apps: number, services: number, externals: number, proxies: number) =>
+      `${all} · ${apps} app${s(apps)} · ${services} service${s(services)} · ${externals} externe${s(externals)} · ${proxies} prox${proxies > 1 ? 'ies' : 'y'}`,
   },
   host: {
     failedTitle: 'Host',
@@ -292,10 +292,10 @@ export const pages = {
     searchLinks: 'Chercher une cible, une clé',
     resolvedBy: 'Résolu par',
     indirectDeps: 'Dépendances indirectes',
-    indirectDepsHelp: "Ce dont l'app a besoin sans l'appeler elle-même : niveau 1, ce qu'elle appelle ; niveau 2, ce dont ceux-là ont besoin, et ainsi de suite. Un proxy n'est suivi que pour les domaines qu'on lui demande.",
+    indirectDepsHelp: "Ce dont les dépendances directes ont besoin à leur tour : niveau 2, ce dont elles ont besoin ; niveau 3, ce dont ceux-là ont besoin, et ainsi de suite. Les proxies traversés ne comptent pas comme un niveau, et ne sont suivis que pour les domaines qu'on leur demande.",
     needsNothing: "L'app n'a besoin de rien d'autre.",
     indirectUsers: 'Utilisateurs indirects',
-    indirectUsersHelp: "Ce qui cesse de marcher sans elle, même sans l'appeler directement : niveau 1, ce qui la sert ou l'appelle (un proxy) ; niveau 2, les apps qui passent par ce proxy pour ses domaines, et ainsi de suite.",
+    indirectUsersHelp: "Ce qui cesse de marcher sans elle sans l'appeler directement : niveau 2, ce qui appelle ses utilisateurs directs ; niveau 3, ce qui appelle ceux-là, et ainsi de suite. Les proxies traversés ne comptent pas comme un niveau.",
     nobodyDepends: "Rien d'autre ne dépend de l'app.",
     noConfig: 'Aucune dépendance lue dans la configuration.',
     scheme: 'Schéma',

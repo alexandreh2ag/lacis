@@ -14,6 +14,7 @@ import (
 	"github.com/alexandreh2ag/lacis/common/snapshot"
 	"github.com/alexandreh2ag/lacis/graph"
 	"github.com/alexandreh2ag/lacis/graph/union"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/service"
 )
@@ -100,6 +101,55 @@ func (r *appResolver) Dependents(ctx context.Context, obj *model.App) ([]model.L
 		return nil, err
 	}
 	return x.linksTo[obj.ID], nil
+}
+
+// Uses is the resolver for the uses field.
+func (r *appResolver) Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return orEmpty(x.paths.Uses(obj.ID)), nil
+}
+
+// UsedBy is the resolver for the usedBy field.
+func (r *appResolver) UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Path, error) {
+	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
+}
+
+// From is the resolver for the from field.
+func (r *effectiveLinkResolver) From(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error) {
+	l := obj.First()
+	return r.end(ctx, l, l.FromType, &l.FromID)
+}
+
+// To is the resolver for the to field.
+func (r *effectiveLinkResolver) To(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error) {
+	l := obj.Last()
+	return r.end(ctx, l, l.ToType, l.ToID)
+}
+
+// Key is the resolver for the key field.
+func (r *effectiveLinkResolver) Key(ctx context.Context, obj *linkpath.Path) (*string, error) {
+	return optional(detail(obj.First()).Key), nil
+}
+
+// Confidence is the resolver for the confidence field.
+func (r *effectiveLinkResolver) Confidence(ctx context.Context, obj *linkpath.Path) (graph.LinkConfidence, error) {
+	c := graph.LinkConfidence(strings.ToUpper(obj.Confidence()))
+	if !c.IsValid() {
+		return "", fmt.Errorf("link %s: unknown confidence %q", obj.Last().ID, obj.Confidence())
+	}
+	return c, nil
+}
+
+// Path is the resolver for the path field.
+func (r *effectiveLinkResolver) Path(ctx context.Context, obj *linkpath.Path) ([]model.Link, error) {
+	out := make([]model.Link, 0, len(obj.Links))
+	for _, l := range obj.Links {
+		out = append(out, *l)
+	}
+	return out, nil
 }
 
 // Project is the resolver for the project field.
@@ -271,6 +321,11 @@ func (r *serviceResolver) Dependents(ctx context.Context, obj *model.Service) ([
 	return x.linksTo[obj.ID], nil
 }
 
+// UsedBy is the resolver for the usedBy field.
+func (r *serviceResolver) UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Path, error) {
+	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
+}
+
 // Host is the resolver for the host field.
 func (r *webserverResolver) Host(ctx context.Context, obj *model.Webserver) (*model.Host, error) {
 	return r.host(ctx, obj.NamespaceID, obj.HostID)
@@ -306,8 +361,16 @@ func (r *webserverResolver) Links(ctx context.Context, obj *model.Webserver) ([]
 	return x.linksFrom[obj.ID], nil
 }
 
+// UsedBy is the resolver for the usedBy field.
+func (r *webserverResolver) UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Path, error) {
+	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
+}
+
 // App returns graph.AppResolver implementation.
 func (r *Resolver) App() graph.AppResolver { return &appResolver{r} }
+
+// EffectiveLink returns graph.EffectiveLinkResolver implementation.
+func (r *Resolver) EffectiveLink() graph.EffectiveLinkResolver { return &effectiveLinkResolver{r} }
 
 // Host returns graph.HostResolver implementation.
 func (r *Resolver) Host() graph.HostResolver { return &hostResolver{r} }
@@ -325,6 +388,7 @@ func (r *Resolver) Service() graph.ServiceResolver { return &serviceResolver{r} 
 func (r *Resolver) Webserver() graph.WebserverResolver { return &webserverResolver{r} }
 
 type appResolver struct{ *Resolver }
+type effectiveLinkResolver struct{ *Resolver }
 type hostResolver struct{ *Resolver }
 type hostIPResolver struct{ *Resolver }
 type linkResolver struct{ *Resolver }

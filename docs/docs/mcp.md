@@ -80,7 +80,7 @@ Deleting a user removes their authorizations too.
 | `search` | Hosts, apps, services, webservers and containers by name, path, domain, vhost, image or IP. |
 | `get_host` | A host: OS, kernel, resources, IPs, runtimes, services, webservers, apps, containers. |
 | `get_app` | An app: project, env, framework, runtime, vhosts, dependencies, what it uses and who uses it. |
-| `links` | Who uses a host (and everything on it), an app, a service or a webserver, or what it uses. |
+| `links` | Who uses a host (and everything on it), an app, a service or a webserver, or what it uses. The links of an app, and to an app or a service, are [effective](./linking.md#effective-links): through the proxies, named in `via`. |
 | `find_by_version` | Who uses a technology, in a version compared with `lt`, `lte`, `eq`, `gte` or `gt`: PHP below 8.1, MySQL 5.7… |
 | `list_versions` | The versions in use of every technology, or of one, as major.minor. |
 | `graph` | The graph of a namespace as Mermaid, at the level of the projects, hosts, apps or services. |

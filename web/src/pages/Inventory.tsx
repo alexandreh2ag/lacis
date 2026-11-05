@@ -36,8 +36,8 @@ const ServicesDoc = graphql(`
         total
         items {
           __typename
-          ... on Service { id type instance version host { id hostname project { slug } environment { slug } } dependents { ...UsedByLink } }
-          ... on Webserver { id type version host { id hostname project { slug } environment { slug } } dependents { ...UsedByLink } }
+          ... on Service { id type instance version host { id hostname project { slug } environment { slug } } usedBy { from { ...LinkEndRef } } }
+          ... on Webserver { id type version host { id hostname project { slug } environment { slug } } dependents { from { ...LinkEndRef } } }
         }
       }
     }
@@ -143,7 +143,7 @@ export function Services() {
             <td><HostLink ns={ns} host={s.host} /></td>
             <td>{s.host.project ? <Link to={`/${ns}/projects/${s.host.project.slug}`}>{s.host.project.slug}</Link> : '—'}</td>
             <td>{s.host.environment?.slug}</td>
-            <td style={{ whiteSpace: 'normal', minWidth: 200 }}><Consumers ns={ns} links={s.dependents} /></td>
+            <td style={{ whiteSpace: 'normal', minWidth: 200 }}><Consumers ns={ns} links={s.__typename === 'Service' ? s.usedBy : s.dependents} /></td>
           </tr>
         ))}</tbody>
       </table></div>

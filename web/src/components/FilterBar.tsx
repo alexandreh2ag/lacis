@@ -27,8 +27,10 @@ function Funnel() {
 // FilterBar is the head of a listing: its search, a "Filtres" button
 // opening a small panel of the filters, closed until asked, the filters
 // set as pills, and how many rows match.
-export function FilterBar({ search, fields, count, onClearAll }: {
+export function FilterBar({ search, fields, count, actions, onClearAll }: {
   search?: React.ReactNode; fields: FilterField[]; count?: React.ReactNode
+  // actions are buttons acting on the whole listing, at the end of the bar.
+  actions?: React.ReactNode
   // onClearAll clears every filter at once, where clearing them one by one
   // would not compose.
   onClearAll?: () => void
@@ -86,6 +88,7 @@ export function FilterBar({ search, fields, count, onClearAll }: {
       {set.length > 1 ? <button type="button" className="lc-btn lc-btn--ghost" onClick={clearAll}>{t.clearAll}</button> : null}
       <span className="flex-1" />
       {count ? <span className="text-[13px] text-ink-muted">{count}</span> : null}
+      {actions}
     </div>
   )
 }

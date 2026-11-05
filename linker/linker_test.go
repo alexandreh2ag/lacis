@@ -282,6 +282,35 @@ func TestResolve_NamedCDN(t *testing.T) {
 	}, f.resolveWith(t, opts))
 }
 
+func TestResolve_RouteBehindCDN(t *testing.T) {
+	cloudflare, _ := cdnpkg.Known("cloudflare")
+	f := newFixture()
+	f.network("10.0.1.0/24")
+	web := f.host("web", "10.0.1.21")
+	f.webserver(web, "nginx", routing{Vhosts: []snapshot.Vhost{{ServerNames: []string{"cms.acme.example"}, ConfigFile: "cms.conf"}}}, "cms.acme.example")
+	f.listen(web, model.EndpointOwnerWebserver, f.inv.Webservers[0].ID, model.EndpointKindTCP, "0.0.0.0", 80)
+	rp := f.host("rp", "10.0.1.10")
+	f.webserver(rp, "traefik", routing{
+		Routers:  []snapshot.Router{{Name: "cms@file", Rule: "Host(`cms.acme.example`)", Service: "cms@file"}},
+		Services: []snapshot.ProxyService{{Name: "cms@file", Servers: []string{"http://10.0.1.21"}}},
+	}, "cms.acme.example")
+	f.webserver(f.host("other", "10.0.1.30"), "nginx", routing{}, "cms.acme.example")
+	api := f.host("api", "10.0.1.40")
+	f.dep(f.app(api), "CMS_URL", "https", 443, name("cms.acme.example", "dns", "104.16.1.1"))
+
+	got := f.resolveWith(t, Options{CDN: []cdnpkg.CDN{cloudflare}})
+	var routed []edge
+	for _, e := range got {
+		if e.From == "app api" {
+			routed = append(routed, e)
+		}
+	}
+	assert.ElementsMatch(t, []edge{
+		{From: "app api", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
+		{From: "app api", To: "nginx other", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
+	}, routed, "the nginx the traefik routes the name to is behind it, not the nginx of another host")
+}
+
 func TestResolve_Webservers(t *testing.T) {
 	f := newFixture()
 	f.network("10.0.1.0/24")

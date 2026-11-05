@@ -80,7 +80,9 @@ dot:
 | `~regex`          | names matching the regex (nginx regex server names, Traefik `HostRegexp`) |
 
 When the name resolves to a host of the inventory, only the webservers of that host
-are kept: the proxy in front, not the backends behind that know the name too. A
+are kept: the proxy in front, not the backends behind that know the name too.
+Otherwise (a CDN in front, a name the DNS cannot resolve), a webserver another one
+routes the name to is left out the same way: the nginx behind a Traefik. A
 name the routes do not know is resolved through the IPs the agent resolved it to.
 
 ### Confidence
@@ -107,6 +109,33 @@ The front draws the confidence as the dash pattern of the edge.
 
 A socket or loopback target is named after its host (`acme-site-prod-1:unix:/run/redis.sock`):
 two hosts with the same socket path are two targets.
+
+## Effective links
+
+A link reaching a webserver is how the request travels, not what the app needs:
+`shop-front` calling `https://api.shop.example` reaches a Traefik, but uses the
+`shop-api` behind it. The **effective links** go on through the webservers, along
+the routes of the name called, to the app or the service at the end; the links
+crossed are their **path**.
+
+Through a webserver:
+
+- the routes of the name called are taken (`Host()`, `server_name`, the domains a
+  link routes); without any, the routes of no name (a default vhost, an HAProxy
+  backend);
+- a call by IP takes the routes of no name, or the routes of names when they all
+  lead to the same place: anything else would be a guess;
+- when the routes reach an app, those reaching a service (the PHP-FPM running that
+  app) are left out;
+- with no route left, the webserver is the end of the path, a **dead end**;
+- of several routes of one dependency to the same end, the shortest is kept.
+
+The confidence of an effective link is the weakest of its path. The front lists
+the effective links in *Uses* and *Used by*, the proxies crossed in a `via` chip
+and, unfolded, step by step; the page of a webserver keeps its own links. In
+GraphQL, `App.uses`, `App.usedBy`, `Service.usedBy` and `Webserver.usedBy` (the
+paths ending at it) give them; `impact(throughProxies: true)` crosses the
+webservers without counting them as a level.
 
 ## CDN
 

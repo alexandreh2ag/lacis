@@ -72,6 +72,9 @@ func inventory() *model.Inventory {
 			{FromType: model.LinkNodeApp, FromID: front.ID, ToType: model.LinkNodeService, ToID: &mysql.ID, Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact},
 			{FromType: model.LinkNodeWebserver, FromID: nginx.ID, ToType: model.LinkNodeApp, ToID: &front.ID, Source: model.LinkSourceWebserver, Confidence: model.LinkConfidenceExact},
 			{FromType: model.LinkNodeApp, FromID: legacy.ID, ToType: model.LinkNodeExternal, ExternalTarget: new("api.stripe.example"), Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceInferred},
+			// legacy calls shop-front by its name, through nginx.
+			{FromType: model.LinkNodeApp, FromID: legacy.ID, ToType: model.LinkNodeWebserver, ToID: &nginx.ID, Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact,
+				Detail: json.RawMessage(`{"rule":"route","key":"FRONT_URL","target":"https://www.acme.example"}`)},
 		},
 	}
 }
@@ -273,8 +276,9 @@ func TestServer_GetApp(t *testing.T) {
 	assert.Equal(t, mcpserver.Dependency{Key: "DATABASE_URL", Scheme: "mysql", Port: 3306, Target: map[string]any{"host": "db-1"}, Source: map[string]any{"file": ".env"}}, out.Dependencies[0])
 	require.Len(t, out.Uses, 1)
 	assert.Equal(t, mcpserver.End{Kind: "service", ID: mysql.ID.String(), Name: "mysql", Host: "db-1", Project: "shop", Env: "production"}, out.Uses[0].To)
-	require.Len(t, out.UsedBy, 1)
-	assert.Equal(t, "nginx", out.UsedBy[0].From.Name)
+	require.Len(t, out.UsedBy, 1, "nginx is crossed, not a consumer")
+	assert.Equal(t, "legacy", out.UsedBy[0].From.Name)
+	assert.Equal(t, []mcpserver.End{{Kind: "webserver", ID: nginx.ID.String(), Name: "nginx", Host: "web-1", Project: "shop", Env: "production"}}, out.UsedBy[0].Via)
 
 	require.Empty(t, f.call(t, "get_app", map[string]any{"app": "/srv/legacy", "host": "web-2", "namespace": "acme"}, &out))
 	assert.Equal(t, "legacy", out.Name)
@@ -300,9 +304,10 @@ func TestServer_Links(t *testing.T) {
 	}{
 		{name: "who uses a host", args: map[string]any{"target": "db-1"}, want: []string{"shop-front -> mysql"}},
 		{name: "what a host uses", args: map[string]any{"target": "web-1", "direction": "dependencies"}, want: []string{"shop-front -> mysql", "nginx -> shop-front"}},
-		{name: "both, an app", args: map[string]any{"target": "shop-front", "direction": "both"}, want: []string{"shop-front -> mysql", "nginx -> shop-front"}},
+		{name: "both, an app, through its proxy", args: map[string]any{"target": "shop-front", "direction": "both"}, want: []string{"shop-front -> mysql", "legacy -> shop-front"}},
+		{name: "who uses a webserver: what calls it", args: map[string]any{"target": nginx.ID.String()}, want: []string{"legacy -> nginx"}},
 		{name: "a service by id", args: map[string]any{"target": mysql.ID.String()}, want: []string{"shop-front -> mysql"}},
-		{name: "an external target", args: map[string]any{"target": "legacy", "direction": "dependencies"}, want: []string{"legacy -> api.stripe.example"}},
+		{name: "an external target", args: map[string]any{"target": "legacy", "direction": "dependencies"}, want: []string{"legacy -> api.stripe.example", "legacy -> shop-front"}},
 		{name: "nobody uses it", args: map[string]any{"target": "legacy"}},
 		{name: "unknown", args: map[string]any{"target": "nope"}, err: `no host, app, service or webserver "nope"`},
 		{name: "bad direction", args: map[string]any{"target": "db-1", "direction": "up"}, err: "direction must be"},

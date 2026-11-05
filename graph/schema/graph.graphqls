@@ -8,8 +8,10 @@ extend type Namespace {
   What depends on a node of the graph of the same level and filter, or what it needs, as far as
   the links go. Through a webserver, only the routes of the names concerned are followed: an app
   calling a production proxy for a staging domain does not depend on its production backends.
+  With throughProxies, the webservers are crossed without taking a level and left out of the
+  nodes: an app behind a traefik then an nginx is a direct neighbour.
   """
-  impact(level: GraphLevel!, filter: GraphFilter, node: String!, direction: ImpactDirection!): GraphImpact!
+  impact(level: GraphLevel!, filter: GraphFilter, node: String!, direction: ImpactDirection!, throughProxies: Boolean = false): GraphImpact!
 }
 
 enum ImpactDirection {

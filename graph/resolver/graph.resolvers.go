@@ -30,10 +30,10 @@ func (r *namespaceResolver) Graph(ctx context.Context, obj *model.Namespace, lev
 }
 
 // Impact is the resolver for the impact field.
-func (r *namespaceResolver) Impact(ctx context.Context, obj *model.Namespace, level graph.GraphLevel, filter *graph.GraphFilter, node string, direction graph.ImpactDirection) (*graph.GraphImpact, error) {
+func (r *namespaceResolver) Impact(ctx context.Context, obj *model.Namespace, level graph.GraphLevel, filter *graph.GraphFilter, node string, direction graph.ImpactDirection, throughProxies *bool) (*graph.GraphImpact, error) {
 	x, err := r.index(ctx, obj.ID)
 	if err != nil {
 		return nil, err
 	}
-	return r.impact(x, level, filter, node, direction)
+	return r.impact(x, level, filter, node, direction, throughProxies != nil && *throughProxies)
 }
