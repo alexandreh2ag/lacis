@@ -356,10 +356,7 @@ textarea.lc-input { height: auto; min-height: 72px; padding: var(--space-2) var(
 .lc-path__detail { white-space: normal !important; max-width: 420px; overflow-wrap: anywhere; }
 .lc-path__detail .lc-mono { font-size: 12px; }
 .lc-path__detail small { display: block; color: var(--ink-muted); font: 400 11.5px/16px var(--font-mono); }
-.lc-via { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--radius-pill);
-  border: 1px solid var(--border); background: var(--surface-raised); color: var(--kind-proxy); font: 500 11.5px/18px var(--font-sans); cursor: help; }
+.lc-via { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); background: var(--surface-raised); color: var(--kind-proxy); font: 500 11.5px/18px var(--font-sans); }
 .lc-via svg { width: 11px; height: 11px; }
-.lc-via:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.lc-via__tip { position: absolute; z-index: 30; left: 0; top: calc(100% + 6px); display: none; max-width: none; white-space: nowrap; cursor: default; }
-.lc-via:hover .lc-via__tip, .lc-via:focus .lc-via__tip { display: inline-flex; }
 .lc-badge--self { border-color: var(--brand); background: var(--brand-tint); color: var(--brand); }

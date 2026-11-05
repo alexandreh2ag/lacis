@@ -116,7 +116,6 @@ export const components: Messages['components'] = {
     expandAll: 'Unfold all',
     collapseAll: 'Fold all',
     via: (proxy: string) => `via ${proxy}`,
-    unfold: 'Unfold the row for the detail of each step.',
     step: 'Step',
     host: 'Host',
     rule: 'Rule',

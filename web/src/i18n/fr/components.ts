@@ -118,7 +118,6 @@ export const components = {
     expandAll: 'Tout déplier',
     collapseAll: 'Tout replier',
     via: (proxy: string) => `via ${proxy}`,
-    unfold: 'Dépliez la ligne pour le détail de chaque étape.',
     step: 'Étape',
     host: 'Host',
     rule: 'Règle',

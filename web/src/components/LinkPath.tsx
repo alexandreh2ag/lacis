@@ -222,24 +222,17 @@ export function PathToggle({ shown, open, onToggle }: { shown: boolean; open: bo
   )
 }
 
-// Via names the first proxy a route crosses; hovered, it writes the
-// routes whole.
+// Via names the first proxy a route crosses, and how many more.
 export function Via({ routes: rs }: { routes: Route[] }) {
   const m = useT().components.linkPath
-  const crossing = rs.filter((r) => r.length > 2)
-  if (!crossing.length) return null
-  const proxies = crossing[0].slice(1, -1)
+  const crossing = rs.find((r) => r.length > 2)
+  if (!crossing) return null
+  const proxies = crossing.slice(1, -1)
   const label = nameOf(proxies[0].end) + (proxies.length > 1 ? ` +${proxies.length - 1}` : '')
   return (
-    <span className="lc-via" tabIndex={0} aria-label={m.via(label)}>
+    <span className="lc-via">
       <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><circle cx="2.5" cy="6" r="1.5" /><circle cx="9.5" cy="6" r="1.5" /><path d="M4 6h4" /></svg>
       {m.via(label)}
-      <span className="lc-tooltip lc-via__tip" role="tooltip">
-        {crossing.map((r, i) => (
-          <span key={i} className="lc-mono">{r.map((s) => `${nameOf(s.end)}${s.hosts.length ? ' · ' + s.hosts.join(', ') : ''}`).join(' → ')}</span>
-        ))}
-        <span>{m.unfold}</span>
-      </span>
     </span>
   )
 }
