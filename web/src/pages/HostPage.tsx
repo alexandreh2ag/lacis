@@ -7,7 +7,7 @@ import { HistoryEvent } from '@/components/HistoryEvents'
 import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
 import { Tabs, useTab } from '@/components/Tabs'
-import { UsedBy, type UsedByRow } from '@/components/UsedBy'
+import { hostOf, splitUsedBy, UsedBy, UsedBySection } from '@/components/UsedBy'
 import { chipsField, FilterBar } from '@/components/FilterBar'
 import { Pager, SearchInput, SortHeader, StatusBadge } from '@/components/Listing'
 import { graphql } from '@/graphql'
@@ -84,17 +84,17 @@ export function HostPage() {
 }
 
 function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
-  const usedBy: UsedByRow[] = useMemo(() => [
+  const usedBy = useMemo(() => splitUsedBy([
     ...h.services.flatMap((s) => s.dependents.map((l) => ({ ...l, target: { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type } }))),
     ...h.webservers.flatMap((w) => w.dependents.map((l) => ({ ...l, target: { name: w.type, tech: w.type } }))),
-  ], [h])
+  ], (r) => hostOf(r.from)?.id === h.id), [h])
   const t = useT()
   const tabs = [
     { id: 'general', label: t.pages.shared.general },
     { id: 'apps', label: t.pages.host.tabs.apps, count: h.apps.length },
     { id: 'components', label: t.pages.host.tabs.components, count: h.services.length + h.webservers.length + h.runtimes.length },
     ...(h.containers.length ? [{ id: 'containers', label: t.pages.host.tabs.containers, count: h.containers.length }] : []),
-    { id: 'used-by', label: t.pages.shared.usedBy, count: usedBy.length },
+    { id: 'used-by', label: t.pages.shared.usedBy, count: usedBy.others.length },
   ]
   const [tab, setTab] = useTab(tabs, 'general')
   return (
@@ -103,7 +103,14 @@ function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
       {tab === 'apps' ? <Apps apps={h.apps} /> : null}
       {tab === 'components' ? <Components host={h} /> : null}
       {tab === 'containers' ? <Containers containers={h.containers} /> : null}
-      {tab === 'used-by' ? <UsedBy ns={ns} rows={usedBy} /> : null}
+      {tab === 'used-by' ? (
+        <div className="flex flex-col gap-6">
+          <UsedBySection title={t.components.usedBy.direct}><UsedBy ns={ns} rows={usedBy.others} /></UsedBySection>
+          <UsedBySection title={t.components.usedBy.self} help={t.components.usedBy.selfHelp.host}>
+            <UsedBy ns={ns} rows={usedBy.self} emptyText={t.components.usedBy.selfEmpty} />
+          </UsedBySection>
+        </div>
+      ) : null}
     </Tabs>
   )
 }

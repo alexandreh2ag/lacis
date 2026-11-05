@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { CopyButton, Copyable } from './Copy'
+import { Copyable } from './Copy'
 import { TechLogo } from './Icon'
 import { FilterBar, type FilterField } from './FilterBar'
 import { Pager, SearchInput, SortHeader, useTable } from './Listing'
@@ -48,6 +49,47 @@ export interface UsedByRow {
   target: { name: string; tech: string; host?: { id: string; hostname: string } }
 }
 
+// UsedByGroup is one consumer of the components, whatever the hosts it runs
+// on and the components it uses: an app, a service or a webserver of a
+// project and an env.
+export interface UsedByGroup {
+  id: string
+  from: End
+  project?: string
+  env?: string
+  targets: { name: string; tech: string }[]
+  keys: string[]
+  confidence: string
+}
+
+// mergeUsedBy groups the links by consumer, project and env, whatever the
+// hosts and the components: the listing says who uses the entity, once.
+export function mergeUsedBy(rows: UsedByRow[]): UsedByGroup[] {
+  const out = new Map<string, UsedByGroup>()
+  for (const r of rows) {
+    const host = hostOf(r.from)
+    const project = host?.project?.slug
+    const env = host?.environment?.slug
+    const id = [r.from.__typename, techOf(r.from), nameOf(r.from), project, env].join('\u0000')
+    const g = out.get(id) ?? { id, from: r.from, project, env, targets: [], keys: [], confidence: r.confidence }
+    if (!g.targets.some((x) => x.name === r.target.name && x.tech === r.target.tech)) g.targets.push({ name: r.target.name, tech: r.target.tech })
+    if (r.key && !g.keys.includes(r.key)) g.keys.push(r.key)
+    if (r.confidence !== 'EXACT') g.confidence = r.confidence
+    out.set(id, g)
+  }
+  for (const g of out.values()) g.targets.sort((a, b) => a.name.localeCompare(b.name))
+  return [...out.values()]
+}
+
+// splitUsedBy sets apart the links the entity makes to itself, then merges
+// both by consumer.
+export function splitUsedBy(rows: UsedByRow[], isSelf: (r: UsedByRow) => boolean): { others: UsedByGroup[]; self: UsedByGroup[] } {
+  const others: UsedByRow[] = []
+  const self: UsedByRow[] = []
+  for (const r of rows) (isSelf(r) ? self : others).push(r)
+  return { others: mergeUsedBy(others), self: mergeUsedBy(self) }
+}
+
 export function hostOf(e: End): HostRef | null {
   if (e.__typename === 'External') return null
   return e.__typename === 'Host' ? e : e.host
@@ -72,16 +114,16 @@ export function techOf(e: End): string {
   }
 }
 
-// UsedBy lists the links to the components of a host or a project, by who
-// makes them.
-export function UsedBy({ ns, rows, showTargetHost, fields = [] }: { ns: string; rows: UsedByRow[]; showTargetHost?: boolean; fields?: FilterField[] }) {
+// UsedBy lists who uses the components of a host, a project or an app: one
+// row per consumer, project and env, without the hosts.
+export function UsedBy({ ns, rows, fields = [], emptyText }: { ns: string; rows: UsedByGroup[]; fields?: FilterField[]; emptyText?: string }) {
   const m = useT().components.usedBy
   const t = useTable(rows,
-    (r) => [nameOf(r.from), hostOf(r.from)?.hostname ?? '', hostOf(r.from)?.project?.slug ?? '', r.target.name, r.target.host?.hostname ?? '', r.key ?? ''],
-    (r, by) => by === 'project' ? hostOf(r.from)?.project?.slug ?? '' : by === 'env' ? hostOf(r.from)?.environment?.slug ?? ''
-      : by === 'target' ? r.target.name + (r.target.host?.hostname ?? '') : by === 'confidence' ? r.confidence : nameOf(r.from) + (hostOf(r.from)?.hostname ?? ''),
+    (r) => [nameOf(r.from), r.project ?? '', r.env ?? '', ...r.targets.map((x) => x.name), ...r.keys],
+    (r, by) => by === 'project' ? r.project ?? '' : by === 'env' ? r.env ?? ''
+      : by === 'target' ? r.targets.map((x) => x.name).join() : by === 'confidence' ? r.confidence : nameOf(r.from) + (r.env ?? ''),
     'from')
-  const empty = <p className="lc-muted m-0">{m.empty}</p>
+  const empty = <p className="lc-muted m-0">{emptyText ?? m.empty}</p>
   // Without filter to clear, the empty listing says so alone.
   if (rows.length === 0 && !fields.some((f) => f.value !== null)) return empty
   const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={t.sort.by} desc={t.sort.desc} onSort={t.onSort} />
@@ -94,41 +136,48 @@ export function UsedBy({ ns, rows, showTargetHost, fields = [] }: { ns: string; 
         <thead><tr>
           {head(m.from, 'from')}{head(m.project, 'project')}{head(m.env, 'env')}{head(m.target, 'target')}<th>{m.key}</th>{head(m.confidence, 'confidence')}
         </tr></thead>
-        <tbody>{t.shown.map((r) => {
-          const host = hostOf(r.from)
-          return (
-            <tr key={r.id}>
-              <td>
-                <span className="inline-flex items-center gap-2">
-                  <span className="lc-node__techs"><TechLogo tech={techOf(r.from)} /></span>
-                  {r.from.__typename === 'External' ? <Copyable value={r.from.target} /> : (
-                    <span className="flex flex-col leading-[18px]">
-                      {r.from.__typename === 'App' ? <Link className="font-semibold" to={`/${ns}/apps/${r.from.id}`}>{nameOf(r.from)}</Link>
-                        : r.from.__typename !== 'Host' ? <span className="font-semibold">{nameOf(r.from)}</span> : null}
-                      {host ? <span className="lc-copyable"><Link className="lc-mono text-[12.5px]" to={`/${ns}/hosts/${host.id}`}>{host.hostname}</Link><CopyButton value={host.hostname} /></span> : null}
-                    </span>
-                  )}
-                </span>
-              </td>
-              <td>{host?.project ? <Link to={`/${ns}/projects/${host.project.slug}`}>{host.project.slug}</Link> : <span className="lc-muted">—</span>}</td>
-              <td>{host?.environment?.slug}</td>
-              <td>
-                <span className="inline-flex items-center gap-2">
-                  <span className="lc-node__techs"><TechLogo tech={r.target.tech} /></span>
-                  <span className="flex flex-col leading-[18px]">
-                    <span>{r.target.name}</span>
-                    {showTargetHost && r.target.host ? <Link className="lc-mono text-[12.5px]" to={`/${ns}/hosts/${r.target.host.id}`}>{r.target.host.hostname}</Link> : null}
+        <tbody>{t.shown.map((r) => (
+          <tr key={r.id}>
+            <td>
+              <span className="inline-flex items-center gap-2">
+                <span className="lc-node__techs"><TechLogo tech={techOf(r.from)} /></span>
+                {r.from.__typename === 'External' ? <Copyable value={r.from.target} />
+                  : r.from.__typename === 'App' ? <Link className="font-semibold" to={`/${ns}/apps/${r.from.id}`}>{nameOf(r.from)}</Link>
+                  : <span className="font-semibold">{nameOf(r.from)}</span>}
+              </span>
+            </td>
+            <td>{r.project ? <Link to={`/${ns}/projects/${r.project}`}>{r.project}</Link> : <span className="lc-muted">—</span>}</td>
+            <td>{r.env}</td>
+            <td>
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {r.targets.map((x) => (
+                  <span key={x.tech + x.name} className="inline-flex items-center gap-2">
+                    <span className="lc-node__techs"><TechLogo tech={x.tech} /></span>
+                    <span>{x.name}</span>
                   </span>
-                </span>
-              </td>
-              <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>{r.key ? <Copyable value={r.key} /> : null}</td>
-              <td>{confidenceText(r.confidence)}</td>
-            </tr>
-          )
-        })}</tbody>
+                ))}
+              </span>
+            </td>
+            <td style={{ whiteSpace: 'normal', maxWidth: 280, wordBreak: 'break-all' }}>
+              <div className="flex flex-wrap gap-x-3">{r.keys.map((k) => <Copyable key={k} value={k} />)}</div>
+            </td>
+            <td>{confidenceText(r.confidence)}</td>
+          </tr>
+        ))}</tbody>
       </table></div>
       <Pager page={t.page} size={t.size} total={t.list.length} noun={m.noun} onPage={t.setPage} onSize={t.setSize} />
     </>
+  )
+}
+
+// UsedBySection titles one listing of the tab.
+export function UsedBySection({ title, help, children }: { title: string; help?: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="title m-0">{title}</h2>
+      {help ? <p className="lc-muted m-0 text-[13px]">{help}</p> : null}
+      {children}
+    </section>
   )
 }
 

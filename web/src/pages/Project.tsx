@@ -7,7 +7,7 @@ import { Page } from '@/components/Layout'
 import { chipsField, FilterBar } from '@/components/FilterBar'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
-import { UsedBy, type UsedByRow } from '@/components/UsedBy'
+import { hostOf, splitUsedBy, UsedBy, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { ProjectPageQuery } from '@/graphql/graphql'
 import { t as text, useT } from '@/i18n'
@@ -30,10 +30,10 @@ const ProjectPageDoc = graphql(`
             id key confidence
             to {
               __typename
-              ... on Service { id type instance version host { id hostname } }
-              ... on Host { id hostname }
-              ... on Webserver { id type host { id hostname } }
-              ... on App { id name host { id hostname } }
+              ... on Service { id type instance version host { id hostname project { slug } } }
+              ... on Host { id hostname project { slug } }
+              ... on Webserver { id type host { id hostname project { slug } } }
+              ... on App { id name host { id hostname project { slug } } }
               ... on External { target reason }
             }
           }
@@ -53,13 +53,17 @@ const ProjectPageDoc = graphql(`
 type NS = NonNullable<ProjectPageQuery['namespace']>
 type App = NS['apps']['items'][number]
 
+// Dep is what the apps of an env use, whatever the hosts it runs on: a
+// service, a proxy or an app of a project, a host, an external target.
 interface Dep {
   key: string
   target: string
+  appId?: string
   hostId?: string
+  project?: string
   kind: 'service' | 'external' | 'proxy' | 'host' | 'app'
   tech?: string
-  detail: string
+  details: string[]
   env: string
   by: string[]
   keys: string[]
@@ -71,17 +75,22 @@ function dependencies(apps: App[]): Dep[] {
   for (const a of apps) {
     for (const l of a.links) {
       const t = l.to
-      let d: Omit<Dep, 'by' | 'keys' | 'env' | 'confidence'>
+      let d: Omit<Dep, 'key' | 'details' | 'by' | 'keys' | 'env' | 'confidence'>
+      let detail: string
       switch (t.__typename) {
-        case 'Service': d = { key: t.id, target: t.host.hostname, hostId: t.host.id, kind: 'service', tech: t.type, detail: [t.type, t.version].filter(Boolean).join(' ') }; break
-        case 'Host': d = { key: t.id, target: t.hostname, hostId: t.id, kind: 'host', detail: 'host' }; break
-        case 'Webserver': d = { key: t.id, target: t.host.hostname, hostId: t.host.id, kind: 'proxy', tech: t.type, detail: t.type }; break
-        case 'App': d = { key: t.id, target: `${t.name} · ${t.host.hostname}`, hostId: t.host.id, kind: 'app', detail: 'app' }; break
-        default: d = { key: 'ext:' + t.target, target: t.target, kind: 'external', detail: t.reason ?? text().pages.project.external }
+        case 'Service':
+          d = { target: t.instance && t.instance !== 'default' ? `${t.type} ${t.instance}` : t.type, project: t.host.project?.slug, kind: 'service', tech: t.type }
+          detail = [t.type, t.version].filter(Boolean).join(' ')
+          break
+        case 'Host': d = { target: t.hostname, hostId: t.id, project: t.project?.slug, kind: 'host' }; detail = 'host'; break
+        case 'Webserver': d = { target: t.type, project: t.host.project?.slug, kind: 'proxy', tech: t.type }; detail = t.type; break
+        case 'App': d = { target: t.name, appId: t.id, project: t.host.project?.slug, kind: 'app' }; detail = 'app'; break
+        default: d = { target: t.target, kind: 'external' }; detail = t.reason ?? text().pages.project.external
       }
       const env = a.environment?.slug ?? ''
-      const id = d.key + '@' + env
-      const cur = out.get(id) ?? { ...d, env, by: [], keys: [], confidence: l.confidence }
+      const id = [d.kind, d.tech ?? '', d.target, d.project ?? '', env].join('\u0000')
+      const cur = out.get(id) ?? { ...d, key: id, details: [], env, by: [], keys: [], confidence: l.confidence }
+      if (!cur.details.includes(detail)) cur.details.push(detail)
       if (!cur.by.includes(a.name)) cur.by.push(a.name)
       if (l.key && !cur.keys.includes(l.key)) cur.keys.push(l.key)
       if (l.confidence !== 'EXACT') cur.confidence = l.confidence
@@ -89,13 +98,6 @@ function dependencies(apps: App[]): Dep[] {
     }
   }
   return [...out.values()]
-}
-
-// consumerProject is the project of the app or host using a component.
-function consumerProject(row: UsedByRow): string | undefined {
-  const from = row.from
-  if (from.__typename === 'External') return undefined
-  return (from.__typename === 'Host' ? from : from.host).project?.slug
 }
 
 export function ProjectPage() {
@@ -111,10 +113,10 @@ export function ProjectPage() {
   const apps = useMemo(() => (n?.apps.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
   const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => inEnv(h.environment?.slug)), [n, env])
   const deps = useMemo(() => dependencies(apps), [apps])
-  const usedBy: UsedByRow[] = useMemo(() => hosts.flatMap((h) => [
+  const { others: usedBy, self: usedBySelf } = useMemo(() => splitUsedBy(hosts.flatMap((h) => [
     ...h.services.flatMap((s) => s.dependents.map((l) => ({ ...l, target: { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h } }))),
     ...h.webservers.flatMap((w) => w.dependents.map((l) => ({ ...l, target: { name: w.type, tech: w.type, host: h } }))),
-  ]), [hosts])
+  ]), (r) => hostOf(r.from)?.project?.slug === slug), [hosts, slug])
   // An app deployed in several versions in one env diverges.
   const diverging = useMemo(() => {
     const versions = new Map<string, Set<string>>()
@@ -131,8 +133,8 @@ export function ProjectPage() {
     (h, by) => by === 'env' ? h.environment?.slug ?? '' : by === 'apps' ? h.apps.length : by === 'status' ? h.status : h.hostname, 'hostname')
   const [kinds, setKinds] = useState<string[]>([])
   const depRows = useMemo(() => deps.filter((d) => !kinds.length || kinds.includes(d.kind)), [deps, kinds])
-  const depTable = useTable(depRows, (d) => [d.target, d.detail, ...d.keys, ...d.by],
-    (d, by) => by === 'env' ? d.env : by === 'by' ? d.by.join() : by === 'confidence' ? d.confidence : d.target, 'target')
+  const depTable = useTable(depRows, (d) => [d.target, d.project ?? '', ...d.details, ...d.keys, ...d.by],
+    (d, by) => by === 'env' ? d.env : by === 'project' ? d.project ?? '' : by === 'by' ? d.by.join() : by === 'confidence' ? d.confidence : d.target, 'target')
 
   const domains = useMemo(() => [...new Set(apps.flatMap((a) => a.vhosts.map((v) => `${v}\u0000${a.name}\u0000${a.environment?.slug ?? ''}`)))]
     .sort().map((x) => x.split('\u0000')), [apps])
@@ -232,6 +234,7 @@ export function ProjectPage() {
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
               <thead><tr>
                 <SortHeader label={ts.target} by="target" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
+                <SortHeader label={ts.project} by="project" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
                 <th>{tp.detail}</th>
                 <SortHeader label={ts.env} by="env" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
                 <SortHeader label={ts.usedBy} by="by" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
@@ -239,12 +242,15 @@ export function ProjectPage() {
                 <SortHeader label={ts.confidence} by="confidence" sort={depTable.sort.by} desc={depTable.sort.desc} onSort={depTable.onSort} />
               </tr></thead>
               <tbody>{depTable.shown.map((d) => (
-                <tr key={d.key + d.env}>
+                <tr key={d.key}>
                   <td><span className="inline-flex items-center gap-2">
                     <span className="lc-node__techs"><TechLogo tech={d.tech ?? (d.kind === 'external' ? 'ext' : d.kind)} /></span>
-                    {d.hostId ? <span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${d.hostId}`}>{d.target}</Link><CopyButton value={d.target} /></span> : <Copyable value={d.target} />}
+                    {d.appId ? <Link className="font-semibold" to={`/${ns}/apps/${d.appId}`}>{d.target}</Link>
+                      : d.hostId ? <span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${d.hostId}`}>{d.target}</Link><CopyButton value={d.target} /></span>
+                      : d.kind === 'external' ? <Copyable value={d.target} /> : <span className="font-semibold">{d.target}</span>}
                   </span></td>
-                  <td className="text-ink-muted">{d.detail}</td>
+                  <td>{d.project ? <Link to={`/${ns}/projects/${d.project}`}>{d.project}</Link> : <span className="lc-muted">—</span>}</td>
+                  <td className="text-ink-muted">{d.details.join(', ')}</td>
                   <td>{d.env}</td>
                   <td>{d.by.join(', ')}</td>
                   <td><div className="flex flex-wrap gap-x-3">{d.keys.map((k) => <Copyable key={k} value={k} />)}</div></td>
@@ -255,7 +261,14 @@ export function ProjectPage() {
             <Pager page={depTable.page} size={depTable.size} total={depTable.list.length} noun={ts.nouns.targets} onPage={depTable.setPage} onSize={depTable.setSize} />
           </>
         ) : null}
-        {tab === 'used-by' ? <UsedBy ns={ns} rows={usedBy} showTargetHost fields={[envField]} /> : null}
+        {tab === 'used-by' ? (
+          <div className="flex flex-col gap-6">
+            <UsedBySection title={t.components.usedBy.direct}><UsedBy ns={ns} rows={usedBy} fields={[envField]} /></UsedBySection>
+            <UsedBySection title={t.components.usedBy.self} help={t.components.usedBy.selfHelp.project}>
+              <UsedBy ns={ns} rows={usedBySelf} emptyText={t.components.usedBy.selfEmpty} />
+            </UsedBySection>
+          </div>
+        ) : null}
         {tab === 'domains' ? <FilterBar fields={[envField]} count={tp.domains(domains.length)} /> : null}
         {tab === 'domains' ? (
           domains.length === 0 ? <p className="lc-muted m-0">{tp.noDomain}</p> : (
@@ -280,10 +293,10 @@ function General({ ns, project, envs, apps, hosts, deps, usedBy, diverging }: {
   apps: App[]
   hosts: NS['hosts']['items']
   deps: Dep[]
-  usedBy: UsedByRow[]
+  usedBy: UsedByGroup[]
   diverging: Set<string>
 }) {
-  const consumers = [...new Set(usedBy.map(consumerProject).filter((p): p is string => !!p && p !== project.slug))].sort()
+  const consumers = [...new Set(usedBy.map((g) => g.project).filter((p): p is string => !!p && p !== project.slug))].sort()
   const kinds = (k: Dep['kind']) => deps.filter((d) => d.kind === k).length
   const t = useT()
   const tp = t.pages.project
@@ -314,7 +327,7 @@ function General({ ns, project, envs, apps, hosts, deps, usedBy, diverging }: {
             <dt>{ts.dependencies}</dt><dd>{tp.depsSummary(deps.length, kinds('service'), kinds('external'), kinds('proxy'))}</dd>
             <dt>{ts.usedBy}</dt>
             <dd>
-              {ts.links(usedBy.length)}
+              {t.components.usedBy.count(usedBy.length)}
               {consumers.length ? <> · {consumers.map((p, i) => <span key={p}>{i ? ', ' : ''}<Link to={`/${ns}/projects/${p}`}>{p}</Link></span>)}</> : null}
             </dd>
           </dl>
