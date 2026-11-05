@@ -40,8 +40,9 @@ const (
 const instructions = `Lacis is an infrastructure inventory: agents on the hosts report their OS, runtimes (php, node…),
 services (mysql, redis…), webservers (nginx, traefik…), apps and containers; Lacis links them (who uses what) and keeps a
 history of their changes. The inventory is split in namespaces, then projects and environments.
-Start with list_namespaces when the namespace is unknown. Use search to find an entity by name, domain or IP, then
-get_host or get_app for its details, and links for who uses it or what it uses. Use find_by_version for questions such as
+Start with list_namespaces when the namespace is unknown. Use search to find a project or an entity by name, domain or
+IP, or a list_* tool to list projects, apps, services, webservers or hosts; then get_project, get_host or get_app for
+their details, used_by for who uses a project, an app, a service or a host, and links for the raw links. Use find_by_version for questions such as
 "who runs PHP below 8.1" and list_versions for the spread of the versions of a technology. Everything is read-only.`
 
 // Services are what the tools read.
@@ -106,7 +107,21 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "list_namespaces", Annotations: readOnly("List the namespaces"),
 		Description: "Lists the namespaces of the inventory the user may read, with their projects and environments."}, s.listNamespaces)
 	add(s, srv, &mcp.Tool{Name: "search", Annotations: readOnly("Search the inventory"),
-		Description: "Finds hosts, apps, services, webservers and containers whose name, path, domain, vhost, image or IP contains the query, case-insensitive."}, s.search)
+		Description: "Finds namespaces and projects whose slug, name or description contains the query, and hosts, apps, services, webservers and containers whose name, path, domain, vhost, image or IP contains it, case-insensitive."}, s.search)
+	add(s, srv, &mcp.Tool{Name: "get_project", Annotations: readOnly("Get a project"),
+		Description: "Gives a project by slug or name: its envs, its apps (one per name and env, with their versions, domains and hosts), its hosts, what its apps use and which apps of other projects use it, through the reverse proxies (named in via)."}, s.getProject)
+	add(s, srv, &mcp.Tool{Name: "list_projects", Annotations: readOnly("List the projects"),
+		Description: "Lists the projects, with their envs and how many apps and hosts they have; filtered by namespace, env or a text in their slug, name or description."}, s.listProjects)
+	add(s, srv, &mcp.Tool{Name: "list_apps", Annotations: readOnly("List the apps"),
+		Description: "Lists the apps once per name, project and env, whatever the hosts they are deployed on: framework, runtime, versions of the code, domains, hosts and the ids of the deployments; filtered by namespace, project, env or a text in their name, framework, domain or host."}, s.listApps)
+	add(s, srv, &mcp.Tool{Name: "list_services", Annotations: readOnly("List the services"),
+		Description: "Lists the services (mysql, redis, elasticsearch…) with their version, host, project and env; filtered by namespace, project, env or a text in their type, instance or host."}, s.listServices)
+	add(s, srv, &mcp.Tool{Name: "list_webservers", Annotations: readOnly("List the webservers"),
+		Description: "Lists the webservers (nginx, traefik, haproxy…) with their version, host, project, env and the domains they serve; filtered by namespace, project, env or a text in their type, host or domains."}, s.listWebservers)
+	add(s, srv, &mcp.Tool{Name: "list_hosts", Annotations: readOnly("List the hosts"),
+		Description: "Lists the hosts with their project, env, OS, status and number of apps; filtered by namespace, project, env or a text in their hostname."}, s.listHosts)
+	add(s, srv, &mcp.Tool{Name: "used_by", Annotations: readOnly("Who uses it"),
+		Description: "Finds the apps, with their host, project and env, that use a project, an app, a service (by type such as mysql, or id), a host or a webserver, through the reverse proxies (named in via). A project or a host using itself is left out."}, s.usedBy)
 	add(s, srv, &mcp.Tool{Name: "get_host", Annotations: readOnly("Get a host"),
 		Description: "Gives a host by hostname or id: OS, kernel, resources, IPs, runtimes, services, webservers, apps and containers."}, s.getHost)
 	add(s, srv, &mcp.Tool{Name: "get_app", Annotations: readOnly("Get an app"),
@@ -303,7 +318,7 @@ func (s *server) listNamespaces(ctx context.Context, req *mcp.CallToolRequest, _
 }
 
 type SearchInput struct {
-	Query     string `json:"query" jsonschema:"text to look for: a hostname, an app name or path, a domain, an IP, a service or image name"`
+	Query     string `json:"query" jsonschema:"text to look for: a namespace or project slug or name, a hostname, an app name or path, a domain, an IP, a service or image name"`
 	Namespace string `json:"namespace,omitempty" jsonschema:"slug of the namespace; every namespace readable when empty"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"maximum number of results, 100 by default"`
 }
@@ -327,6 +342,23 @@ func (s *server) search(ctx context.Context, req *mcp.CallToolRequest, in Search
 	}
 	out.Results, out.Truncated = truncate(out.Results, limit(in.Limit))
 	return nil, out, nil
+}
+
+type GetProjectInput struct {
+	Project   string `json:"project" jsonschema:"slug, name or id of the project"`
+	Namespace string `json:"namespace,omitempty" jsonschema:"slug of the namespace; required when the user reads several"`
+}
+
+func (s *server) getProject(ctx context.Context, req *mcp.CallToolRequest, in GetProjectInput) (*mcp.CallToolResult, ProjectOut, error) {
+	x, err := s.indexOf(ctx, req, in.Namespace)
+	if err != nil {
+		return nil, ProjectOut{}, err
+	}
+	p := x.findProject(in.Project)
+	if p == nil {
+		return nil, ProjectOut{}, fmt.Errorf("no project %q in the namespace %s; use search", in.Project, x.inv.Namespace.Slug)
+	}
+	return nil, x.projectOut(p, s.clock.Now()), nil
 }
 
 type GetHostInput struct {

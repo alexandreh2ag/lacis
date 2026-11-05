@@ -77,7 +77,13 @@ Deleting a user removes their authorizations too.
 | Tool | What it answers |
 | ---- | --------------- |
 | `list_namespaces` | The namespaces the user may read, with their projects and environments. |
-| `search` | Hosts, apps, services, webservers and containers by name, path, domain, vhost, image or IP. |
+| `search` | Namespaces and projects by slug, name or description; hosts, apps, services, webservers and containers by name, path, domain, vhost, image or IP. |
+| `get_project` | A project by slug or name: its envs, its apps once per name and env (versions, domains, hosts), its hosts, what its apps use and which apps of other projects use it, through the proxies. |
+| `list_projects` | The projects, with their envs and how many apps and hosts they have. |
+| `list_apps` | The apps once per name, project and env: framework, runtime, versions, domains, hosts. |
+| `list_services`, `list_webservers` | The services or the webservers, with their version, host, project and env (and the domains of a webserver). |
+| `list_hosts` | The hosts, with their project, env, OS, status and number of apps. |
+| `used_by` | The apps, with their host, project and env, using a project, an app, a service (`mysql`), a host or a webserver, through the proxies. |
 | `get_host` | A host: OS, kernel, resources, IPs, runtimes, services, webservers, apps, containers. |
 | `get_app` | An app: project, env, framework, runtime, vhosts, dependencies, what it uses and who uses it. |
 | `links` | Who uses a host (and everything on it), an app, a service or a webserver, or what it uses. The links of an app, and to an app or a service, are [effective](./linking.md#effective-links): through the proxies, named in `via`. |

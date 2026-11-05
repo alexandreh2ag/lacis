@@ -148,7 +148,7 @@ func raw(v json.RawMessage) any {
 // Hit is an entity found by a search.
 type Hit struct {
 	Namespace string `json:"namespace"`
-	Kind      string `json:"kind" jsonschema:"host, app, service, webserver or container"`
+	Kind      string `json:"kind" jsonschema:"namespace, project, host, app, service, webserver or container"`
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Host      string `json:"host,omitempty"`
@@ -174,6 +174,14 @@ func (x *index) search(query string) []Hit {
 			}
 		}
 		return ""
+	}
+	if m := match(ns, x.inv.Namespace.Name, deref(x.inv.Namespace.Description)); m != "" {
+		hits = append(hits, Hit{Namespace: ns, Kind: "namespace", ID: x.inv.Namespace.ID.String(), Name: x.inv.Namespace.Name, Match: m})
+	}
+	for _, p := range x.inv.Projects {
+		if m := match(p.Slug, p.Name, deref(p.Description)); m != "" {
+			hits = append(hits, Hit{Namespace: ns, Kind: "project", ID: p.ID.String(), Name: p.Name, Project: p.Slug, Match: m})
+		}
 	}
 	ipsOf := map[uuid.UUID][]string{}
 	for _, ip := range x.inv.IPs {

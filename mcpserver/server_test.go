@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ var (
 	acme    = model.Namespace{Base: model.Base{ID: uuid.MustParse("00000000-0000-0000-0000-00000000000a")}, Slug: "acme", Name: "Acme"}
 	other   = model.Namespace{Base: model.Base{ID: uuid.MustParse("00000000-0000-0000-0000-00000000000b")}, Slug: "other", Name: "Other"}
 	hidden  = model.Namespace{Base: model.Base{ID: uuid.MustParse("00000000-0000-0000-0000-00000000000c")}, Slug: "hidden", Name: "Hidden"}
-	shop    = model.Project{Base: model.Base{ID: uuid.New()}, Slug: "shop", Name: "Shop"}
+	shop    = model.Project{Base: model.Base{ID: uuid.New()}, Slug: "shop", Name: "Boutique", Description: new("Le site marchand")}
 	prod    = model.Environment{Base: model.Base{ID: uuid.New()}, Slug: "production", SortOrder: 2}
 	staging = model.Environment{Base: model.Base{ID: uuid.New()}, Slug: "staging", SortOrder: 1}
 
@@ -180,7 +181,8 @@ func TestServer_Tools(t *testing.T) {
 		names = append(names, tool.Name)
 		assert.True(t, tool.Annotations.ReadOnlyHint, tool.Name)
 	}
-	assert.Equal(t, []string{"find_by_version", "get_app", "get_host", "graph", "history", "links", "list_namespaces", "list_versions", "search"}, names)
+	assert.Equal(t, []string{"find_by_version", "get_app", "get_host", "get_project", "graph", "history", "links", "list_apps", "list_hosts", "list_namespaces",
+		"list_projects", "list_services", "list_versions", "list_webservers", "search", "used_by"}, names)
 	assert.Contains(t, f.session.InitializeResult().Instructions, "find_by_version")
 }
 
@@ -220,6 +222,9 @@ func TestServer_Search(t *testing.T) {
 		{name: "domain of a webserver", args: map[string]any{"query": "www.acme"}, want: []string{"webserver nginx"}},
 		{name: "service", args: map[string]any{"query": "mysql", "namespace": "acme"}, want: []string{"service mysql"}},
 		{name: "image of a container", args: map[string]any{"query": "redis"}, want: []string{"container cache"}},
+		{name: "project by slug, name or description", args: map[string]any{"query": "marchand"}, want: []string{"project Boutique"}},
+		{name: "namespace by name", args: map[string]any{"query": "ACM", "namespace": "acme"},
+			want: []string{"namespace Acme", "app shop-front", "webserver nginx"}},
 		{name: "limit", args: map[string]any{"query": "web-", "limit": 1}, want: []string{"host web-1"}, trunc: true},
 		{name: "namespace not readable", args: map[string]any{"query": "web", "namespace": "hidden"}, err: `unknown namespace "hidden"; the namespaces are: acme, other`},
 		{name: "no query", args: map[string]any{"query": " "}, err: "the query is required"},
@@ -284,6 +289,144 @@ func TestServer_GetApp(t *testing.T) {
 	assert.Equal(t, "legacy", out.Name)
 	assert.Contains(t, f.call(t, "get_app", map[string]any{"app": "legacy", "host": "web-1", "namespace": "acme"}, &out), `no app "legacy"`)
 	assert.Contains(t, f.call(t, "get_app", map[string]any{"app": "legacy", "host": "nope", "namespace": "acme"}, &out), `no host "nope"`)
+}
+
+func TestServer_GetProject(t *testing.T) {
+	f := newFixture(t)
+	f.inventories()
+	var out mcpserver.ProjectOut
+	require.Empty(t, f.call(t, "get_project", map[string]any{"project": "boutique", "namespace": "acme"}, &out))
+	assert.Equal(t, "shop", out.Slug)
+	assert.Equal(t, "Le site marchand", out.Description)
+	assert.Equal(t, []string{"production", "staging"}, out.Envs)
+	require.Len(t, out.Apps, 2)
+	assert.Equal(t, mcpserver.ProjectApp{Name: "legacy", Env: "staging", Framework: "laravel", FrameworkVersion: "8.83.1", Runtime: "php", RuntimeVersion: "7.4.33",
+		Hosts: []string{"web-2"}, IDs: []string{legacy.ID.String()}}, out.Apps[1], "by env, then by name")
+	assert.Equal(t, "shop-front", out.Apps[0].Name)
+	assert.Equal(t, []string{"db-1", "web-1", "web-2"}, []string{out.Hosts[0].Hostname, out.Hosts[1].Hostname, out.Hosts[2].Hostname})
+	assert.Equal(t, "inactive", out.Hosts[0].Status, "never seen")
+
+	var deps []string
+	for _, l := range out.Dependencies {
+		deps = append(deps, l.From.Name+" -> "+l.To.Name+" "+strings.Join(l.Via, ","))
+	}
+	assert.Equal(t, []string{"shop-front -> mysql ", "legacy -> api.stripe.example ", "legacy -> shop-front nginx@web-1"}, deps,
+		"by env, through the proxies, without the hosts of the apps")
+	assert.Empty(t, out.UsedBy, "legacy is of the project itself")
+
+	assert.Contains(t, f.call(t, "get_project", map[string]any{"project": "nope", "namespace": "acme"}, &out), `no project "nope"`)
+}
+
+func TestServer_GetProject_UsedBy(t *testing.T) {
+	f := newFixture(t)
+	inv := inventory()
+	// crm, of a host without project, calls shop-front through nginx.
+	crmHost := model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "crm-1"}
+	crm := model.App{Base: model.Base{ID: uuid.New()}, HostID: crmHost.ID, Name: "crm"}
+	inv.Hosts, inv.Apps = append(inv.Hosts, crmHost), append(inv.Apps, crm)
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeApp, FromID: crm.ID, ToType: model.LinkNodeWebserver, ToID: &nginx.ID,
+		Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: json.RawMessage(`{"key":"SHOP_URL","target":"https://www.acme.example"}`)})
+	f.ns.EXPECT().Inventory(gomock.Any(), acme.ID).Return(inv, nil).AnyTimes()
+
+	var out mcpserver.ProjectOut
+	require.Empty(t, f.call(t, "get_project", map[string]any{"project": "shop", "namespace": "acme"}, &out))
+	require.Len(t, out.UsedBy, 1)
+	assert.Equal(t, mcpserver.ProjectLink{From: mcpserver.End{Kind: "app", Name: "crm"}, To: mcpserver.End{Kind: "app", Name: "shop-front", Project: "shop", Env: "production"},
+		Key: "SHOP_URL", Confidence: "exact", Via: []string{"nginx@web-1"}}, out.UsedBy[0])
+}
+
+func TestServer_Lists(t *testing.T) {
+	f := newFixture(t)
+	f.inventories()
+
+	var projects mcpserver.ListProjectsOutput
+	require.Empty(t, f.call(t, "list_projects", map[string]any{}, &projects))
+	assert.Equal(t, []mcpserver.ProjectItem{{Namespace: "acme", Slug: "shop", Name: "Boutique", Description: "Le site marchand",
+		Envs: []string{"production", "staging"}, Apps: 2, Hosts: 3}}, projects.Projects)
+	require.Empty(t, f.call(t, "list_projects", map[string]any{"env": "staging"}, &projects))
+	assert.Equal(t, 1, projects.Projects[0].Apps)
+	require.Empty(t, f.call(t, "list_projects", map[string]any{"query": "nope"}, &projects))
+	assert.Empty(t, projects.Projects)
+
+	var apps mcpserver.ListAppsOutput
+	require.Empty(t, f.call(t, "list_apps", map[string]any{"project": "Boutique", "env": "production"}, &apps))
+	require.Len(t, apps.Apps, 1)
+	assert.Equal(t, "shop-front", apps.Apps[0].Name)
+	assert.Equal(t, "shop", apps.Apps[0].Project)
+	require.Empty(t, f.call(t, "list_apps", map[string]any{"query": "laravel"}, &apps))
+	assert.Equal(t, "legacy", apps.Apps[0].Name)
+	require.Empty(t, f.call(t, "list_apps", map[string]any{"limit": 1}, &apps))
+	assert.True(t, apps.Truncated)
+
+	var components mcpserver.ListComponentsOutput
+	require.Empty(t, f.call(t, "list_services", map[string]any{"namespace": "acme"}, &components))
+	assert.Equal(t, []mcpserver.ComponentItem{{Namespace: "acme", ID: mysql.ID.String(), Kind: "service", Type: "mysql", Instance: "default",
+		Version: "8.0.36", Host: "db-1", Project: "shop", Env: "production"}}, components.Components)
+	require.Empty(t, f.call(t, "list_webservers", map[string]any{"query": "www.acme"}, &components))
+	require.Len(t, components.Components, 1)
+	assert.Equal(t, []string{"www.acme.example"}, components.Components[0].Domains)
+	require.Empty(t, f.call(t, "list_services", map[string]any{"env": "staging"}, &components))
+	assert.Empty(t, components.Components)
+
+	var hosts mcpserver.ListHostsOutput
+	require.Empty(t, f.call(t, "list_hosts", map[string]any{"query": "web"}, &hosts))
+	require.Len(t, hosts.Hosts, 2)
+	assert.Equal(t, mcpserver.HostItem{Namespace: "acme", ID: web1.ID.String(), Hostname: "web-1", Project: "shop", Env: "production",
+		Status: "inactive", Apps: 1}, hosts.Hosts[0])
+	assert.Contains(t, f.call(t, "list_hosts", map[string]any{"namespace": "hidden"}, &hosts), "unknown namespace")
+}
+
+func TestServer_UsedBy(t *testing.T) {
+	f := newFixture(t)
+	inv := inventory()
+	// crm, of a host without project, calls shop-front through nginx.
+	crmHost := model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "crm-1"}
+	crm := model.App{Base: model.Base{ID: uuid.New()}, HostID: crmHost.ID, Name: "crm"}
+	inv.Hosts, inv.Apps = append(inv.Hosts, crmHost), append(inv.Apps, crm)
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeApp, FromID: crm.ID, ToType: model.LinkNodeWebserver, ToID: &nginx.ID,
+		Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: json.RawMessage(`{"key":"SHOP_URL","target":"https://www.acme.example"}`)})
+	f.ns.EXPECT().Inventory(gomock.Any(), acme.ID).Return(inv, nil).AnyTimes()
+	describe := func(out mcpserver.UsedByOutput) []string {
+		var got []string
+		for _, c := range out.Consumers {
+			got = append(got, c.From.Name+"@"+c.From.Host+" -> "+c.To.Name+" "+strings.Join(c.Via, ","))
+		}
+		return got
+	}
+	tests := []struct {
+		name   string
+		args   map[string]any
+		target string
+		want   []string
+		err    string
+	}{
+		{name: "an app, through its proxy", args: map[string]any{"target": "shop-front"}, target: "app shop-front",
+			want: []string{"crm@crm-1 -> shop-front nginx@web-1", "legacy@web-2 -> shop-front nginx@web-1"}},
+		{name: "a project, its own apps left out", args: map[string]any{"target": "shop"}, target: "project shop",
+			want: []string{"crm@crm-1 -> shop-front nginx@web-1"}},
+		{name: "a service by type", args: map[string]any{"target": "MySQL", "kind": "service"}, target: "service MySQL",
+			want: []string{"shop-front@web-1 -> mysql "}},
+		{name: "a service in another env", args: map[string]any{"target": "mysql", "env": "staging"}, err: `no project, app, service, host or webserver "mysql"`},
+		{name: "a host, what runs on it left out", args: map[string]any{"target": "db-1"}, target: "host db-1",
+			want: []string{"shop-front@web-1 -> mysql "}},
+		{name: "a webserver by id", args: map[string]any{"target": nginx.ID.String()}, target: nginx.ID.String()},
+		{name: "unknown", args: map[string]any{"target": "nope"}, err: "use search"},
+		{name: "no target", args: map[string]any{"target": " "}, err: "the target is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.args["namespace"] = "acme"
+			var out mcpserver.UsedByOutput
+			msg := f.call(t, "used_by", tt.args, &out)
+			if tt.err != "" {
+				assert.Contains(t, msg, tt.err)
+				return
+			}
+			require.Empty(t, msg)
+			assert.Equal(t, tt.target, out.Target)
+			assert.Equal(t, tt.want, describe(out))
+		})
+	}
 }
 
 func TestServer_Links(t *testing.T) {
