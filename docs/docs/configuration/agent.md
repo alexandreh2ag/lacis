@@ -260,6 +260,18 @@ framework sources.
 Keys and patterns are compared ignoring case: `db_password` is denied like
 `DB_PASSWORD`. See [what is never sent](../collectors.md#what-is-never-sent).
 
+A list given in the configuration **replaces** its default, it does not add to it:
+to read one more key, give the default patterns too.
+
+```yaml
+collectors:
+  envfiles:
+    allow_keys: ["*_URL", "*_DSN", "*_HOST", "*_PORT", APP_ENV, NODE_ENV, CLAMAV_ADDR]
+```
+
+A `deny_keys` given without the default patterns no longer denies them: a key such
+as `DB_PASSWORD` is then read when an allowed pattern matches it.
+
 #### `collectors.traefik`
 
 | Key                           | Type   | Default                 | Description |
