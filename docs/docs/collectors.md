@@ -195,7 +195,10 @@ For each app:
   of its Node process, the PHP of its launcher command, or its `.nvmrc`, with the
   package version of that runtime or of its PHP-FPM;
 - **code**: from a version file, else from `.git` (read without the git binary):
-  the tag of HEAD, else the branch, the commit and the remote URL;
+  the tag of HEAD, else the branch, the commit and the remote URL. The `.git` is
+  that of the resolved app root, else that of the nearest of its
+  `collectors.apps.git_max_depth` parent directories (`0` by default: the root
+  only), for an app in a subdirectory of its repository;
 - **project** and **env**, see below.
 
 ### Version file

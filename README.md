@@ -127,6 +127,7 @@ collectors:                           # optional, defaults shown
                                       # (var/cache), matched anywhere in the path
     max_depth: 4                      # directories walked down a scan path
     max_files: 5000                   # entries read per scan path: the scan stops there, with a warning
+    git_max_depth: 0                  # parent directories of an app root searched for its .git (0: the root only)
     commands: path                    # path: only the program of a launcher command (argv[0]) is sent;
                                       # full: the whole command, arguments (and any password in them) included
     frameworks:                       # declarative detectors; a name of a built-in one replaces it

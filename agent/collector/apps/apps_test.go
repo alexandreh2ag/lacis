@@ -364,6 +364,39 @@ func TestReadGit(t *testing.T) {
 	assert.Nil(t, repo)
 }
 
+func TestFindGit(t *testing.T) {
+	f := fakefs.New()
+	f.Files(t, map[string]string{
+		"/repos/mono/.git/HEAD":              "ref: refs/heads/main\n",
+		"/repos/mono/.git/refs/heads/main":   commitFront + "\n",
+		"/repos/mono/apps/api/composer.json": "{}",
+		"/repos/mono/apps/api/src/x.php":     "",
+		"/repos/mono/front/.git/HEAD":        "ref: refs/heads/front\n",
+	})
+	mono := &gitRepo{commit: commitFront, branch: "main"}
+	tests := []struct {
+		name     string
+		root     string
+		maxDepth int
+		want     *gitRepo
+	}{
+		{name: "root only by default", root: "/repos/mono/apps/api", maxDepth: 0, want: nil},
+		{name: "parent too close", root: "/repos/mono/apps/api", maxDepth: 1, want: nil},
+		{name: "parent found", root: "/repos/mono/apps/api", maxDepth: 2, want: mono},
+		{name: "deeper allowed", root: "/repos/mono/apps/api/src", maxDepth: 5, want: mono},
+		{name: "own repo wins", root: "/repos/mono/front", maxDepth: 2, want: &gitRepo{branch: "front"}},
+		{name: "root itself", root: "/repos/mono", maxDepth: 0, want: mono},
+		{name: "stops at /", root: "/other", maxDepth: 10, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, err := findGit(f, tt.root, tt.maxDepth)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, repo)
+		})
+	}
+}
+
 func TestReadDeployInfo(t *testing.T) {
 	f := fakefs.New()
 	f.Files(t, map[string]string{

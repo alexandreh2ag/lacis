@@ -384,7 +384,7 @@ func (c *collection) build(a *app, detectors []detector) snapshot.App {
 	for _, w := range warnings {
 		c.errs = append(c.errs, collector.Warn(w))
 	}
-	repo, err := readGit(fsys, a.resolved)
+	repo, err := findGit(fsys, a.resolved, c.ctx.Config.Collectors.Apps.GitMaxDepth)
 	if err != nil {
 		c.errs = append(c.errs, collector.Warn(err))
 	}

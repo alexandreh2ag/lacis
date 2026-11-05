@@ -45,6 +45,7 @@ collectors:
   apps:
     scan_paths: ["/var/www", "/home/*/www"]
     max_depth: 3
+    git_max_depth: 2
     max_files: 100
     exclude: [vendor]
     frameworks:
@@ -146,6 +147,7 @@ func TestLoad_File(t *testing.T) {
 	// Keys absent from the file keep their default.
 	assert.Equal(t, "/var/run/docker.sock", cfg.Collectors.Docker.Socket)
 	assert.Equal(t, CommandPath, cfg.Collectors.Apps.Commands, "only the program path by default")
+	assert.Equal(t, 2, cfg.Collectors.Apps.GitMaxDepth)
 	assert.NoError(t, cfg.Validate(newValidator()))
 }
 
@@ -234,6 +236,7 @@ func TestConfig_Validate(t *testing.T) {
 		{name: "interval too short", mutate: func(c *Config) { c.Interval = time.Second }, want: []string{"Config.Interval", `"min"`}},
 		{name: "invalid hostname", mutate: func(c *Config) { c.Hostname = "not a host" }, want: []string{"Config.Hostname"}},
 		{name: "missing label", mutate: func(c *Config) { c.Labels.Project = "" }, want: []string{"labels: project: label is required"}},
+		{name: "negative git max depth", mutate: func(c *Config) { c.Collectors.Apps.GitMaxDepth = -1 }, want: []string{"Config.Collectors.Apps.GitMaxDepth", `"min"`}},
 		{name: "full commands", mutate: func(c *Config) { c.Collectors.Apps.Commands = CommandFull }},
 		{name: "invalid commands", mutate: func(c *Config) { c.Collectors.Apps.Commands = "args" }, want: []string{"Config.Collectors.Apps.Commands", `"oneof"`}},
 		{

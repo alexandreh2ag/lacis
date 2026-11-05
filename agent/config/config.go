@@ -153,7 +153,12 @@ type AppsConfig struct {
 	ScanPaths []string    `mapstructure:"scan_paths"`
 	MaxDepth  int         `mapstructure:"max_depth" validate:"min=1"`
 	MaxFiles  int         `mapstructure:"max_files" validate:"min=1"`
-	Exclude   []string    `mapstructure:"exclude"`
+	// GitMaxDepth is how many parent directories of the resolved app root
+	// are searched for the .git of the app when the root holds none, as for
+	// an app in a subdirectory of its repository; 0, the default, searches
+	// the root only.
+	GitMaxDepth int      `mapstructure:"git_max_depth" validate:"min=0"`
+	Exclude     []string `mapstructure:"exclude"`
 	// ExtraConfig adds configuration files to the apps of a path, read
 	// after those of their framework.
 	ExtraConfig []ExtraConfig       `mapstructure:"extra_config" validate:"dive"`

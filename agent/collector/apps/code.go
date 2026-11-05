@@ -148,6 +148,25 @@ var (
 	errInvalidRef = errors.New("invalid ref in HEAD")
 )
 
+// findGit reads the repository of root: that of root itself, else that of
+// the nearest of its maxDepth parent directories holding a .git, as for an
+// app in a subdirectory of its repository; nil when none holds one. The
+// repository found is read confined to its own directory.
+func findGit(fsys afero.Fs, root string, maxDepth int) (*gitRepo, error) {
+	dir := path.Clean(root)
+	for range maxDepth + 1 {
+		if _, err := fsys.Stat(path.Join(dir, ".git")); err == nil {
+			return readGit(fsys, dir)
+		}
+		parent := path.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return nil, nil
+}
+
 // readGit reads HEAD, the refs and the origin remote of the repository of
 // root; nil without .git. A .git file ("gitdir: …") points to the real
 // directory, as for worktrees and submodules; it is only followed under
