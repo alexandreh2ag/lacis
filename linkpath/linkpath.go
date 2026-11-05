@@ -51,13 +51,17 @@ type Graph struct {
 	// domains are the names each link routes, its target the name it calls.
 	domains map[*model.Link][]string
 	names   map[*model.Link]string
+	// ports are the ports each link calls, listen those its routes are
+	// reached on.
+	ports  map[*model.Link]int
+	listen map[*model.Link][]int
 }
 
 // New indexes the links of a namespace; they must not change while the
 // graph is used.
 func New(links []model.Link) *Graph {
 	g := &Graph{from: map[uuid.UUID][]*model.Link{}, to: map[uuid.UUID][]*model.Link{},
-		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}}
+		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}}
 	for i := range links {
 		l := &links[i]
 		g.from[l.FromID] = append(g.from[l.FromID], l)
@@ -66,10 +70,13 @@ func New(links []model.Link) *Graph {
 		}
 		var d struct {
 			Target  string   `json:"target"`
+			Port    int      `json:"port"`
 			Domains []string `json:"domains"`
+			Listen  []int    `json:"listen"`
 		}
 		_ = json.Unmarshal(l.Detail, &d)
 		g.domains[l], g.names[l] = d.Domains, domainmatch.NameOf(d.Target)
+		g.ports[l], g.listen[l] = d.Port, d.Listen
 	}
 	return g
 }
@@ -157,12 +164,28 @@ func (g *Graph) follow(out []Path, path []*model.Link, names []string) []Path {
 	if slices.ContainsFunc(path, func(l *model.Link) bool { return l.FromID == w }) {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
-	routes := g.routes(g.from[w], names)
+	routes := g.routes(g.reached(g.from[w], g.ports[last]), names)
 	if len(routes) == 0 {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
 	for _, r := range routes {
 		out = g.follow(out, append(slices.Clone(path), r.link), r.names)
+	}
+	return out
+}
+
+// reached keeps the routes of a webserver reached on the port called: an
+// HAProxy sends its port 3310 to ClamAV, not to the Elasticsearch of its
+// port 9200. A port or listen unknown keeps the route.
+func (g *Graph) reached(links []*model.Link, port int) []*model.Link {
+	if port == 0 {
+		return links
+	}
+	var out []*model.Link
+	for _, l := range links {
+		if listen := g.listen[l]; len(listen) == 0 || slices.Contains(listen, port) {
+			out = append(out, l)
+		}
 	}
 	return out
 }

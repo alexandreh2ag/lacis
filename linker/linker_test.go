@@ -412,6 +412,11 @@ func TestSameService(t *testing.T) {
 	assert.False(t, sameService("a", "b"))
 }
 
+func TestListenPorts(t *testing.T) {
+	assert.Equal(t, []int{80, 443, 8080, 3306}, listenPorts([]string{"80", "443 ssl http2", "[::]:443 ssl", "10.0.0.1:8080", "0.0.0.0:3306", "unix:/run/a.sock", "*:80"}))
+	assert.Empty(t, listenPorts(nil))
+}
+
 func TestDefaultPort(t *testing.T) {
 	assert.Equal(t, 5432, DefaultPort("PostgreSQL"))
 	assert.Equal(t, 443, DefaultPort("https"))

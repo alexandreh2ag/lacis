@@ -78,6 +78,9 @@ type Detail struct {
 	// traffic of a webserver; Domains the names they route.
 	Routes  []string `json:"routes,omitempty"`
 	Domains []string `json:"domains,omitempty"`
+	// Listen are the ports these routes are reached on: the binds of an
+	// HAProxy frontend, the listen of an nginx vhost; none when unknown.
+	Listen []int `json:"listen,omitempty"`
 }
 
 // DefaultHTTPPorts are the HTTP ports when Options gives none.
@@ -228,6 +231,11 @@ func (r *resolver) add(from node, to target, source string, detail Detail, merge
 	if p, ok := r.merged[key]; merge && ok {
 		p.detail.Routes = appendNew(p.detail.Routes, detail.Routes...)
 		p.detail.Domains = appendNew(p.detail.Domains, detail.Domains...)
+		for _, port := range detail.Listen {
+			if !slices.Contains(p.detail.Listen, port) {
+				p.detail.Listen = append(p.detail.Listen, port)
+			}
+		}
 		return
 	}
 	link := model.Link{FromType: from.Type, FromID: from.ID, ToType: to.Type, Source: source, Confidence: to.confidence}
@@ -334,7 +342,7 @@ func (r *resolver) proxies() {
 			route := v.ConfigFile
 			for _, u := range v.Upstreams {
 				servers, via := rt.upstreamServers(u)
-				r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{route}, Domains: v.ServerNames}, true)
+				r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{route}, Domains: v.ServerNames, Listen: listenPorts(v.Listen)}, true)
 			}
 		}
 		for _, router := range rt.Routers {
@@ -351,11 +359,31 @@ func (r *resolver) proxies() {
 					for _, s := range b.Servers {
 						servers = append(servers, s.Address)
 					}
-					r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{f.Name + " → " + b.Name}}, false)
+					r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{f.Name + " → " + b.Name}, Listen: listenPorts(f.Bind)}, false)
 				}
 			}
 		}
 	}
+}
+
+// listenPorts reads the ports of nginx listen directives (80, 443 ssl,
+// [::]:443, 10.0.0.1:8080) and HAProxy binds (0.0.0.0:3306, :80); a
+// socket has none.
+func listenPorts(listen []string) []int {
+	var out []int
+	for _, l := range listen {
+		addr, _, _ := strings.Cut(strings.TrimSpace(l), " ")
+		if strings.HasPrefix(addr, "unix:") || strings.HasPrefix(addr, "/") {
+			continue
+		}
+		if i := strings.LastIndex(addr, ":"); i >= 0 {
+			addr = addr[i+1:]
+		}
+		if port, err := strconv.Atoi(addr); err == nil && port > 0 && !slices.Contains(out, port) {
+			out = append(out, port)
+		}
+	}
+	return out
 }
 
 // proxy links a webserver to the servers it sends traffic to. With local

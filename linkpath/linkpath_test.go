@@ -218,6 +218,27 @@ func TestRoutes(t *testing.T) {
 			want: []string{"app-a > ws-x > svc-es"},
 		},
 		{
+			name: "the routes listening on the port called",
+			links: []model.Link{
+				exact("app-a", "ws-haproxy", map[string]any{"target": "10.0.0.1", "port": 3310}),
+				exact("ws-haproxy", "svc-clamav", map[string]any{"listen": []int{3310}}),
+				exact("ws-haproxy", "svc-es1", map[string]any{"listen": []int{9200}}),
+				exact("ws-haproxy", "svc-mysql", map[string]any{}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-haproxy > svc-clamav", "app-a > ws-haproxy > svc-mysql"},
+		},
+		{
+			name: "a port unknown takes every route",
+			links: []model.Link{
+				exact("app-a", "ws-haproxy", map[string]any{"target": "10.0.0.1"}),
+				exact("ws-haproxy", "svc-clamav", map[string]any{"listen": []int{3310}}),
+				exact("ws-haproxy", "svc-es1", map[string]any{"listen": []int{9200}}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-haproxy > svc-clamav", "app-a > ws-haproxy > svc-es1"},
+		},
+		{
 			name: "a loop of webservers stops",
 			links: []model.Link{
 				exact("app-a", "ws-x", map[string]any{"target": "loop.example"}),

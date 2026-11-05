@@ -120,6 +120,9 @@ crossed are their **path**.
 
 Through a webserver:
 
+- only the routes reached on the port called are taken: the HAProxy frontend
+  bound to it, the nginx vhosts listening on it (a route whose ports are unknown,
+  such as a Traefik router, is kept);
 - the routes of the name called are taken (`Host()`, `server_name`, the domains a
   link routes); without any, the routes of no name (a default vhost, an HAProxy
   backend);
