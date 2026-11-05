@@ -201,6 +201,11 @@ For each app:
   only), for an app in a subdirectory of its repository;
 - **project** and **env**, see below.
 
+The server knows an app of a host by its path. An app found at a new path takes the
+place of the app of the same name and project on that host that is no longer at its
+own: deploying into a new directory (`builds/shop-api/production/2-5-0`) moves the app,
+one change in the history, rather than removing it and adding another.
+
 ### Version file
 
 The CI can write a version file at the app root: `.app.lacis.json`,

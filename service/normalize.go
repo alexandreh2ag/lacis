@@ -578,7 +578,10 @@ func (n *normalizer) domains(names []string, ownerID uuid.UUID) []model.Endpoint
 
 // apps synchronizes the apps, found by path, with their project and env,
 // and replaces their dependencies and their endpoints: one per address
-// listened on.
+// listened on. An app new at its path takes the row of the app of the
+// same name and project on the host that is no longer at its own: a
+// deployment into a new directory (builds/app/production/2-19-0) moves
+// the app rather than replacing it.
 func (n *normalizer) apps() error {
 	existing, err := n.repos.App.FindByHost(n.ctx, n.host.ID)
 	if err != nil {
@@ -588,26 +591,49 @@ func (n *normalizer) apps() error {
 	for i := range existing {
 		byPath[existing[i].Path] = &existing[i]
 	}
-	var keep []uuid.UUID
-	var deps []model.AppDependency
-	var endpoints []model.Endpoint
+	type incoming struct {
+		app          snapshot.App
+		project, env *uuid.UUID
+		row          *model.App
+	}
+	var in []incoming
+	claimed := map[uuid.UUID]bool{}
 	seen := map[string]bool{}
 	for _, a := range n.snap.Apps {
 		if n.duplicate(seen, "app", a.Path) {
 			continue
 		}
-		var before history.State
-		row, ok := byPath[a.Path]
-		if !ok {
-			row = &model.App{NamespaceID: n.host.NamespaceID, HostID: n.host.ID, Path: a.Path, FirstSeenAt: n.now}
-		} else if row.RemovedAt == nil {
-			before = appState(row)
-		}
 		project, env, err := n.catalog(n.appSlug(a, labels.KeyProject, a.Project), n.appSlug(a, labels.KeyEnv, a.Env))
 		if err != nil {
 			return err
 		}
-		row.ProjectID, row.EnvironmentID, row.RemovedAt = project, env, nil
+		row := byPath[a.Path]
+		if row != nil {
+			claimed[row.ID] = true
+		}
+		in = append(in, incoming{app: a, project: project, env: env, row: row})
+	}
+	for i := range in {
+		if in[i].row == nil {
+			if row := moved(existing, claimed, in[i].app.Name, in[i].project); row != nil {
+				claimed[row.ID] = true
+				in[i].row = row
+			}
+		}
+	}
+	var keep []uuid.UUID
+	var deps []model.AppDependency
+	var endpoints []model.Endpoint
+	for _, x := range in {
+		a, row := x.app, x.row
+		var before history.State
+		if row == nil {
+			row = &model.App{NamespaceID: n.host.NamespaceID, HostID: n.host.ID, FirstSeenAt: n.now}
+		} else if row.RemovedAt == nil {
+			before = appState(row)
+		}
+		row.Path = a.Path
+		row.ProjectID, row.EnvironmentID, row.RemovedAt = x.project, x.env, nil
 		row.ResolvedPath, row.Name, row.Role = optional(a.ResolvedPath), a.Name, string(a.Role)
 		row.Framework, row.FrameworkVersion = nil, nil
 		if a.Framework != nil {
@@ -635,6 +661,30 @@ func (n *normalizer) apps() error {
 		return err
 	}
 	return n.repos.Endpoint.Replace(n.ctx, n.host.ID, model.EndpointOwnerApp, endpoints)
+}
+
+// moved finds the row an app new at its path takes: the app of the host
+// of the same name and project, in a project, that the snapshot no longer
+// has at its path. A present app comes before a removed one, the latest
+// removed first.
+func moved(existing []model.App, claimed map[uuid.UUID]bool, name string, project *uuid.UUID) *model.App {
+	if project == nil {
+		return nil
+	}
+	var best *model.App
+	for i := range existing {
+		r := &existing[i]
+		if claimed[r.ID] || r.Name != name || r.ProjectID == nil || *r.ProjectID != *project {
+			continue
+		}
+		switch {
+		case best == nil:
+			best = r
+		case best.RemovedAt != nil && (r.RemovedAt == nil || r.RemovedAt.After(*best.RemovedAt)):
+			best = r
+		}
+	}
+	return best
 }
 
 // duplicate tells whether the key of an entity was met already in the

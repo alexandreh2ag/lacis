@@ -303,6 +303,48 @@ func TestNormalize_Apps(t *testing.T) {
 	assert.Len(t, deps, 1, "replaced")
 }
 
+func TestNormalize_AppMoved(t *testing.T) {
+	f := newNormalizeFixture(t)
+	shop := f.ingest(load(t, "acme-shop-prod-1", nil))
+	apps, err := f.repos.App.FindByHost(ctx, shop.ID)
+	require.NoError(t, err)
+	ids := map[string]uuid.UUID{}
+	for _, a := range apps {
+		ids[a.Name] = a.ID
+	}
+
+	// shop-api is deployed into a new build directory; shop-front leaves
+	// for a directory of another name, and its name changes.
+	f.ingest(load(t, "acme-shop-prod-1", func(s *snapshot.Snapshot) {
+		for i := range s.Apps {
+			switch s.Apps[i].Name {
+			case "shop-api":
+				s.Apps[i].Path = "/home/web/builds/shop-api/production/2-5-0/www"
+			case "shop-front":
+				s.Apps[i].Path, s.Apps[i].Name = "/srv/front", "front"
+			}
+		}
+		s.CollectedAt = s.CollectedAt.Add(time.Hour)
+	}))
+	apps, err = f.repos.App.FindByHost(ctx, shop.ID)
+	require.NoError(t, err)
+	byName := map[string]model.App{}
+	for _, a := range apps {
+		byName[a.Name] = a
+	}
+	require.Len(t, apps, 3, "shop-api moved, shop-front removed, front added")
+	assert.Equal(t, ids["shop-api"], byName["shop-api"].ID, "the same app, in its new directory")
+	assert.Equal(t, "/home/web/builds/shop-api/production/2-5-0/www", byName["shop-api"].Path)
+	assert.Nil(t, byName["shop-api"].RemovedAt)
+	assert.NotNil(t, byName["shop-front"].RemovedAt, "another name is another app")
+	assert.NotEqual(t, ids["shop-front"], byName["front"].ID)
+
+	var events []model.ChangeEvent
+	require.NoError(t, f.db.Where("entity_id = ?", ids["shop-api"]).Find(&events).Error)
+	require.Len(t, events, 1, "one change, no removal nor addition")
+	assert.Equal(t, model.ChangeChanged, events[0].Kind)
+}
+
 func TestNormalize_ZendApp(t *testing.T) {
 	f := newNormalizeFixture(t)
 	site := f.ingest(load(t, "acme-site-prod-1", nil))
