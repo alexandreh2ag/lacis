@@ -55,12 +55,14 @@ func TestFacets(t *testing.T) {
 			app("", "", `{"type":"node","version":"20.11.1"}`),
 			app("", "", `{}`),
 		},
-		Services:   []model.Service{{Type: "redis"}, {Type: "mariadb"}, {Type: "redis"}},
-		Webservers: []model.Webserver{{Type: "traefik"}, {Type: "nginx"}, {Type: "traefik"}},
+		Services:   []model.Service{{Type: "redis", Version: new("7.2.4")}, {Type: "mariadb", Version: new("10.11.6")}, {Type: "redis", Version: new("6.0.16")}},
+		Webservers: []model.Webserver{{Type: "traefik"}, {Type: "nginx", Version: new("1.24.0")}, {Type: "traefik", Version: new("3.1.2")}},
 	})
 	assert.Equal(t, &graph.Facets{
-		Frameworks:   []graph.VersionFacet{{Name: "laravel", Versions: []string{"10.48"}}, {Name: "symfony", Versions: []string{"6.4", "7.2"}}},
-		Runtimes:     []graph.VersionFacet{{Name: "node", Versions: []string{"20.11"}}, {Name: "php", Versions: []string{"7.4", "8.3", "8.10"}}},
+		Frameworks: []graph.VersionFacet{{Name: "laravel", Versions: []string{"10.48"}}, {Name: "symfony", Versions: []string{"6.4", "7.2"}}},
+		Runtimes:   []graph.VersionFacet{{Name: "node", Versions: []string{"20.11"}}, {Name: "php", Versions: []string{"7.4", "8.3", "8.10"}}},
+		Components: []graph.VersionFacet{{Name: "mariadb", Versions: []string{"10.11"}}, {Name: "nginx", Versions: []string{"1.24"}},
+			{Name: "redis", Versions: []string{"6.0", "7.2"}}, {Name: "traefik", Versions: []string{"3.1"}}},
 		ServiceTypes: []string{"mariadb", "redis"}, WebserverTypes: []string{"nginx", "traefik"},
 	}, got)
 }

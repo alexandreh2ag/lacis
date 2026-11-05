@@ -247,6 +247,7 @@ type ComplexityRoot struct {
 	}
 
 	Facets struct {
+		Components     func(childComplexity int) int
 		Frameworks     func(childComplexity int) int
 		Runtimes       func(childComplexity int) int
 		ServiceTypes   func(childComplexity int) int
@@ -1520,6 +1521,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.External.Target(childComplexity), true
 
+	case "Facets.components":
+		if e.complexity.Facets.Components == nil {
+			break
+		}
+
+		return e.complexity.Facets.Components(childComplexity), true
 	case "Facets.frameworks":
 		if e.complexity.Facets.Frameworks == nil {
 			break
@@ -8121,6 +8128,41 @@ func (ec *executionContext) fieldContext_Facets_webserverTypes(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Facets_components(ctx context.Context, field graphql.CollectedField, obj *Facets) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Facets_components,
+		func(ctx context.Context) (any, error) {
+			return obj.Components, nil
+		},
+		nil,
+		ec.marshalNVersionFacet2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐVersionFacetᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Facets_components(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Facets",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_VersionFacet_name(ctx, field)
+			case "versions":
+				return ec.fieldContext_VersionFacet_versions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type VersionFacet", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GlobalPermission_resource(ctx context.Context, field graphql.CollectedField, obj *model.GlobalPermission) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13278,6 +13320,8 @@ func (ec *executionContext) fieldContext_Namespace_facets(_ context.Context, fie
 				return ec.fieldContext_Facets_serviceTypes(ctx, field)
 			case "webserverTypes":
 				return ec.fieldContext_Facets_webserverTypes(ctx, field)
+			case "components":
+				return ec.fieldContext_Facets_components(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Facets", field.Name)
 		},
@@ -20120,7 +20164,7 @@ func (ec *executionContext) unmarshalInputComponentFilter(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"kinds", "types", "projects", "envs", "search"}
+	fieldsInOrder := [...]string{"kinds", "types", "projects", "envs", "search", "version"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -20162,6 +20206,13 @@ func (ec *executionContext) unmarshalInputComponentFilter(ctx context.Context, o
 				return it, err
 			}
 			it.Search = data
+		case "version":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("version"))
+			data, err := ec.unmarshalOVersionConstraint2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐVersionConstraint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Version = data
 		}
 	}
 
@@ -22858,6 +22909,11 @@ func (ec *executionContext) _Facets(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "webserverTypes":
 			out.Values[i] = ec._Facets_webserverTypes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "components":
+			out.Values[i] = ec._Facets_components(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

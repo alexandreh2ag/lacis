@@ -73,7 +73,14 @@ func facets(inv *model.Inventory) *graph.Facets {
 		frameworks.add(deref(a.Framework), deref(a.FrameworkVersion))
 		runtimes.add(appRuntime(a))
 	}
-	out := &graph.Facets{Frameworks: frameworks.facets(), Runtimes: runtimes.facets(), ServiceTypes: []string{}, WebserverTypes: []string{}}
+	components := versions{}
+	for _, s := range inv.Services {
+		components.add(s.Type, deref(s.Version))
+	}
+	for _, w := range inv.Webservers {
+		components.add(w.Type, deref(w.Version))
+	}
+	out := &graph.Facets{Frameworks: frameworks.facets(), Runtimes: runtimes.facets(), Components: components.facets(), ServiceTypes: []string{}, WebserverTypes: []string{}}
 	for _, s := range inv.Services {
 		if !slices.Contains(out.ServiceTypes, s.Type) {
 			out.ServiceTypes = append(out.ServiceTypes, s.Type)

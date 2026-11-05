@@ -31,7 +31,7 @@ const ServicesDoc = graphql(`
     namespace(slug: $ns) {
       id
       environments { id slug sortOrder }
-      facets { serviceTypes webserverTypes }
+      facets { serviceTypes webserverTypes components { name versions } }
       components(filter: $filter, sort: $sort, page: $page) {
         total
         items {
@@ -121,8 +121,9 @@ export function Services() {
   const envs = l.list('env')
   const types = l.list('type')
   const kind = l.list('kind').filter((k): k is ComponentKind => kinds.includes(k as ComponentKind))
+  const version = versionParam(l.get, 'sv')
   const { data, error } = useQuery(ServicesDoc, {
-    variables: { ns, filter: { search: l.q, envs, types, kinds: kind }, sort: { by: l.sort as ServiceSortField, desc: l.desc }, page: { offset: (l.page - 1) * l.size, limit: l.size } },
+    variables: { ns, filter: { search: l.q, envs, types, kinds: kind, version: constraintOf(version) }, sort: { by: l.sort as ServiceSortField, desc: l.desc }, page: { offset: (l.page - 1) * l.size, limit: l.size } },
   })
   const list = data?.namespace?.components
   const facets = data?.namespace?.facets
@@ -140,8 +141,10 @@ export function Services() {
           chipsField({ label: ti.kind, options: kinds.map((k) => ({ value: k, label: ti.kinds[k] })), selected: kind, onChange: (v) => l.set({ kind: v }) }),
           pickerField({ label: ts.type, choose: ti.chooseType, options: typeOptions, selected: types, onChange: (v) => l.set({ type: v }) }),
           chipsField({ label: ts.environment, short: ts.env, options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
+          // The version of a type among those of the kinds chosen.
+          versionField({ label: ts.version, facets: (facets?.components ?? []).filter((f) => typeOptions.includes(f.name)), value: version, onChange: (v) => l.set(versionParamChanges('sv', v)) }),
         ]}
-        onClearAll={() => l.set({ env: null, type: null, kind: null })}
+        onClearAll={() => l.set({ env: null, type: null, kind: null, ...versionParamChanges('sv', null) })}
         count={list ? ti.services(list.total) : ''}
       />
       {error ? <p role="alert">{error.message}</p> : null}

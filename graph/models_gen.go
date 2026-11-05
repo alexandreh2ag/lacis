@@ -92,6 +92,8 @@ type ComponentFilter struct {
 	Projects []string        `json:"projects,omitempty"`
 	Envs     []string        `json:"envs,omitempty"`
 	Search   *string         `json:"search,omitempty"`
+	// A type of service or webserver (mysql, nginx…) and its version.
+	Version *VersionConstraint `json:"version,omitempty"`
 }
 
 type ComponentList struct {
@@ -132,6 +134,8 @@ type Facets struct {
 	Runtimes       []VersionFacet `json:"runtimes"`
 	ServiceTypes   []string       `json:"serviceTypes"`
 	WebserverTypes []string       `json:"webserverTypes"`
+	// The services and the webservers by type, with the versions they run.
+	Components []VersionFacet `json:"components"`
 }
 
 type GlobalPermissionInput struct {
@@ -407,10 +411,10 @@ type VersionConstraint struct {
 	Version *string    `json:"version,omitempty"`
 }
 
-// A framework or a runtime the apps use.
+// A framework or a runtime the apps use, or a type of service or webserver.
 type VersionFacet struct {
 	Name string `json:"name"`
-	// The versions the apps use, as major.minor, in order.
+	// The versions in use, as major.minor, in order.
 	Versions []string `json:"versions"`
 }
 

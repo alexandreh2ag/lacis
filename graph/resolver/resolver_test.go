@@ -233,7 +233,7 @@ func TestNamespace_Components(t *testing.T) {
 	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inventory(t), nil)
 
 	got := f.post(t, `{ namespace(slug:"acme") {
-		facets { serviceTypes webserverTypes }
+		facets { serviceTypes webserverTypes components { name versions } }
 		all: components { total items { __typename ... on Service { type instance } ... on Webserver { type version } } }
 		byHost: components(sort:{by: HOSTNAME, desc: true}) { items { __typename } }
 		webservers: components(filter:{kinds:[WEBSERVER]}) { total }
@@ -241,16 +241,21 @@ func TestNamespace_Components(t *testing.T) {
 		domain: components(filter:{search:"API.example"}) { total items { ... on Webserver { domains } } }
 		none: components(filter:{kinds:[SERVICE], types:["nginx"]}) { total }
 		paged: components(page:{offset:1, limit:1}) { total items { __typename } }
+		pgOld: components(filter:{version:{name:"postgresql", op:LT, version:"17"}}) { total }
+		pgNew: components(filter:{version:{name:"postgresql", op:GTE, version:"17"}}) { total }
+		nginxAny: components(filter:{version:{name:"nginx"}}) { total }
+		byVersion: components(filter:{search:"1.22"}) { total }
 	} }`)
 	assert.JSONEq(t, `{"namespace":{
-		"facets":{"serviceTypes":["postgresql"],"webserverTypes":["nginx"]},
+		"facets":{"serviceTypes":["postgresql"],"webserverTypes":["nginx"],"components":[{"name":"nginx","versions":["1.22"]},{"name":"postgresql","versions":["16.4"]}]},
 		"all":{"total":2,"items":[{"__typename":"Webserver","type":"nginx","version":"1.22.1"},{"__typename":"Service","type":"postgresql","instance":"16/main"}]},
 		"byHost":{"items":[{"__typename":"Webserver"},{"__typename":"Service"}]},
 		"webservers":{"total":1},
 		"nginx":{"total":1},
 		"domain":{"total":1,"items":[{"domains":["api.example"]}]},
 		"none":{"total":0},
-		"paged":{"total":2,"items":[{"__typename":"Service"}]}
+		"paged":{"total":2,"items":[{"__typename":"Service"}]},
+		"pgOld":{"total":1},"pgNew":{"total":0},"nginxAny":{"total":1},"byVersion":{"total":1}
 	}}`, got)
 }
 

@@ -41,12 +41,14 @@ type Facets {
   runtimes: [VersionFacet!]!
   serviceTypes: [String!]!
   webserverTypes: [String!]!
+  "The services and the webservers by type, with the versions they run."
+  components: [VersionFacet!]!
 }
 
-"A framework or a runtime the apps use."
+"A framework or a runtime the apps use, or a type of service or webserver."
 type VersionFacet {
   name: String!
-  "The versions the apps use, as major.minor, in order."
+  "The versions in use, as major.minor, in order."
   versions: [String!]!
 }
 
@@ -95,6 +97,8 @@ input ComponentFilter {
   projects: [String!]
   envs: [String!]
   search: String
+  "A type of service or webserver (mysql, nginx…) and its version."
+  version: VersionConstraint
 }
 
 type ComponentList {

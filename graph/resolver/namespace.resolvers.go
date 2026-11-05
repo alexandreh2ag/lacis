@@ -223,21 +223,22 @@ func (r *namespaceResolver) Components(ctx context.Context, obj *model.Namespace
 	if filter != nil {
 		f = *filter
 	}
-	kept := func(kind graph.ComponentKind, typ string, hostID uuid.UUID, search ...string) bool {
+	kept := func(kind graph.ComponentKind, typ, version string, hostID uuid.UUID, search ...string) bool {
 		h := x.hosts[hostID]
 		return (len(f.Kinds) == 0 || slices.Contains(f.Kinds, kind)) && (len(f.Types) == 0 || slices.Contains(f.Types, typ)) &&
-			x.inScope(h.ProjectID, h.EnvironmentID, f.Projects, f.Envs) && matches(f.Search, append(search, typ, h.Hostname)...)
+			x.inScope(h.ProjectID, h.EnvironmentID, f.Projects, f.Envs) && matches(f.Search, append(search, typ, version, h.Hostname)...) &&
+			satisfies(typ, version, f.Version)
 	}
 	var components []union.Component
 	for i := range x.inv.Services {
 		s := &x.inv.Services[i]
-		if kept(graph.ComponentKindService, s.Type, s.HostID, s.Instance, deref(s.Version)) {
+		if kept(graph.ComponentKindService, s.Type, deref(s.Version), s.HostID, s.Instance) {
 			components = append(components, s)
 		}
 	}
 	for i := range x.inv.Webservers {
 		w := &x.inv.Webservers[i]
-		if kept(graph.ComponentKindWebserver, w.Type, w.HostID, append([]string{deref(w.Version)}, x.domains[w.ID]...)...) {
+		if kept(graph.ComponentKindWebserver, w.Type, deref(w.Version), w.HostID, x.domains[w.ID]...) {
 			components = append(components, w)
 		}
 	}
