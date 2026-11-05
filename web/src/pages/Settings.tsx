@@ -17,8 +17,8 @@ const SettingsDoc = graphql(`
   query NamespaceSettings($ns: String!) {
     namespace(slug: $ns) {
       id slug name description staleAfter inactiveAfter snapshotRetention canEdit
-      projects { id slug name description }
-      environments { id slug name sortOrder }
+      projects { id slug name description usage { hosts apps } }
+      environments { id slug name sortOrder usage { hosts apps } }
       networks { id slug name kind description cidrs splitFrom { id slug name } hosts { id hostname } }
     }
   }
@@ -39,6 +39,18 @@ const UpdateProjectDoc = graphql(`
 const UpdateEnvironmentDoc = graphql(`
   mutation UpdateEnvironment($ns: String!, $slug: String!, $input: EnvironmentInput!) {
     updateEnvironment(namespace: $ns, slug: $slug, input: $input) { id name }
+  }
+`)
+
+const DeleteProjectDoc = graphql(`
+  mutation DeleteProject($ns: String!, $slug: String!) {
+    deleteProject(namespace: $ns, slug: $slug)
+  }
+`)
+
+const DeleteEnvironmentDoc = graphql(`
+  mutation DeleteEnvironment($ns: String!, $slug: String!) {
+    deleteEnvironment(namespace: $ns, slug: $slug)
   }
 `)
 
@@ -72,8 +84,16 @@ const DeleteNetworkDoc = graphql(`
   }
 `)
 
-// The hosts change networks: every network is read again.
-const refetchNetworks = { refetchQueries: ['NamespaceSettings'] }
+// The hosts change networks, a project or an env leaves the lists: the
+// settings are read again.
+const refetchSettings = { refetchQueries: ['NamespaceSettings'] }
+
+type Usage = { hosts: number; apps: number }
+
+// unused reports that no host and no app names a project or an env.
+export function unused(u: Usage): boolean {
+  return u.hosts === 0 && u.apps === 0
+}
 
 type Namespace = NonNullable<NamespaceSettingsQuery['namespace']>
 type Project = Namespace['projects'][number]
@@ -162,10 +182,11 @@ function General({ n }: { n: Namespace }) {
 function Projects({ ns, projects }: { ns: string; projects: Project[] }) {
   // The slug edited: the dialog follows the project as reloaded.
   const [editing, setEditing] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<Project | null>(null)
   const edited = projects.find((p) => p.slug === editing)
   const t = useT()
   const st = t.admin.settings
-  const tbl = useTable(projects, (p) => [p.slug, p.name, p.description ?? ''], (p, by) => by === 'name' ? p.name : p.slug, 'slug')
+  const tbl = useTable(projects, (p) => [p.slug, p.name, p.description ?? ''], (p, by) => by === 'name' ? p.name : by === 'usage' ? p.usage.hosts + p.usage.apps : p.slug, 'slug')
   const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={tbl.sort.by} desc={tbl.sort.desc} onSort={tbl.onSort} />
   return (
     <>
@@ -173,14 +194,20 @@ function Projects({ ns, projects }: { ns: string; projects: Project[] }) {
       <p className="lc-muted m-0 text-[13px]">{st.projectsIntro[0]}<code className="lc-mono">project</code>{st.projectsIntro[1]}</p>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="lc-table">
-          <thead><tr>{head(st.slug, 'slug')}{head(t.admin.name, 'name')}<th>{t.admin.description}</th><th><span className="sr-only">{t.admin.actions}</span></th></tr></thead>
+          <thead><tr>{head(st.slug, 'slug')}{head(t.admin.name, 'name')}<th>{t.admin.description}</th>{head(st.usage, 'usage')}<th><span className="sr-only">{t.admin.actions}</span></th></tr></thead>
           <tbody>
             {tbl.shown.map((p) => (
               <tr key={p.id}>
                 <td><span className="lc-copyable"><span className="lc-mono font-semibold">{p.slug}</span><CopyButton value={p.slug} /></span></td>
                 <td>{p.name}</td>
                 <td className="text-ink-muted" style={{ whiteSpace: 'normal', minWidth: 220 }}>{p.description}</td>
-                <td className="lc-num"><button type="button" className="lc-btn lc-btn--small" onClick={() => setEditing(p.slug)}>{t.admin.edit}</button></td>
+                <td className={unused(p.usage) ? 'text-ink-muted' : undefined} title={unused(p.usage) ? undefined : st.inUseHint}>{st.used(p.usage.hosts, p.usage.apps)}</td>
+                <td className="lc-num">
+                  <span className="inline-flex gap-1.5">
+                    <button type="button" className="lc-btn lc-btn--small" onClick={() => setEditing(p.slug)}>{t.admin.edit}</button>
+                    {unused(p.usage) ? <button type="button" className="lc-btn lc-btn--small lc-btn--danger" onClick={() => setDeleting(p)}>{t.admin.delete}</button> : null}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -188,6 +215,7 @@ function Projects({ ns, projects }: { ns: string; projects: Project[] }) {
       </div>
       <Pager page={tbl.page} size={tbl.size} total={tbl.list.length} noun={st.projectsNoun} onPage={tbl.setPage} onSize={tbl.setSize} />
       {edited ? <EditProject ns={ns} project={edited} onClose={() => setEditing(null)} /> : null}
+      {deleting ? <DeleteProject ns={ns} project={deleting} onClose={() => setDeleting(null)} /> : null}
     </>
   )
 }
@@ -207,6 +235,18 @@ function EditProject({ ns, project, onClose }: { ns: string; project: Project; o
   )
 }
 
+function DeleteProject({ ns, project, onClose }: { ns: string; project: Project; onClose: () => void }) {
+  const [remove] = useMutation(DeleteProjectDoc, refetchSettings)
+  const a = useAction()
+  const t = useT()
+  return (
+    <Dialog title={t.admin.settings.deleteTitle(project.name)} submit={t.admin.delete} danger busy={a.busy} error={a.error} onClose={onClose}
+      onSubmit={() => void a.run(() => remove({ variables: { ns, slug: project.slug } }), onClose)}>
+      <p className="m-0">{t.admin.settings.deleteProjectText}</p>
+    </Dialog>
+  )
+}
+
 // moved returns the list with the item i moved by delta.
 export function moved<T>(list: T[], i: number, delta: number): T[] {
   const j = i + delta
@@ -219,7 +259,11 @@ export function moved<T>(list: T[], i: number, delta: number): T[] {
 function Environments({ ns, environments }: { ns: string; environments: Environment[] }) {
   const sorted = [...environments].sort((a, b) => a.sortOrder - b.sortOrder || a.slug.localeCompare(b.slug))
   const [order, setOrder] = useState(sorted.map((e) => e.slug))
+  // An env deleted, or come with a snapshot, resets the order shown.
+  const slugs = sorted.map((e) => e.slug).join(',')
+  useEffect(() => setOrder(slugs ? slugs.split(',') : []), [slugs])
   const [renaming, setRenaming] = useState<Environment | null>(null)
+  const [deleting, setDeleting] = useState<Environment | null>(null)
   const [reorder] = useMutation(ReorderEnvironmentsDoc)
   const a = useAction()
   const bySlug = new Map(environments.map((e) => [e.slug, e]))
@@ -241,7 +285,9 @@ function Environments({ ns, environments }: { ns: string; environments: Environm
                 <span className="font-semibold">{e.name}</span>
                 <span className="lc-mono text-[12.5px] text-ink-muted">{e.slug}</span>
               </span>
+              <span className="text-[12.5px] text-ink-muted" title={unused(e.usage) ? undefined : st.inUseHint}>{st.used(e.usage.hosts, e.usage.apps)}</span>
               <button type="button" className="lc-btn lc-btn--small" onClick={() => setRenaming(e)}>{st.rename}</button>
+              {unused(e.usage) ? <button type="button" className="lc-btn lc-btn--small lc-btn--danger" onClick={() => setDeleting(e)}>{t.admin.delete}</button> : null}
               <button type="button" className="lc-btn lc-btn--icon lc-btn--small" aria-label={st.up(e.slug)} disabled={i === 0}
                 onClick={() => setOrder(moved(order, i, -1))}>↑</button>
               <button type="button" className="lc-btn lc-btn--icon lc-btn--small" aria-label={st.down(e.slug)} disabled={i === order.length - 1}
@@ -257,6 +303,7 @@ function Environments({ ns, environments }: { ns: string; environments: Environm
         {changed ? <button type="button" className="lc-btn lc-btn--ghost" onClick={() => setOrder(sorted.map((e) => e.slug))}>{t.admin.cancel}</button> : null}
       </div>
       {renaming ? <RenameEnvironment ns={ns} env={renaming} onClose={() => setRenaming(null)} /> : null}
+      {deleting ? <DeleteEnvironment ns={ns} env={deleting} onClose={() => setDeleting(null)} /> : null}
     </div>
   )
 }
@@ -270,6 +317,18 @@ function RenameEnvironment({ ns, env, onClose }: { ns: string; env: Environment;
     <Dialog title={t.admin.settings.environment(env.slug)} busy={a.busy} error={a.error} onClose={onClose}
       onSubmit={() => void a.run(() => update({ variables: { ns, slug: env.slug, input: { name } } }), onClose)}>
       <Field label={t.admin.name}>{(id) => <input id={id} className="lc-input" required value={name} onChange={(e) => setName(e.target.value)} />}</Field>
+    </Dialog>
+  )
+}
+
+function DeleteEnvironment({ ns, env, onClose }: { ns: string; env: Environment; onClose: () => void }) {
+  const [remove] = useMutation(DeleteEnvironmentDoc, refetchSettings)
+  const a = useAction()
+  const t = useT()
+  return (
+    <Dialog title={t.admin.settings.deleteTitle(env.name)} submit={t.admin.delete} danger busy={a.busy} error={a.error} onClose={onClose}
+      onSubmit={() => void a.run(() => remove({ variables: { ns, slug: env.slug } }), onClose)}>
+      <p className="m-0">{t.admin.settings.deleteEnvText}</p>
     </Dialog>
   )
 }
@@ -361,7 +420,7 @@ function EditNetwork({ ns, network, onClose }: { ns: string; network: Network; o
 // SplitNetwork moves hosts of a network into a new one: two private
 // networks on the same range, which the IPs alone cannot tell apart.
 function SplitNetwork({ ns, network, onClose }: { ns: string; network: Network; onClose: () => void }) {
-  const [split] = useMutation(SplitNetworkDoc, refetchNetworks)
+  const [split] = useMutation(SplitNetworkDoc, refetchSettings)
   const a = useAction()
   const [name, setName] = useState('')
   const [hosts, setHosts] = useState<string[]>([])
@@ -379,7 +438,7 @@ function SplitNetwork({ ns, network, onClose }: { ns: string; network: Network; 
 
 // MoveHosts brings hosts of the other networks of the range into this one.
 function MoveHosts({ ns, network, networks, onClose }: { ns: string; network: Network; networks: Network[]; onClose: () => void }) {
-  const [move] = useMutation(MoveHostsToNetworkDoc, refetchNetworks)
+  const [move] = useMutation(MoveHostsToNetworkDoc, refetchSettings)
   const a = useAction()
   const [hosts, setHosts] = useState<string[]>([])
   const st = useT().admin.settings
@@ -397,7 +456,7 @@ function MoveHosts({ ns, network, networks, onClose }: { ns: string; network: Ne
 }
 
 function DeleteNetwork({ ns, network, onClose }: { ns: string; network: Network; onClose: () => void }) {
-  const [remove] = useMutation(DeleteNetworkDoc, refetchNetworks)
+  const [remove] = useMutation(DeleteNetworkDoc, refetchSettings)
   const a = useAction()
   const t = useT()
   return (

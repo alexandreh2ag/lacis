@@ -62,11 +62,13 @@ func inventory(t *testing.T) *model.Inventory {
 	ns := model.Namespace{Base: model.Base{ID: acmeID}, Slug: "acme", Name: "Acme",
 		StaleAfter: model.Interval(24 * time.Hour), InactiveAfter: model.Interval(7 * 24 * time.Hour)}
 	return &model.Inventory{
-		Namespace:    ns,
-		Networks:     []model.Network{{Base: model.Base{ID: network}, NamespaceID: acmeID, Slug: "10-0-1-0-24", Name: "10.0.1.0/24", Kind: "private"}},
-		CIDRs:        []model.NetworkCIDR{{NetworkID: network, NamespaceID: acmeID, CIDR: model.CIDR{Prefix: netip.MustParsePrefix("10.0.1.0/24")}}},
-		Projects:     []model.Project{{Base: model.Base{ID: shop}, Slug: "shop", Name: "Shop"}, {Base: model.Base{ID: infra}, Slug: "infra", Name: "Infra"}},
-		Environments: []model.Environment{{Base: model.Base{ID: prod}, Slug: "production", Name: "Production"}, {Base: model.Base{ID: staging}, Slug: "staging", Name: "Staging", SortOrder: 1}},
+		Namespace: ns,
+		Networks:  []model.Network{{Base: model.Base{ID: network}, NamespaceID: acmeID, Slug: "10-0-1-0-24", Name: "10.0.1.0/24", Kind: "private"}},
+		CIDRs:     []model.NetworkCIDR{{NetworkID: network, NamespaceID: acmeID, CIDR: model.CIDR{Prefix: netip.MustParsePrefix("10.0.1.0/24")}}},
+		Projects: []model.Project{{Base: model.Base{ID: shop}, NamespaceID: acmeID, Slug: "shop", Name: "Shop"},
+			{Base: model.Base{ID: infra}, NamespaceID: acmeID, Slug: "infra", Name: "Infra"}},
+		Environments: []model.Environment{{Base: model.Base{ID: prod}, NamespaceID: acmeID, Slug: "production", Name: "Production"},
+			{Base: model.Base{ID: staging}, NamespaceID: acmeID, Slug: "staging", Name: "Staging", SortOrder: 1}},
 		Hosts: []model.Host{
 			{Base: model.Base{ID: db}, NamespaceID: acmeID, Hostname: "db-1", ProjectID: &infra, EnvironmentID: &prod, LastSeenAt: now.Add(-time.Hour)},
 			{Base: model.Base{ID: old}, NamespaceID: acmeID, Hostname: "old-1", EnvironmentID: &staging, LastSeenAt: now.Add(-10 * 24 * time.Hour)},
@@ -554,6 +556,39 @@ func TestMutations_DeleteHost(t *testing.T) {
 	got := f.errors(t, `mutation { deleteHost(namespace:"acme", id:"`+id(10).String()+`") }`)
 	assert.Contains(t, got, `"code":"CONFLICT"`)
 	assert.Contains(t, got, "its next snapshot would bring it back")
+}
+
+func TestNamespace_CatalogUsage(t *testing.T) {
+	f := newFixture(t, admin())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil)
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inventory(t), nil).Times(1)
+	assert.JSONEq(t, `{"namespace":{
+		"projects":[{"slug":"shop","usage":{"hosts":1,"apps":1}},{"slug":"infra","usage":{"hosts":1,"apps":0}}],
+		"environments":[{"slug":"production","usage":{"hosts":2,"apps":1}},{"slug":"staging","usage":{"hosts":1,"apps":0}}]
+	}}`, f.post(t, `{ namespace(slug:"acme") { projects { slug usage { hosts apps } } environments { slug usage { hosts apps } } } }`))
+}
+
+func TestMutations_DeleteCatalogs(t *testing.T) {
+	f := newFixture(t, admin())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).AnyTimes()
+	f.metadata.EXPECT().DeleteProject(gomock.Any(), "acme", "old-shop").Return(nil)
+	f.metadata.EXPECT().DeleteEnvironment(gomock.Any(), "acme", "qa").Return(nil)
+	assert.JSONEq(t, `{"p":true,"e":true}`, f.post(t, `mutation {
+		p: deleteProject(namespace:"acme", slug:"old-shop")
+		e: deleteEnvironment(namespace:"acme", slug:"qa")
+	}`))
+
+	f.metadata.EXPECT().DeleteEnvironment(gomock.Any(), "acme", "production").
+		Return(&service.Refusal{Err: service.ErrInUse, Reason: service.ReasonEnvironmentInUse, Args: map[string]any{"hosts": 2, "apps": 1}})
+	got := f.errors(t, `mutation { deleteEnvironment(namespace:"acme", slug:"production") }`)
+	assert.Contains(t, got, `"code":"CONFLICT"`)
+	assert.Contains(t, got, `"reason":"ENVIRONMENT_IN_USE"`)
+	f.metadata.EXPECT().DeleteProject(gomock.Any(), "acme", "nope").Return(service.ErrNotFound)
+	assert.Contains(t, f.errors(t, `mutation { deleteProject(namespace:"acme", slug:"nope") }`), `"code":"NOT_FOUND"`)
+
+	r := newFixture(t, reader())
+	r.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).AnyTimes()
+	assert.Contains(t, r.errors(t, `mutation { deleteProject(namespace:"acme", slug:"shop") }`), `"code":"FORBIDDEN"`)
 }
 
 func TestNamespace_Sort(t *testing.T) {

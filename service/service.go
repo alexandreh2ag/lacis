@@ -17,4 +17,7 @@ var (
 	// ErrForbidden refuses to grant, or to change who holds, permissions
 	// the actor does not hold: nobody raises their own rights.
 	ErrForbidden = errors.New("forbidden")
+	// ErrInUse refuses to delete a project or an env a host or an app
+	// still names.
+	ErrInUse = errors.New("still in use")
 )

@@ -28,6 +28,8 @@ const (
 	ReasonHostNotIn               = "HOST_NOT_IN"
 	ReasonNetworkNotSplit         = "NETWORK_NOT_SPLIT"
 	ReasonHostNotFound            = "HOST_NOT_FOUND"
+	ReasonProjectInUse            = "PROJECT_IN_USE"
+	ReasonEnvironmentInUse        = "ENVIRONMENT_IN_USE"
 )
 
 // Refusal is a refusal of a service that a client can tell in its own

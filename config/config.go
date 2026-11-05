@@ -187,7 +187,8 @@ type DefaultsConfig struct {
 
 // TaskNames are the scheduled tasks workers.schedules gives a schedule
 // to; the queue package runs them.
-var TaskNames = []string{"purge_snapshots", "purge_removed_entities", "purge_expired_tokens", "detect_token_conflicts", "purge_history", "purge_inactive_hosts"}
+var TaskNames = []string{"purge_snapshots", "purge_removed_entities", "purge_expired_tokens", "detect_token_conflicts", "purge_history", "purge_inactive_hosts",
+	"purge_unused_projects", "purge_unused_environments"}
 
 type WorkersConfig struct {
 	// Enabled runs the workers and the scheduler in the start process;
@@ -285,12 +286,14 @@ func DefaultConfig() *Config {
 			Enabled:     true,
 			Concurrency: 4,
 			Schedules: map[string]string{
-				"purge_snapshots":        "15 3 * * *",
-				"purge_removed_entities": "30 3 * * *",
-				"purge_expired_tokens":   "45 3 * * *",
-				"detect_token_conflicts": "0 * * * *",
-				"purge_history":          "20 * * * *",
-				"purge_inactive_hosts":   "",
+				"purge_snapshots":           "15 3 * * *",
+				"purge_removed_entities":    "30 3 * * *",
+				"purge_expired_tokens":      "45 3 * * *",
+				"detect_token_conflicts":    "0 * * * *",
+				"purge_history":             "20 * * * *",
+				"purge_inactive_hosts":      "",
+				"purge_unused_projects":     "",
+				"purge_unused_environments": "",
 			},
 			Retention: RetentionConfig{
 				Completed: 24 * time.Hour,

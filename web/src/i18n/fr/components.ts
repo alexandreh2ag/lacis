@@ -69,6 +69,7 @@ export const components = {
     alreadyIn: (host: string, network: string) => `${host} est déjà dans ${network}.`,
     notIn: (host: string, network: string) => `${host} n'est pas dans ${network}.`,
     splitOnly: 'Seul un réseau scindé à la main se supprime : les autres viennent des IPs des hosts.',
+    inUse: (hosts: string, apps: string) => `Encore utilisé par ${hosts} host(s) et ${apps} app(s) : supprimez-les ou changez leur label d\'abord.`,
     noServer: 'Le serveur ne répond pas.',
   },
   filterBar: {

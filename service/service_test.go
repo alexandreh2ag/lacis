@@ -29,6 +29,8 @@ type mocks struct {
 	techIcon  *mockRepository.MockTechIconRepository
 	inventory *mockRepository.MockInventoryRepository
 	events    *mockRepository.MockChangeEventRepository
+	project   *mockRepository.MockProjectRepository
+	env       *mockRepository.MockEnvironmentRepository
 }
 
 func newMocks(t *testing.T) *mocks {
@@ -47,6 +49,8 @@ func newMocks(t *testing.T) *mocks {
 		techIcon:  mockRepository.NewMockTechIconRepository(ctrl),
 		inventory: mockRepository.NewMockInventoryRepository(ctrl),
 		events:    mockRepository.NewMockChangeEventRepository(ctrl),
+		project:   mockRepository.NewMockProjectRepository(ctrl),
+		env:       mockRepository.NewMockEnvironmentRepository(ctrl),
 	}
 	repos := &repository.Repositories{
 		Namespace:       m.namespace,
@@ -61,6 +65,8 @@ func newMocks(t *testing.T) *mocks {
 		TechIcon:        m.techIcon,
 		Inventory:       m.inventory,
 		ChangeEvent:     m.events,
+		Project:         m.project,
+		Environment:     m.env,
 	}
 	m.tx.EXPECT().InTx(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 		func(_ context.Context, fn func(*repository.Repositories) error) error { return fn(repos) })

@@ -25,6 +25,16 @@ type Mutation {
   updateProject(namespace: String!, slug: String!, input: ProjectInput!): Project! @can(resource: METADATA, action: WRITE)
   updateEnvironment(namespace: String!, slug: String!, input: EnvironmentInput!): Environment!
     @can(resource: METADATA, action: WRITE)
+  """
+  Removes a project no host and no app names any more (removed apps lose the reference);
+  refused with CONFLICT while one does. An agent labelling it again creates it anew.
+  """
+  deleteProject(namespace: String!, slug: String!): Boolean! @can(resource: METADATA, action: WRITE)
+  """
+  Removes an env no host and no app names any more (removed apps lose the reference);
+  refused with CONFLICT while one does. An agent labelling it again creates it anew.
+  """
+  deleteEnvironment(namespace: String!, slug: String!): Boolean! @can(resource: METADATA, action: WRITE)
   "Orders the envs as slugs, which names each env of the namespace once."
   reorderEnvironments(namespace: String!, slugs: [String!]!): [Environment!]! @can(resource: METADATA, action: WRITE)
   updateNetwork(namespace: String!, slug: String!, input: NetworkInput!): Network! @can(resource: METADATA, action: WRITE)

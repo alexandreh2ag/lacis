@@ -46,6 +46,24 @@ func (r *mutationResolver) UpdateEnvironment(ctx context.Context, namespace stri
 	return e, nil
 }
 
+// DeleteProject is the resolver for the deleteProject field.
+func (r *mutationResolver) DeleteProject(ctx context.Context, namespace string, slug string) (bool, error) {
+	if err := r.MetadataService.DeleteProject(ctx, namespace, slug); err != nil {
+		return false, r.userError(ctx, err)
+	}
+	r.forgetAll(ctx)
+	return true, nil
+}
+
+// DeleteEnvironment is the resolver for the deleteEnvironment field.
+func (r *mutationResolver) DeleteEnvironment(ctx context.Context, namespace string, slug string) (bool, error) {
+	if err := r.MetadataService.DeleteEnvironment(ctx, namespace, slug); err != nil {
+		return false, r.userError(ctx, err)
+	}
+	r.forgetAll(ctx)
+	return true, nil
+}
+
 // ReorderEnvironments is the resolver for the reorderEnvironments field.
 func (r *mutationResolver) ReorderEnvironments(ctx context.Context, namespace string, slugs []string) ([]model.Environment, error) {
 	envs, err := r.MetadataService.ReorderEnvironments(ctx, namespace, slugs)

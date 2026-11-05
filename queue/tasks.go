@@ -26,6 +26,8 @@ type Maintainer interface {
 	DetectTokenConflicts(ctx context.Context) (int, error)
 	PurgeHistory(ctx context.Context) (int64, error)
 	PurgeInactiveHosts(ctx context.Context) (int, error)
+	PurgeUnusedProjects(ctx context.Context) (int, error)
+	PurgeUnusedEnvironments(ctx context.Context) (int, error)
 }
 
 var errNoMaintainer = errors.New("no maintainer: this client only inserts jobs")
@@ -38,6 +40,8 @@ type (
 	DetectTokenConflictsArgs struct{}
 	PurgeHistoryArgs         struct{}
 	PurgeInactiveHostsArgs   struct{}
+	PurgeUnusedProjectsArgs  struct{}
+	PurgeUnusedEnvsArgs      struct{}
 )
 
 func (PurgeSnapshotsArgs) Kind() string       { return "purge_snapshots" }
@@ -46,6 +50,8 @@ func (PurgeExpiredTokensArgs) Kind() string   { return "purge_expired_tokens" }
 func (DetectTokenConflictsArgs) Kind() string { return "detect_token_conflicts" }
 func (PurgeHistoryArgs) Kind() string         { return "purge_history" }
 func (PurgeInactiveHostsArgs) Kind() string   { return "purge_inactive_hosts" }
+func (PurgeUnusedProjectsArgs) Kind() string  { return "purge_unused_projects" }
+func (PurgeUnusedEnvsArgs) Kind() string      { return "purge_unused_environments" }
 
 // taskOpts runs a task 5 times at most, and once at a time: a run asked
 // while one waits or runs is the same run.
@@ -65,6 +71,8 @@ func (PurgeExpiredTokensArgs) InsertOpts() river.InsertOpts   { return taskOpts(
 func (DetectTokenConflictsArgs) InsertOpts() river.InsertOpts { return taskOpts() }
 func (PurgeHistoryArgs) InsertOpts() river.InsertOpts         { return taskOpts() }
 func (PurgeInactiveHostsArgs) InsertOpts() river.InsertOpts   { return taskOpts() }
+func (PurgeUnusedProjectsArgs) InsertOpts() river.InsertOpts  { return taskOpts() }
+func (PurgeUnusedEnvsArgs) InsertOpts() river.InsertOpts      { return taskOpts() }
 
 // Task is a scheduled task: its job, given a schedule by
 // workers.schedules[Kind].
@@ -82,6 +90,8 @@ var Tasks = []Task{
 	{Kind: DetectTokenConflictsArgs{}.Kind(), args: DetectTokenConflictsArgs{}},
 	{Kind: PurgeHistoryArgs{}.Kind(), args: PurgeHistoryArgs{}},
 	{Kind: PurgeInactiveHostsArgs{}.Kind(), args: PurgeInactiveHostsArgs{}},
+	{Kind: PurgeUnusedProjectsArgs{}.Kind(), args: PurgeUnusedProjectsArgs{}},
+	{Kind: PurgeUnusedEnvsArgs{}.Kind(), args: PurgeUnusedEnvsArgs{}},
 }
 
 // TaskByKind returns the task of the kind.
@@ -151,6 +161,14 @@ func addTaskWorkers(workers *river.Workers, w *Workers) {
 	river.AddWorker(workers, &taskWorker[PurgeInactiveHostsArgs]{w: w, run: func(ctx context.Context, m Maintainer) (any, error) {
 		n, err := m.PurgeInactiveHosts(ctx)
 		return map[string]int{"hosts": n}, err
+	}})
+	river.AddWorker(workers, &taskWorker[PurgeUnusedProjectsArgs]{w: w, run: func(ctx context.Context, m Maintainer) (any, error) {
+		n, err := m.PurgeUnusedProjects(ctx)
+		return map[string]int{"projects": n}, err
+	}})
+	river.AddWorker(workers, &taskWorker[PurgeUnusedEnvsArgs]{w: w, run: func(ctx context.Context, m Maintainer) (any, error) {
+		n, err := m.PurgeUnusedEnvironments(ctx)
+		return map[string]int{"environments": n}, err
 	}})
 }
 

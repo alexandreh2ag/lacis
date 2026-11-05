@@ -34,8 +34,10 @@ func (m *maintainer) DetectTokenConflicts(context.Context) (int, error) {
 	}
 	return 3, nil
 }
-func (m *maintainer) PurgeHistory(context.Context) (int64, error)     { return 0, nil }
-func (m *maintainer) PurgeInactiveHosts(context.Context) (int, error) { return 0, nil }
+func (m *maintainer) PurgeHistory(context.Context) (int64, error)          { return 0, nil }
+func (m *maintainer) PurgeInactiveHosts(context.Context) (int, error)      { return 0, nil }
+func (m *maintainer) PurgeUnusedProjects(context.Context) (int, error)     { return 0, nil }
+func (m *maintainer) PurgeUnusedEnvironments(context.Context) (int, error) { return 0, nil }
 
 func TestTasks(t *testing.T) {
 	db := dbtest.Open(t, "queue")

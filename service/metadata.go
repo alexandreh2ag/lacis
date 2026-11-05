@@ -65,6 +65,12 @@ type MetadataService interface {
 	UpdateNamespace(ctx context.Context, slug string, in NamespaceInput) (*model.Namespace, error)
 	UpdateProject(ctx context.Context, namespace, slug string, in ProjectInput) (*model.Project, error)
 	UpdateEnvironment(ctx context.Context, namespace, slug string, in EnvironmentInput) (*model.Environment, error)
+	// DeleteProject removes a project no host and no app (removed ones
+	// aside) names any more; ErrInUse otherwise.
+	DeleteProject(ctx context.Context, namespace, slug string) error
+	// DeleteEnvironment removes an env no host and no app (removed ones
+	// aside) names any more; ErrInUse otherwise.
+	DeleteEnvironment(ctx context.Context, namespace, slug string) error
 	// ReorderEnvironments orders the envs as slugs, which names each env of
 	// the namespace once.
 	ReorderEnvironments(ctx context.Context, namespace string, slugs []string) ([]model.Environment, error)
@@ -175,6 +181,45 @@ func (s *metadataService) UpdateEnvironment(ctx context.Context, namespace, slug
 		return repos.Environment.Update(ctx, e)
 	})
 	return out, err
+}
+
+func (s *metadataService) DeleteProject(ctx context.Context, namespace, slug string) error {
+	return s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
+		p, err := found(repos.Project.FindBySlug(ctx, ns.ID, slug))
+		if err != nil {
+			return err
+		}
+		u, err := repos.Project.Usage(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+		if !u.Unused() {
+			return inUse(ReasonProjectInUse, slug, u)
+		}
+		return repos.Project.Delete(ctx, p.ID)
+	})
+}
+
+func (s *metadataService) DeleteEnvironment(ctx context.Context, namespace, slug string) error {
+	return s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
+		e, err := found(repos.Environment.FindBySlug(ctx, ns.ID, slug))
+		if err != nil {
+			return err
+		}
+		u, err := repos.Environment.Usage(ctx, e.ID)
+		if err != nil {
+			return err
+		}
+		if !u.Unused() {
+			return inUse(ReasonEnvironmentInUse, slug, u)
+		}
+		return repos.Environment.Delete(ctx, e.ID)
+	})
+}
+
+func inUse(reason, slug string, u repository.Usage) error {
+	return refuse(ErrInUse, reason, map[string]any{"slug": slug, "hosts": u.Hosts, "apps": u.Apps},
+		"%s is still named by %d hosts and %d apps", slug, u.Hosts, u.Apps)
 }
 
 func (s *metadataService) ReorderEnvironments(ctx context.Context, namespace string, slugs []string) ([]model.Environment, error) {

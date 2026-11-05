@@ -271,6 +271,8 @@ workers:
     detect_token_conflicts: "0 * * * *"   # agents whose snapshots alternate between hostnames: a cloned host
     purge_history: "20 * * * *"       # change events beyond history.max_events of each namespace
     purge_inactive_hosts: ""          # hosts not seen for longer than below, as a deletion by hand
+    purge_unused_projects: ""         # projects no host and no app (removed ones aside) names any more
+    purge_unused_environments: ""     # environments no host and no app (removed ones aside) names any more
   retention:                          # how long River keeps the finished jobs
     completed: 24h
     cancelled: 24h

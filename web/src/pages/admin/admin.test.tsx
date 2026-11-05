@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Dialog, errorMessage } from '@/components/Dialog'
 import { t } from '@/i18n'
-import { family, moved } from '../Settings'
+import { family, moved, unused } from '../Settings'
 import { canAdminister } from './Admin'
 import { iconRows } from './Icons'
 import { grantText } from './Roles'
@@ -57,6 +57,18 @@ test('errorMessage says the refusals of a split in French', () => {
   expect(errorMessage(refusal('HOST_NOT_IN', { host: 'web-1', network: 'lan-b' }))).toBe('web-1 n\'est pas dans lan-b.')
   expect(errorMessage(refusal('NETWORK_EXISTS', { network: 'lan-b' }, 'CONFLICT'))).toBe('Un réseau porte déjà ce nom.')
   expect(errorMessage(refusal('NETWORK_NOT_SPLIT'))).toContain('Seul un réseau scindé')
+})
+
+test('a project or an env is deleted once nothing names it', () => {
+  expect(unused({ hosts: 0, apps: 0 })).toBe(true)
+  expect(unused({ hosts: 1, apps: 0 })).toBe(false)
+  expect(unused({ hosts: 0, apps: 2 })).toBe(false)
+  const st = t().admin.settings
+  expect(st.used(0, 0)).toBe('inutilisé')
+  expect(st.used(2, 1)).toBe('2 hosts · 1 app')
+  const refusal = { graphQLErrors: [{ message: 'still in use', extensions: { code: 'CONFLICT', reason: 'ENVIRONMENT_IN_USE', args: { hosts: 2, apps: 1 } } }] }
+  expect(errorMessage(refusal)).toBe('Encore utilisé par 2 host(s) et 1 app(s) : supprimez-les ou changez leur label d\'abord.')
+  expect(outputText({ projects: 3 })).toBe('3 projets supprimés')
 })
 
 test('errorMessage tells the refusal of the server', () => {

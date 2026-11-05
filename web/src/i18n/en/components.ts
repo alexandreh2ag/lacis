@@ -67,6 +67,7 @@ export const components: Messages['components'] = {
     alreadyIn: (host: string, network: string) => `${host} is already in ${network}.`,
     notIn: (host: string, network: string) => `${host} is not in ${network}.`,
     splitOnly: 'Only a network split by hand can be deleted: the others come from the IPs of the hosts.',
+    inUse: (hosts: string, apps: string) => `Still used by ${hosts} host(s) and ${apps} app(s): delete them or change their label first.`,
     noServer: 'The server does not respond.',
   },
   filterBar: {

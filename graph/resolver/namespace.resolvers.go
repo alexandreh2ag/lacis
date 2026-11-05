@@ -17,6 +17,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// Usage is the resolver for the usage field.
+func (r *environmentResolver) Usage(ctx context.Context, obj *model.Environment) (*graph.CatalogUsage, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.usageFor(obj.ID), nil
+}
+
 // StaleAfter is the resolver for the staleAfter field.
 func (r *namespaceResolver) StaleAfter(ctx context.Context, obj *model.Namespace) (int, error) {
 	return int(obj.StaleAfter.Duration().Seconds()), nil
@@ -306,11 +315,28 @@ func (r *networkResolver) Hosts(ctx context.Context, obj *model.Network) ([]mode
 	return out, nil
 }
 
+// Usage is the resolver for the usage field.
+func (r *projectResolver) Usage(ctx context.Context, obj *model.Project) (*graph.CatalogUsage, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.usageFor(obj.ID), nil
+}
+
+// Environment returns graph.EnvironmentResolver implementation.
+func (r *Resolver) Environment() graph.EnvironmentResolver { return &environmentResolver{r} }
+
 // Namespace returns graph.NamespaceResolver implementation.
 func (r *Resolver) Namespace() graph.NamespaceResolver { return &namespaceResolver{r} }
 
 // Network returns graph.NetworkResolver implementation.
 func (r *Resolver) Network() graph.NetworkResolver { return &networkResolver{r} }
 
+// Project returns graph.ProjectResolver implementation.
+func (r *Resolver) Project() graph.ProjectResolver { return &projectResolver{r} }
+
+type environmentResolver struct{ *Resolver }
 type namespaceResolver struct{ *Resolver }
 type networkResolver struct{ *Resolver }
+type projectResolver struct{ *Resolver }

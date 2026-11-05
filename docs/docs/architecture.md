@@ -110,7 +110,7 @@ process (`workers.enabled`) or in separate `worker` processes.
 | --- | ----------- | ---- |
 | `normalize_snapshot` | each accepted snapshot | normalizes it into the tables of its host |
 | `recompute_links` | normalization, metadata changes | computes the links of a namespace; unique per namespace and 30-second window |
-| `purge_snapshots`, `purge_removed_entities`, `purge_expired_tokens`, `detect_token_conflicts`, `purge_history`, `purge_inactive_hosts` | `workers.schedules`, or a run by hand in the administration | [scheduled tasks](./configuration/server.md#workers) |
+| `purge_snapshots`, `purge_removed_entities`, `purge_expired_tokens`, `detect_token_conflicts`, `purge_history`, `purge_inactive_hosts`, `purge_unused_projects`, `purge_unused_environments` | `workers.schedules`, or a run by hand in the administration | [scheduled tasks](./configuration/server.md#workers) |
 
 A scheduled task runs once across the processes, for 15 minutes at most, and is
 tried 5 times with a growing backoff. The administration lists the tasks, their

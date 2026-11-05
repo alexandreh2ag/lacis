@@ -116,7 +116,7 @@ func (r *Resolver) userError(ctx context.Context, err error) error {
 		return codedRefusal(ctx, CodeNotFound, err)
 	case errors.Is(err, service.ErrHostActive):
 		return coded(ctx, CodeConflict, "the host is active: its next snapshot would bring it back")
-	case errors.Is(err, service.ErrAlreadyExists), errors.Is(err, service.ErrLastAdmin):
+	case errors.Is(err, service.ErrAlreadyExists), errors.Is(err, service.ErrLastAdmin), errors.Is(err, service.ErrInUse):
 		return codedRefusal(ctx, CodeConflict, err)
 	case errors.Is(err, service.ErrForbidden):
 		return codedRefusal(ctx, CodeForbidden, err)

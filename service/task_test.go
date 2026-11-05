@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -39,8 +40,9 @@ func TestTaskService_List(t *testing.T) {
 	assert.Equal(t, []string{}, snapshots.Runs[0].Errors)
 	assert.Equal(t, []string{"db down", "timeout"}, snapshots.Runs[1].Errors)
 	assert.Nil(t, snapshots.Runs[1].Output)
-	inactive := got[len(got)-1]
-	assert.Equal(t, "purge_inactive_hosts", inactive.Kind)
+	i := slices.IndexFunc(got, func(x Task) bool { return x.Kind == "purge_inactive_hosts" })
+	require.GreaterOrEqual(t, i, 0)
+	inactive := got[i]
 	assert.Nil(t, inactive.Schedule)
 	assert.Nil(t, inactive.NextRunAt, "only run by hand")
 	assert.Equal(t, []TaskRun{}, inactive.Runs)

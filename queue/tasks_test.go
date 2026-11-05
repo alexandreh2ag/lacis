@@ -28,7 +28,7 @@ func TestTasks_MatchConfig(t *testing.T) {
 func TestPeriodicJobs(t *testing.T) {
 	jobs, err := periodicJobs(config.DefaultConfig().Workers.Schedules)
 	require.NoError(t, err)
-	assert.Len(t, jobs, 5, "purge_inactive_hosts has no schedule by default")
+	assert.Len(t, jobs, 5, "purge_inactive_hosts and the purges of the unused projects and envs have no schedule by default")
 
 	_, err = periodicJobs(map[string]string{"purge_snapshots": "every day"})
 	assert.ErrorContains(t, err, "workers.schedules.purge_snapshots")

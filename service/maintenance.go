@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appContext "github.com/alexandreh2ag/lacis/context"
+	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/repository"
 	"github.com/google/uuid"
 )
@@ -40,6 +41,12 @@ type MaintenanceService interface {
 	// workers.params.purge_inactive_hosts_after, as a deletion by hand
 	// does, and returns how many.
 	PurgeInactiveHosts(ctx context.Context) (int, error)
+	// PurgeUnusedProjects deletes the projects no host and no app (removed
+	// ones aside) names any more, as a deletion by hand, and returns how
+	// many.
+	PurgeUnusedProjects(ctx context.Context) (int, error)
+	// PurgeUnusedEnvironments does the same with the envs.
+	PurgeUnusedEnvironments(ctx context.Context) (int, error)
 }
 
 type maintenanceService struct {
@@ -186,4 +193,36 @@ func (s *maintenanceService) PurgeInactiveHosts(ctx context.Context) (int, error
 		n++
 	}
 	return n, nil
+}
+
+func (s *maintenanceService) PurgeUnusedProjects(ctx context.Context) (int, error) {
+	var deleted []model.Project
+	err := s.tx.InTx(ctx, func(repos *repository.Repositories) error {
+		var err error
+		deleted, err = repos.Project.DeleteUnused(ctx)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range deleted {
+		s.appCtx.Logger.Info("unused project purged", "project", p.Slug, "namespace_id", p.NamespaceID)
+	}
+	return len(deleted), nil
+}
+
+func (s *maintenanceService) PurgeUnusedEnvironments(ctx context.Context) (int, error) {
+	var deleted []model.Environment
+	err := s.tx.InTx(ctx, func(repos *repository.Repositories) error {
+		var err error
+		deleted, err = repos.Environment.DeleteUnused(ctx)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, e := range deleted {
+		s.appCtx.Logger.Info("unused environment purged", "environment", e.Slug, "namespace_id", e.NamespaceID)
+	}
+	return len(deleted), nil
 }

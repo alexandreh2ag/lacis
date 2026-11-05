@@ -50,6 +50,8 @@ export function reasonText(r: Refusal): string | null {
     case 'HOST_ALREADY_IN': return e.alreadyIn(arg('host'), arg('network'))
     case 'HOST_NOT_IN': return e.notIn(arg('host'), arg('network'))
     case 'NETWORK_NOT_SPLIT': return e.splitOnly
+    case 'PROJECT_IN_USE':
+    case 'ENVIRONMENT_IN_USE': return e.inUse(arg('hosts'), arg('apps'))
   }
   switch (r.code) {
     case 'FORBIDDEN': return e.forbidden

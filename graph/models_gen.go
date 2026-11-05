@@ -73,6 +73,12 @@ type AppSort struct {
 	Desc *bool        `json:"desc,omitempty"`
 }
 
+// The hosts and the apps (removed ones aside) naming a project or an env.
+type CatalogUsage struct {
+	Hosts int `json:"hosts"`
+	Apps  int `json:"apps"`
+}
+
 type ChangeEventList struct {
 	Items []repository.ChangeEventRow `json:"items"`
 	// Whether more events follow in that order.

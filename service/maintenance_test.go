@@ -119,4 +119,20 @@ func TestMaintenanceService(t *testing.T) {
 	m.host.EXPECT().FindSeenBefore(ctx, gomock.Any()).Return(nil, errDB)
 	_, err = svc.PurgeInactiveHosts(ctx)
 	assert.ErrorIs(t, err, errDB)
+
+	m.project.EXPECT().DeleteUnused(ctx).Return([]model.Project{{Slug: "old-shop"}, {Slug: "legacy"}}, nil)
+	projects, err := svc.PurgeUnusedProjects(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, projects)
+	m.project.EXPECT().DeleteUnused(ctx).Return(nil, errDB)
+	_, err = svc.PurgeUnusedProjects(ctx)
+	assert.ErrorIs(t, err, errDB)
+
+	m.env.EXPECT().DeleteUnused(ctx).Return([]model.Environment{{Slug: "qa"}}, nil)
+	envs, err := svc.PurgeUnusedEnvironments(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, envs)
+	m.env.EXPECT().DeleteUnused(ctx).Return(nil, errDB)
+	_, err = svc.PurgeUnusedEnvironments(ctx)
+	assert.ErrorIs(t, err, errDB)
 }

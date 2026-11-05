@@ -191,6 +191,8 @@ export const admin = {
       detect_token_conflicts: { label: 'Détection des hosts clonés', detail: 'Repère les agents dont deux machines partagent le token : leurs snapshots alternent entre deux noms d\'hôte sur 24 h. Ils sont signalés dans l\'onglet Agents.' },
       purge_history: { label: 'Purge de l\'historique', detail: 'Supprime les événements de l\'historique de chaque namespace au-delà des plus récents (100 000 par défaut).' },
       purge_inactive_hosts: { label: 'Purge des hosts inactifs', detail: 'Supprime les hosts sans snapshot depuis plus de la durée configurée (180 jours par défaut), comme une suppression à la main. Désactivée par défaut.' },
+      purge_unused_projects: { label: 'Purge des projets inutilisés', detail: 'Supprime les projets qu\'aucun host ni aucune app (hors apps retirées) ne nomme plus, comme une suppression à la main. Désactivée par défaut.' },
+      purge_unused_environments: { label: 'Purge des environnements inutilisés', detail: 'Supprime les environnements qu\'aucun host ni aucune app (hors apps retirées) ne nomme plus, comme une suppression à la main. Désactivée par défaut.' },
       normalize_snapshot: { label: 'Normalisation d\'un snapshot', detail: '' },
       recompute_links: { label: 'Calcul des liens', detail: '' },
     } as Record<string, { label: string; detail: string }>,
@@ -206,6 +208,8 @@ export const admin = {
       sessions: (n: number) => `${n} session${s(n)} supprimée${s(n)}`,
       conflicts: (n: number) => `${n} token${s(n)} partagé${s(n)}`,
       hosts: (n: number) => `${n} host${s(n)} supprimé${s(n)}`,
+      projects: (n: number) => `${n} projet${s(n)} supprimé${s(n)}`,
+      environments: (n: number) => `${n} environnement${s(n)} supprimé${s(n)}`,
     } as Record<string, (n: number) => string>,
     attempt: (attempt: number, max: number) => ` · essai ${attempt}/${max}`,
     // intro surrounds the configuration key and file.
@@ -256,6 +260,14 @@ export const admin = {
     noEnv: 'Aucun environnement : ils apparaissent avec les snapshots des agents.',
     saveOrder: 'Enregistrer l\'ordre',
     environment: (slug: string) => `Environnement ${slug}`,
+    usage: 'Utilisation',
+    // used says what still names a project or an env.
+    used: (hosts: number, apps: number) => hosts + apps === 0 ? 'inutilisé' : `${hosts} host${s(hosts)} · ${apps} app${s(apps)}`,
+    inUseHint: 'Des hosts ou des apps le nomment encore : il se supprime une fois qu\'il n\'est plus utilisé.',
+    deleteProjectText: 'Plus aucun host ni aucune app ne nomme ce projet. Son nom et sa description sont perdus ; '
+      + 'un agent qui le reprend dans son label le recrée.',
+    deleteEnvText: 'Plus aucun host ni aucune app ne nomme cet environnement. Son nom et sa place dans l\'ordre sont perdus ; '
+      + 'un agent qui le reprend dans son label le recrée.',
     kinds: { private: 'privé', public: 'public' } as Record<string, string>,
     searchNetwork: 'Chercher un réseau, un CIDR',
     networks: (n: number) => `${n} réseau${n > 1 ? 'x' : ''}`,

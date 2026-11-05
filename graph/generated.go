@@ -49,12 +49,14 @@ type ResolverRoot interface {
 	Account() AccountResolver
 	Agent() AgentResolver
 	App() AppResolver
+	Environment() EnvironmentResolver
 	Host() HostResolver
 	HostIP() HostIPResolver
 	Link() LinkResolver
 	Mutation() MutationResolver
 	Namespace() NamespaceResolver
 	Network() NetworkResolver
+	Project() ProjectResolver
 	Query() QueryResolver
 	Service() ServiceResolver
 	TaskRun() TaskRunResolver
@@ -153,6 +155,11 @@ type ComplexityRoot struct {
 		Version        func(childComplexity int) int
 	}
 
+	CatalogUsage struct {
+		Apps  func(childComplexity int) int
+		Hosts func(childComplexity int) int
+	}
+
 	ChangeEvent struct {
 		After      func(childComplexity int) int
 		Before     func(childComplexity int) int
@@ -217,6 +224,7 @@ type ComplexityRoot struct {
 		Name      func(childComplexity int) int
 		Slug      func(childComplexity int) int
 		SortOrder func(childComplexity int) int
+		Usage     func(childComplexity int) int
 	}
 
 	External struct {
@@ -360,8 +368,10 @@ type ComplexityRoot struct {
 		CreateEnrollmentToken func(childComplexity int, label *string, ttl int) int
 		CreateRole            func(childComplexity int, input RoleInput) int
 		CreateUser            func(childComplexity int, input CreateUserInput) int
+		DeleteEnvironment     func(childComplexity int, namespace string, slug string) int
 		DeleteHost            func(childComplexity int, namespace string, id uuid.UUID) int
 		DeleteNetwork         func(childComplexity int, namespace string, slug string) int
+		DeleteProject         func(childComplexity int, namespace string, slug string) int
 		DeleteRole            func(childComplexity int, id uuid.UUID) int
 		DeleteUser            func(childComplexity int, id uuid.UUID) int
 		MoveHostsToNetwork    func(childComplexity int, namespace string, slug string, hosts []uuid.UUID) int
@@ -465,6 +475,7 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Name        func(childComplexity int) int
 		Slug        func(childComplexity int) int
+		Usage       func(childComplexity int) int
 	}
 
 	Query struct {
@@ -614,6 +625,9 @@ type AppResolver interface {
 	Links(ctx context.Context, obj *model.App) ([]model.Link, error)
 	Dependents(ctx context.Context, obj *model.App) ([]model.Link, error)
 }
+type EnvironmentResolver interface {
+	Usage(ctx context.Context, obj *model.Environment) (*CatalogUsage, error)
+}
 type HostResolver interface {
 	Project(ctx context.Context, obj *model.Host) (*model.Project, error)
 	Environment(ctx context.Context, obj *model.Host) (*model.Environment, error)
@@ -646,6 +660,8 @@ type MutationResolver interface {
 	UpdateNamespace(ctx context.Context, namespace string, input NamespaceInput) (*model.Namespace, error)
 	UpdateProject(ctx context.Context, namespace string, slug string, input ProjectInput) (*model.Project, error)
 	UpdateEnvironment(ctx context.Context, namespace string, slug string, input EnvironmentInput) (*model.Environment, error)
+	DeleteProject(ctx context.Context, namespace string, slug string) (bool, error)
+	DeleteEnvironment(ctx context.Context, namespace string, slug string) (bool, error)
 	ReorderEnvironments(ctx context.Context, namespace string, slugs []string) ([]model.Environment, error)
 	UpdateNetwork(ctx context.Context, namespace string, slug string, input NetworkInput) (*model.Network, error)
 	SplitNetwork(ctx context.Context, namespace string, slug string, name string, hosts []uuid.UUID) (*model.Network, error)
@@ -695,6 +711,9 @@ type NetworkResolver interface {
 	Cidrs(ctx context.Context, obj *model.Network) ([]string, error)
 	SplitFrom(ctx context.Context, obj *model.Network) (*model.Network, error)
 	Hosts(ctx context.Context, obj *model.Network) ([]model.Host, error)
+}
+type ProjectResolver interface {
+	Usage(ctx context.Context, obj *model.Project) (*CatalogUsage, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
@@ -1125,6 +1144,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.AppRuntime.Version(childComplexity), true
 
+	case "CatalogUsage.apps":
+		if e.complexity.CatalogUsage.Apps == nil {
+			break
+		}
+
+		return e.complexity.CatalogUsage.Apps(childComplexity), true
+	case "CatalogUsage.hosts":
+		if e.complexity.CatalogUsage.Hosts == nil {
+			break
+		}
+
+		return e.complexity.CatalogUsage.Hosts(childComplexity), true
+
 	case "ChangeEvent.after":
 		if e.complexity.ChangeEvent.After == nil {
 			break
@@ -1384,6 +1416,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Environment.SortOrder(childComplexity), true
+	case "Environment.usage":
+		if e.complexity.Environment.Usage == nil {
+			break
+		}
+
+		return e.complexity.Environment.Usage(childComplexity), true
 
 	case "External.reason":
 		if e.complexity.External.Reason == nil {
@@ -1995,6 +2033,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(CreateUserInput)), true
+	case "Mutation.deleteEnvironment":
+		if e.complexity.Mutation.DeleteEnvironment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteEnvironment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteEnvironment(childComplexity, args["namespace"].(string), args["slug"].(string)), true
 	case "Mutation.deleteHost":
 		if e.complexity.Mutation.DeleteHost == nil {
 			break
@@ -2017,6 +2066,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteNetwork(childComplexity, args["namespace"].(string), args["slug"].(string)), true
+	case "Mutation.deleteProject":
+		if e.complexity.Mutation.DeleteProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteProject(childComplexity, args["namespace"].(string), args["slug"].(string)), true
 	case "Mutation.deleteRole":
 		if e.complexity.Mutation.DeleteRole == nil {
 			break
@@ -2649,6 +2709,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Project.Slug(childComplexity), true
+	case "Project.usage":
+		if e.complexity.Project.Usage == nil {
+			break
+		}
+
+		return e.complexity.Project.Usage(childComplexity), true
 
 	case "Query.access":
 		if e.complexity.Query.Access == nil {
@@ -3431,6 +3497,22 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteEnvironment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "namespace", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["namespace"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "slug", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["slug"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteHost_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3448,6 +3530,22 @@ func (ec *executionContext) field_Mutation_deleteHost_args(ctx context.Context, 
 }
 
 func (ec *executionContext) field_Mutation_deleteNetwork_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "namespace", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["namespace"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "slug", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["slug"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "namespace", ec.unmarshalNString2string)
@@ -4958,6 +5056,8 @@ func (ec *executionContext) fieldContext_App_project(_ context.Context, field gr
 				return ec.fieldContext_Project_name(ctx, field)
 			case "description":
 				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -4997,6 +5097,8 @@ func (ec *executionContext) fieldContext_App_environment(_ context.Context, fiel
 				return ec.fieldContext_Environment_name(ctx, field)
 			case "sortOrder":
 				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
 		},
@@ -6016,6 +6118,64 @@ func (ec *executionContext) fieldContext_AppRuntime_source(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CatalogUsage_hosts(ctx context.Context, field graphql.CollectedField, obj *CatalogUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CatalogUsage_hosts,
+		func(ctx context.Context) (any, error) {
+			return obj.Hosts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CatalogUsage_hosts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CatalogUsage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CatalogUsage_apps(ctx context.Context, field graphql.CollectedField, obj *CatalogUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CatalogUsage_apps,
+		func(ctx context.Context) (any, error) {
+			return obj.Apps, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CatalogUsage_apps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CatalogUsage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7266,6 +7426,41 @@ func (ec *executionContext) fieldContext_Environment_sortOrder(_ context.Context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Environment_usage(ctx context.Context, field graphql.CollectedField, obj *model.Environment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Environment_usage,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Environment().Usage(ctx, obj)
+		},
+		nil,
+		ec.marshalNCatalogUsage2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐCatalogUsage,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Environment_usage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Environment",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hosts":
+				return ec.fieldContext_CatalogUsage_hosts(ctx, field)
+			case "apps":
+				return ec.fieldContext_CatalogUsage_apps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CatalogUsage", field.Name)
 		},
 	}
 	return fc, nil
@@ -9073,6 +9268,8 @@ func (ec *executionContext) fieldContext_Host_project(_ context.Context, field g
 				return ec.fieldContext_Project_name(ctx, field)
 			case "description":
 				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -9112,6 +9309,8 @@ func (ec *executionContext) fieldContext_Host_environment(_ context.Context, fie
 				return ec.fieldContext_Environment_name(ctx, field)
 			case "sortOrder":
 				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
 		},
@@ -10464,6 +10663,8 @@ func (ec *executionContext) fieldContext_Mutation_updateProject(ctx context.Cont
 				return ec.fieldContext_Project_name(ctx, field)
 			case "description":
 				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -10538,6 +10739,8 @@ func (ec *executionContext) fieldContext_Mutation_updateEnvironment(ctx context.
 				return ec.fieldContext_Environment_name(ctx, field)
 			case "sortOrder":
 				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
 		},
@@ -10550,6 +10753,134 @@ func (ec *executionContext) fieldContext_Mutation_updateEnvironment(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateEnvironment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteProject,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteProject(ctx, fc.Args["namespace"].(string), fc.Args["slug"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				resource, err := ec.unmarshalNPermissionResource2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionResource(ctx, "METADATA")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				action, err := ec.unmarshalNPermissionAction2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionAction(ctx, "WRITE")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				if ec.directives.Can == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive can is not implemented")
+				}
+				return ec.directives.Can(ctx, nil, directive0, resource, action)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteEnvironment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteEnvironment,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteEnvironment(ctx, fc.Args["namespace"].(string), fc.Args["slug"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				resource, err := ec.unmarshalNPermissionResource2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionResource(ctx, "METADATA")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				action, err := ec.unmarshalNPermissionAction2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionAction(ctx, "WRITE")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				if ec.directives.Can == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive can is not implemented")
+				}
+				return ec.directives.Can(ctx, nil, directive0, resource, action)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteEnvironment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteEnvironment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -10612,6 +10943,8 @@ func (ec *executionContext) fieldContext_Mutation_reorderEnvironments(ctx contex
 				return ec.fieldContext_Environment_name(ctx, field)
 			case "sortOrder":
 				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
 		},
@@ -12505,6 +12838,8 @@ func (ec *executionContext) fieldContext_Namespace_projects(_ context.Context, f
 				return ec.fieldContext_Project_name(ctx, field)
 			case "description":
 				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -12544,6 +12879,8 @@ func (ec *executionContext) fieldContext_Namespace_environments(_ context.Contex
 				return ec.fieldContext_Environment_name(ctx, field)
 			case "sortOrder":
 				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
 		},
@@ -14324,6 +14661,41 @@ func (ec *executionContext) fieldContext_Project_description(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_usage(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_usage,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Project().Usage(ctx, obj)
+		},
+		nil,
+		ec.marshalNCatalogUsage2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐCatalogUsage,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_usage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hosts":
+				return ec.fieldContext_CatalogUsage_hosts(ctx, field)
+			case "apps":
+				return ec.fieldContext_CatalogUsage_apps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CatalogUsage", field.Name)
 		},
 	}
 	return fc, nil
@@ -20999,6 +21371,50 @@ func (ec *executionContext) _AppRuntime(ctx context.Context, sel ast.SelectionSe
 	return out
 }
 
+var catalogUsageImplementors = []string{"CatalogUsage"}
+
+func (ec *executionContext) _CatalogUsage(ctx context.Context, sel ast.SelectionSet, obj *CatalogUsage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, catalogUsageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CatalogUsage")
+		case "hosts":
+			out.Values[i] = ec._CatalogUsage_hosts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "apps":
+			out.Values[i] = ec._CatalogUsage_apps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var changeEventImplementors = []string{"ChangeEvent"}
 
 func (ec *executionContext) _ChangeEvent(ctx context.Context, sel ast.SelectionSet, obj *repository.ChangeEventRow) graphql.Marshaler {
@@ -21396,23 +21812,59 @@ func (ec *executionContext) _Environment(ctx context.Context, sel ast.SelectionS
 		case "id":
 			out.Values[i] = ec._Environment_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "slug":
 			out.Values[i] = ec._Environment_slug(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Environment_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sortOrder":
 			out.Values[i] = ec._Environment_sortOrder(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "usage":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Environment_usage(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -22986,6 +23438,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "deleteProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteEnvironment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteEnvironment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "reorderEnvironments":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reorderEnvironments(ctx, field)
@@ -24378,20 +24844,56 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 		case "id":
 			out.Values[i] = ec._Project_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "slug":
 			out.Values[i] = ec._Project_slug(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Project_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._Project_description(ctx, field, obj)
+		case "usage":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_usage(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -26403,6 +26905,20 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNCatalogUsage2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐCatalogUsage(ctx context.Context, sel ast.SelectionSet, v CatalogUsage) graphql.Marshaler {
+	return ec._CatalogUsage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCatalogUsage2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐCatalogUsage(ctx context.Context, sel ast.SelectionSet, v *CatalogUsage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CatalogUsage(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNChangeEvent2githubᚗcomᚋalexandreh2agᚋlacisᚋrepositoryᚐChangeEventRow(ctx context.Context, sel ast.SelectionSet, v repository.ChangeEventRow) graphql.Marshaler {

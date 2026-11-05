@@ -130,6 +130,8 @@ workers:
     detect_token_conflicts: "0 * * * *"
     purge_history: "20 * * * *"
     purge_inactive_hosts: ""
+    purge_unused_projects: ""
+    purge_unused_environments: ""
   retention:
     completed: 24h
     cancelled: 24h
@@ -273,6 +275,8 @@ The scheduled tasks:
 | `detect_token_conflicts` | `0 * * * *`      | Finds the agents whose snapshots alternate between hostnames: a cloned host sharing one identity. |
 | `purge_history`          | `20 * * * *`     | Deletes the change events beyond `history.max_events` in each namespace. |
 | `purge_inactive_hosts`   | `""` (manual)    | Deletes the hosts not seen for longer than `purge_inactive_hosts_after`, as a deletion by hand would. |
+| `purge_unused_projects`  | `""` (manual)    | Deletes the projects no host and no app (removed apps aside) names any more, as a deletion by hand in the namespace settings would. Their name and description are lost; an agent naming one again creates it anew. |
+| `purge_unused_environments` | `""` (manual) | Same for the environments: their name and place in the order are lost. |
 
 A scheduled task runs once across all the processes, for 15 minutes at most; River
 tries it 5 times with a growing backoff before giving up.

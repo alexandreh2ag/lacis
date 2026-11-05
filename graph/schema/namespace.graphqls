@@ -49,6 +49,8 @@ type Project {
   slug: String!
   name: String!
   description: String
+  "What still names the project: it is deleted only once nothing does."
+  usage: CatalogUsage!
 }
 
 type Environment {
@@ -56,6 +58,14 @@ type Environment {
   slug: String!
   name: String!
   sortOrder: Int!
+  "What still names the env: it is deleted only once nothing does."
+  usage: CatalogUsage!
+}
+
+"The hosts and the apps (removed ones aside) naming a project or an env."
+type CatalogUsage {
+  hosts: Int!
+  apps: Int!
 }
 
 type Network {

@@ -24,7 +24,7 @@ Granted on one namespace, or on **all namespaces** (including those created late
 | Resource    | `read` | `write` |
 | ----------- | ------ | ------- |
 | `inventory` | see the namespace: hosts, apps, services, graph, history | delete a host gone for good (`deleteHost`) |
-| `metadata`  | - | edit the namespace (name, description, freshness thresholds), projects, envs and their order, networks (update, split, move hosts, delete) |
+| `metadata`  | - | edit the namespace (name, description, freshness thresholds), projects, envs and their order, delete the unused projects and envs, networks (update, split, move hosts, delete) |
 | `*`         | both | both |
 
 A namespace the user cannot `read` on `inventory` does not exist for them: the API

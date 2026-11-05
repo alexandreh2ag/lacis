@@ -227,3 +227,81 @@ func TestMetadata_SplitNetwork(t *testing.T) {
 	assert.ErrorIs(t, svc.DeleteNetwork(ctx, "acme", "reseau-prod-c"), ErrNotFound)
 	assert.Len(t, q.namespaces, 5)
 }
+
+func TestMetadata_DeleteCatalogs(t *testing.T) {
+	f, svc, clock, _ := newMetadataFixture(t)
+	staging := f.ingest(load(t, "acme-crm-staging-1", nil))
+	prod := f.ingest(load(t, "acme-crm-prod-1", nil))
+	ns, err := f.repos.Namespace.FindBySlug(ctx, "acme")
+	require.NoError(t, err)
+
+	err = svc.DeleteEnvironment(ctx, "acme", "staging")
+	assert.ErrorIs(t, err, ErrInUse, "its host still names it")
+	var refusal *Refusal
+	require.ErrorAs(t, err, &refusal)
+	assert.Equal(t, ReasonEnvironmentInUse, refusal.Reason)
+	assert.EqualValues(t, 1, refusal.Args["hosts"])
+	assert.ErrorIs(t, svc.DeleteProject(ctx, "acme", "crm"), ErrInUse)
+
+	// A removed app does not hold an env: it loses the reference.
+	qa, err := f.repos.Environment.Ensure(ctx, ns.ID, "qa")
+	require.NoError(t, err)
+	var app model.App
+	require.NoError(t, f.db.Where("host_id = ?", prod.ID).First(&app).Error)
+	require.NoError(t, f.db.Model(&app).Updates(map[string]any{"environment_id": qa.ID, "removed_at": time.Now()}).Error)
+	require.NoError(t, svc.DeleteEnvironment(ctx, "acme", "qa"))
+	var reloaded model.App
+	require.NoError(t, f.db.First(&reloaded, "id = ?", app.ID).Error)
+	assert.Nil(t, reloaded.EnvironmentID)
+	assert.ErrorIs(t, svc.DeleteEnvironment(ctx, "acme", "qa"), ErrNotFound)
+
+	clock.now = staging.LastSeenAt.Add(ns.StaleAfter.Duration() + time.Minute)
+	require.NoError(t, svc.DeleteHost(ctx, "acme", staging.ID))
+	require.NoError(t, svc.DeleteEnvironment(ctx, "acme", "staging"), "nothing names it once its host is gone")
+	_, err = f.repos.Environment.FindBySlug(ctx, ns.ID, "staging")
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	assert.ErrorIs(t, svc.DeleteProject(ctx, "acme", "crm"), ErrInUse, "the prod host still names it")
+	assert.ErrorIs(t, svc.DeleteProject(ctx, "acme", "nope"), ErrNotFound)
+	assert.ErrorIs(t, svc.DeleteProject(ctx, "nope", "crm"), ErrNamespaceNotFound)
+}
+
+func TestCatalogs_DeleteUnused(t *testing.T) {
+	f, _, _, _ := newMetadataFixture(t)
+	prod := f.ingest(load(t, "acme-crm-prod-1", nil))
+	ns, err := f.repos.Namespace.FindBySlug(ctx, "acme")
+	require.NoError(t, err)
+	_, err = f.repos.Project.Ensure(ctx, ns.ID, "old-shop")
+	require.NoError(t, err)
+	gone, err := f.repos.Project.Ensure(ctx, ns.ID, "gone")
+	require.NoError(t, err)
+	qa, err := f.repos.Environment.Ensure(ctx, ns.ID, "qa")
+	require.NoError(t, err)
+	var app model.App
+	require.NoError(t, f.db.Where("host_id = ?", prod.ID).First(&app).Error)
+	require.NoError(t, f.db.Model(&app).Updates(map[string]any{"project_id": gone.ID, "environment_id": qa.ID, "removed_at": time.Now()}).Error)
+
+	usage, err := f.repos.Project.Usage(ctx, *prod.ProjectID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), usage.Hosts)
+	assert.False(t, usage.Unused())
+
+	projects, err := f.repos.Project.DeleteUnused(ctx)
+	require.NoError(t, err)
+	slugs := []string{}
+	for _, p := range projects {
+		slugs = append(slugs, p.Slug)
+	}
+	assert.ElementsMatch(t, []string{"old-shop", "gone"}, slugs, "crm is still named by its host")
+	envs, err := f.repos.Environment.DeleteUnused(ctx)
+	require.NoError(t, err)
+	require.Len(t, envs, 1)
+	assert.Equal(t, "qa", envs[0].Slug)
+	var reloaded model.App
+	require.NoError(t, f.db.First(&reloaded, "id = ?", app.ID).Error)
+	assert.Nil(t, reloaded.ProjectID)
+	assert.Nil(t, reloaded.EnvironmentID)
+
+	projects, err = f.repos.Project.DeleteUnused(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, projects, "nothing left to purge")
+}

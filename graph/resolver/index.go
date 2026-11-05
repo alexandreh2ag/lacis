@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/alexandreh2ag/lacis/graph"
 	"github.com/alexandreh2ag/lacis/linker"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/google/uuid"
@@ -36,6 +37,8 @@ type index struct {
 	linksTo      map[uuid.UUID][]model.Link
 	// hostsIn are the hosts of each network.
 	hostsIn map[uuid.UUID][]*model.Host
+	// usage counts the hosts and the apps of each project and env.
+	usage map[uuid.UUID]*graph.CatalogUsage
 }
 
 func newIndex(inv *model.Inventory) *index {
@@ -47,7 +50,7 @@ func newIndex(inv *model.Inventory) *index {
 		webserversOf: map[uuid.UUID][]model.Webserver{}, appsOf: map[uuid.UUID][]model.App{},
 		dependencies: map[uuid.UUID][]model.AppDependency{}, domains: map[uuid.UUID][]string{},
 		linksFrom: map[uuid.UUID][]model.Link{}, linksTo: map[uuid.UUID][]model.Link{},
-		nets: linker.NewNetworks(inv), hostsIn: map[uuid.UUID][]*model.Host{}}
+		nets: linker.NewNetworks(inv), hostsIn: map[uuid.UUID][]*model.Host{}, usage: map[uuid.UUID]*graph.CatalogUsage{}}
 	for i := range inv.Projects {
 		x.projects[inv.Projects[i].ID] = &inv.Projects[i]
 	}
@@ -60,8 +63,13 @@ func newIndex(inv *model.Inventory) *index {
 	for _, c := range inv.CIDRs {
 		x.cidrs[c.NetworkID] = append(x.cidrs[c.NetworkID], c)
 	}
-	for i := range inv.Hosts {
-		x.hosts[inv.Hosts[i].ID] = &inv.Hosts[i]
+	for i, h := range inv.Hosts {
+		x.hosts[h.ID] = &inv.Hosts[i]
+		for _, id := range []*uuid.UUID{h.ProjectID, h.EnvironmentID} {
+			if id != nil {
+				x.usageOf(*id).Hosts++
+			}
+		}
 	}
 	for _, ip := range inv.IPs {
 		x.ips[ip.HostID] = append(x.ips[ip.HostID], ip)
@@ -87,6 +95,11 @@ func newIndex(inv *model.Inventory) *index {
 	}
 	for i, a := range inv.Apps {
 		x.apps[a.ID] = &inv.Apps[i]
+		for _, id := range []*uuid.UUID{a.ProjectID, a.EnvironmentID} {
+			if id != nil {
+				x.usageOf(*id).Apps++
+			}
+		}
 		x.appsOf[a.HostID] = append(x.appsOf[a.HostID], a)
 	}
 	for _, d := range inv.Dependencies {
@@ -104,6 +117,27 @@ func newIndex(inv *model.Inventory) *index {
 		}
 	}
 	return x
+}
+
+// usageFor returns a copy of the usage of a project or env, zero when
+// nothing names it. The fields resolve concurrently: it only reads.
+func (x *index) usageFor(id uuid.UUID) *graph.CatalogUsage {
+	u := graph.CatalogUsage{}
+	if v, ok := x.usage[id]; ok {
+		u = *v
+	}
+	return &u
+}
+
+// usageOf returns the usage of a project or env, created while the index
+// is built; the ids of projects and envs never collide.
+func (x *index) usageOf(id uuid.UUID) *graph.CatalogUsage {
+	u, ok := x.usage[id]
+	if !ok {
+		u = &graph.CatalogUsage{}
+		x.usage[id] = u
+	}
+	return u
 }
 
 // network is the network of an IP: the one holding the most specific CIDR

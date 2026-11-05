@@ -191,6 +191,8 @@ export const admin: Messages['admin'] = {
       detect_token_conflicts: { label: 'Detect cloned hosts', detail: 'Finds the agents whose token two machines share: their snapshots alternate between two hostnames over 24 h. They are flagged in the Agents tab.' },
       purge_history: { label: 'Purge the history', detail: 'Deletes the change events of each namespace beyond the latest ones (100,000 by default).' },
       purge_inactive_hosts: { label: 'Purge inactive hosts', detail: 'Deletes the hosts without a snapshot for longer than the configured duration (180 days by default), as a deletion by hand would. Disabled by default.' },
+      purge_unused_projects: { label: 'Purge unused projects', detail: 'Deletes the projects no host and no app (removed apps aside) names any more, as a deletion by hand would. Disabled by default.' },
+      purge_unused_environments: { label: 'Purge unused environments', detail: 'Deletes the environments no host and no app (removed apps aside) names any more, as a deletion by hand would. Disabled by default.' },
       normalize_snapshot: { label: 'Snapshot normalization', detail: '' },
       recompute_links: { label: 'Link computation', detail: '' },
     },
@@ -205,6 +207,8 @@ export const admin: Messages['admin'] = {
       sessions: (n: number) => `${n} session${s(n)} deleted`,
       conflicts: (n: number) => `${n} shared token${s(n)}`,
       hosts: (n: number) => `${n} host${s(n)} deleted`,
+      projects: (n: number) => `${n} project${s(n)} deleted`,
+      environments: (n: number) => `${n} environment${s(n)} deleted`,
     },
     attempt: (attempt: number, max: number) => ` · attempt ${attempt}/${max}`,
     intro: ['The schedules come from ', ' in ', ' (cron); without a schedule, a task only runs by hand. '
@@ -252,6 +256,13 @@ export const admin: Messages['admin'] = {
     noEnv: 'No environment: they show up with the snapshots of the agents.',
     saveOrder: 'Save the order',
     environment: (slug: string) => `Environment ${slug}`,
+    usage: 'Usage',
+    used: (hosts: number, apps: number) => hosts + apps === 0 ? 'unused' : `${hosts} host${s(hosts)} · ${apps} app${s(apps)}`,
+    inUseHint: 'Hosts or apps still name it: it can be deleted once it is no longer used.',
+    deleteProjectText: 'No host and no app names this project any more. Its name and description are lost; '
+      + 'an agent naming it again in its label creates it anew.',
+    deleteEnvText: 'No host and no app names this environment any more. Its name and its place in the order are lost; '
+      + 'an agent naming it again in its label creates it anew.',
     kinds: { private: 'private', public: 'public' },
     searchNetwork: 'Search a network, a CIDR',
     networks: (n: number) => `${n} network${s(n)}`,
