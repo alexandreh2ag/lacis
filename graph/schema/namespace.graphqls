@@ -25,6 +25,8 @@ type Namespace {
   """
   apps(filter: AppFilter, sort: AppSort, page: PageInput, merge: Boolean = false): AppList!
   app(id: ID!): App
+  "The routes of app links, by their ids, merged."
+  linkRoutes(ids: [String!]!): [LinkRoute!]!
   services(filter: ServiceFilter, sort: ServiceSort, page: PageInput): ServiceList!
   service(id: ID!): Service
   "The services and the webservers of the hosts, in one listing."

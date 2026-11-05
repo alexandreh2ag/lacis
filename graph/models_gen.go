@@ -289,6 +289,11 @@ type HostSort struct {
 	Desc *bool         `json:"desc,omitempty"`
 }
 
+// A route of an effective link, read from the consumer to what it uses.
+type LinkRoute struct {
+	Steps []RouteStep `json:"steps"`
+}
+
 // The mutations change the metadata, never what the agents collect, but the deletion of a host
 // gone. A field left out stays; a description set empty is cleared.
 type Mutation struct {
@@ -373,6 +378,21 @@ type RoleInput struct {
 	// admin role keeps every permission: it takes neither.
 	Permissions       []NamespacePermissionInput `json:"permissions,omitempty"`
 	GlobalPermissions []GlobalPermissionInput    `json:"globalPermissions,omitempty"`
+}
+
+// A node of a route, whatever its hosts, and how the link before it was resolved.
+type RouteStep struct {
+	// One of the ends standing for the node.
+	Node union.LinkEnd `json:"node"`
+	// The hostnames of the node.
+	Hosts []string `json:"hosts"`
+	// How the link reaching the node was resolved; none for the consumer.
+	Rule       *string         `json:"rule,omitempty"`
+	Confidence *LinkConfidence `json:"confidence,omitempty"`
+	// The dependency (key = target) for the first link, the routes of a webserver after.
+	Details []string `json:"details"`
+	// The domains a webserver routes the name called with.
+	Names []string `json:"names"`
 }
 
 type ServiceFilter struct {

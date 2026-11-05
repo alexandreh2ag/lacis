@@ -8,8 +8,8 @@ import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
-import { crosses, ExpandAll, hostOf, mergeRoutes, nameOf, PathBadges, PathDetail, PathToggle, routeOf, ruleOf, techOf, useExpanded, Via,
-  type End, type PathLink, type Route } from '@/components/LinkPath'
+import { crossing, ExpandAll, hostOf, nameOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
+  type End, type PathLink } from '@/components/LinkPath'
 import { EndName, mergeUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { AppPageQuery } from '@/graphql/graphql'
@@ -32,8 +32,8 @@ const AppPageDoc = graphql(`
         environment { slug }
         host { id hostname status lastSeenAt }
         dependencies { key scheme port path target unparsed }
-        uses { ...EffectiveLink }
-        usedBy { ...EffectiveLink }
+        uses { ...AppLink }
+        usedBy { ...AppLink }
       }
     }
   }
@@ -70,8 +70,8 @@ type App = NonNullable<NonNullable<AppPageQuery['namespace']>['app']>
 type ChainNode = { id: string; kind: string; label: string; project?: string | null; env?: string | null
   entity?: { __typename: string; id?: string } | null; level: number }
 
-// Use is what the app uses, whatever the hosts it runs on: the effective
-// links to one component of a project and an env, merged.
+// Use is what the app uses, whatever the hosts: the app links to one
+// component of a project and an env, merged.
 interface Use {
   id: string
   to: End
@@ -81,26 +81,25 @@ interface Use {
   resolved: string[]
   confidence: string
   deadEnd: boolean
-  routes: Route[]
+  links: PathLink[]
 }
 
 export function usesOf(links: PathLink[]): Use[] {
-  const out = new Map<string, Use & { all: Route[] }>()
+  const out = new Map<string, Use>()
   for (const l of links) {
     const host = hostOf(l.to)
     const project = host?.project?.slug
     const env = host?.environment?.slug
     const id = [l.to.__typename, techOf(l.to), nameOf(l.to), project, env].join('\u0000')
-    const u = out.get(id) ?? { id, to: l.to, project, env, keys: [], resolved: [], confidence: l.confidence, deadEnd: false, routes: [], all: [] }
+    const u = out.get(id) ?? { id, to: l.to, project, env, keys: [], resolved: [], confidence: l.confidence, deadEnd: false, links: [] }
     if (l.key && !u.keys.includes(l.key)) u.keys.push(l.key)
-    const how = l.path[0] ? ruleOf(l.path[0]) : ''
-    if (how && !u.resolved.includes(how)) u.resolved.push(how)
+    for (const how of l.resolvedBy) if (!u.resolved.includes(how)) u.resolved.push(how)
     if (l.confidence !== 'EXACT') u.confidence = l.confidence
     u.deadEnd ||= l.deadEnd
-    u.all.push(routeOf(l))
+    u.links.push(l)
     out.set(id, u)
   }
-  return [...out.values()].map(({ all, ...u }) => ({ ...u, routes: mergeRoutes(all) }))
+  return [...out.values()]
 }
 
 export function AppPage() {
@@ -304,7 +303,7 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
   const tbl = useTable(uses,
     (u) => [nameOf(u.to), u.project ?? '', u.env ?? '', ...u.keys, ...u.resolved],
     (u, by) => by === 'key' ? u.keys.join() : by === 'confidence' ? u.confidence : by === 'project' ? u.project ?? '' : by === 'env' ? u.env ?? '' : nameOf(u.to), 'target')
-  const x = useExpanded(uses.filter((u) => crosses(u.routes)).map((u) => u.id))
+  const x = useExpanded(uses.filter((u) => crossing(u.links).length).map((u) => u.id))
   const chain = useChain(ns, a, 'needs')
   const t = useT()
   const ta = t.pages.app
@@ -323,13 +322,13 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
               <tbody>{tbl.shown.map((u) => (
                 <Fragment key={u.id}>
                   <tr>
-                    <PathToggle shown={crosses(u.routes)} open={x.isOpen(u.id)} onToggle={() => x.toggle(u.id)} />
+                    <PathToggle shown={crossing(u.links).length > 0} open={x.isOpen(u.id)} onToggle={() => x.toggle(u.id)} />
                     <td>
                       <span className="inline-flex items-center gap-2">
                         <span className="lc-node__techs"><TechLogo tech={techOf(u.to)} /></span>
                         <EndName ns={ns} end={u.to} />
                         <PathBadges deadEnd={u.deadEnd} />
-                        <Via routes={u.routes} />
+                        <Via links={u.links} />
                       </span>
                     </td>
                     <td>{u.project ? <Link to={`/${ns}/projects/${u.project}`}>{u.project}</Link> : <span className="lc-muted">—</span>}</td>
@@ -338,7 +337,7 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
                     <td className="text-ink-muted">{u.resolved.join(', ')}</td>
                     <td>{confidenceText(u.confidence)}</td>
                   </tr>
-                  {x.isOpen(u.id) ? <PathDetail routes={u.routes.filter((r) => r.length > 2)} colSpan={7} /> : null}
+                  {x.isOpen(u.id) ? <PathDetail ns={ns} links={u.links} colSpan={7} /> : null}
                 </Fragment>
               ))}</tbody>
             </table></div>

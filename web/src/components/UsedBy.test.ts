@@ -4,18 +4,14 @@ import type { End, PathLink } from './LinkPath'
 
 const host = (id: string, project = 'shop', env = 'prod') => ({ id, hostname: id, project: { slug: project }, environment: { slug: env } })
 const app = (id: string, h: ReturnType<typeof host>, name = 'front') => ({ __typename: 'App' as const, id, name, framework: 'symfony', host: h })
-const traefik = (h: ReturnType<typeof host>) => ({ __typename: 'Webserver' as const, id: 'w-' + h.id, type: 'traefik', host: h })
 const mysql = (h?: { id: string; hostname: string }) => ({ name: 'mysql', tech: 'mysql', host: h })
 const db = { __typename: 'Service' as const, id: 's1', type: 'mysql', instance: 'default', host: host('db1') }
 
-// row is an effective link from a consumer to the database, through the
+// row is an app link from a consumer to the database, through the
 // proxies given.
-function row(from: End, opts: { key?: string; confidence?: string; via?: End[] } = {}, target = mysql(host('db1'))): UsedByRow {
-  const ends = [...(opts.via ?? []), db]
-  const link: PathLink = {
-    key: opts.key, confidence: opts.confidence ?? 'EXACT', deadEnd: false, from, to: db,
-    path: ends.map((to, i) => ({ id: `${i}`, rule: i ? 'proxy' : 'route', confidence: 'EXACT', detail: {}, to })),
-  }
+let n = 0
+function row(from: End, opts: { key?: string; confidence?: string; via?: string[]; id?: string } = {}, target = mysql(host('db1'))): UsedByRow {
+  const link: PathLink = { id: opts.id ?? `l${n++}`, key: opts.key, confidence: opts.confidence ?? 'EXACT', deadEnd: false, resolvedBy: [], via: opts.via ?? [], from, to: db }
   return { link, target }
 }
 
@@ -69,14 +65,14 @@ describe('mergeUsedBy', () => {
     }))).toEqual(want)
   })
 
-  it('merges the routes of one consumer across its hosts', () => {
+  it('keeps the links of one consumer once each', () => {
     const groups = mergeUsedBy([
-      row(app('a1', host('web1')), { via: [traefik(host('lb1', 'infra'))] }),
-      row(app('a2', host('web2')), { via: [traefik(host('lb1', 'infra'))] }),
-      row(app('a2', host('web2'))),
+      row(app('a1', host('web1')), { id: 'x', via: ['traefik'] }),
+      row(app('a2', host('web2')), { id: 'x', via: ['traefik'] }),
+      row(app('a2', host('web2')), { id: 'y' }),
     ])
     expect(groups).toHaveLength(1)
-    expect(groups[0].routes.map((r) => r.map((s) => s.hosts.join(',')))).toEqual([['web1,web2', 'lb1', 'db1'], ['web2', 'db1']])
+    expect(groups[0].links.map((l) => l.id)).toEqual(['x', 'y'])
   })
 })
 

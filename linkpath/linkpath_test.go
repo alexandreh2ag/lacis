@@ -7,6 +7,7 @@ import (
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ids names the entities of the tests.
@@ -277,4 +278,19 @@ func TestPath(t *testing.T) {
 	assert.Equal(t, model.LinkConfidenceAmbiguous, p.Confidence())
 	links[0].Confidence, links[1].Confidence = model.LinkConfidenceExact, model.LinkConfidenceExact
 	assert.Equal(t, model.LinkConfidenceExact, p.Confidence())
+}
+
+func TestGroupBy(t *testing.T) {
+	links := []model.Link{
+		link("app-a", "svc-b", model.LinkConfidenceExact, nil),
+		link("app-a", "svc-c", model.LinkConfidenceInferred, nil),
+		link("app-a", "svc-b", model.LinkConfidenceAmbiguous, nil),
+	}
+	paths := []Path{{Links: []*model.Link{&links[0]}}, {Links: []*model.Link{&links[1]}}, {Links: []*model.Link{&links[2]}}}
+	groups := GroupBy(paths, func(p Path) string { return nameOfID(*p.Last().ToID) })
+	require.Len(t, groups, 2)
+	assert.Equal(t, "svc-b", groups[0].ID)
+	assert.Len(t, groups[0].Paths, 2)
+	assert.Equal(t, model.LinkConfidenceAmbiguous, groups[0].Confidence())
+	assert.Equal(t, model.LinkConfidenceInferred, groups[1].Confidence())
 }

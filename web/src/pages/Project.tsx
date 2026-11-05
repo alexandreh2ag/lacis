@@ -7,7 +7,7 @@ import { Page } from '@/components/Layout'
 import { chipsField, FilterBar } from '@/components/FilterBar'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
-import { crosses, ExpandAll, mergeRoutes, PathBadges, PathDetail, PathToggle, routeOf, useExpanded, Via, type Route } from '@/components/LinkPath'
+import { crossing, ExpandAll, PathBadges, PathDetail, PathToggle, useExpanded, Via, type PathLink } from '@/components/LinkPath'
 import { hostOf, nameOf, splitUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { ProjectPageQuery } from '@/graphql/graphql'
@@ -27,15 +27,23 @@ const ProjectPageDoc = graphql(`
           environment { slug }
           host { id hostname }
           code { version commit branch }
-          uses { ...EffectiveLink }
-          usedBy { ...EffectiveLink }
+        }
+      }
+      # The links once per app and env, whatever its deployments.
+      merged: apps(filter: { projects: [$project] }, page: { limit: 500 }, merge: true) {
+        items {
+          id name framework
+          environment { slug }
+          host { id hostname }
+          uses { ...AppLink }
+          usedBy { ...AppLink }
         }
       }
       hosts(filter: { projects: [$project] }, page: { limit: 500 }) {
         items {
           id hostname status environment { slug } ips { address defaultRoute } os { pretty } apps { id }
-          services { id type instance version usedBy { ...EffectiveLink } }
-          webservers { id type version usedBy { ...EffectiveLink } }
+          services { id type instance version usedBy { ...AppLink } }
+          webservers { id type version usedBy { ...AppLink } }
         }
       }
     }
@@ -43,6 +51,7 @@ const ProjectPageDoc = graphql(`
 `)
 
 type NS = NonNullable<ProjectPageQuery['namespace']>
+type MergedApp = NS['merged']['items'][number]
 type App = NS['apps']['items'][number]
 
 // Dep is what the apps of an env use, whatever the hosts it runs on: a
@@ -61,19 +70,19 @@ interface Dep {
   keys: string[]
   confidence: string
   deadEnd: boolean
-  // routes are the paths of the requests, through the proxies.
-  routes: Route[]
+  // links are the app links of the row, whose routes unfold under it.
+  links: PathLink[]
 }
 
 // dependencies are what the apps use, through the proxies: the app or the
 // service at the end, one row per app, merged by project and env whatever
 // the hosts.
-function dependencies(apps: App[]): Dep[] {
-  const out = new Map<string, Dep & { all: Route[] }>()
+function dependencies(apps: MergedApp[]): Dep[] {
+  const out = new Map<string, Dep>()
   for (const a of apps) {
     for (const l of a.uses) {
       const t = l.to
-      let d: Omit<Dep, 'key' | 'details' | 'by' | 'keys' | 'env' | 'confidence' | 'deadEnd' | 'routes'>
+      let d: Omit<Dep, 'key' | 'details' | 'by' | 'keys' | 'env' | 'confidence' | 'deadEnd' | 'links'>
       let detail: string
       switch (t.__typename) {
         case 'Service':
@@ -88,17 +97,17 @@ function dependencies(apps: App[]): Dep[] {
       const env = a.environment?.slug ?? ''
       // One row per app using the target: its route tells one link.
       const id = [d.kind, d.tech ?? '', d.target, d.project ?? '', env, a.name].join('\u0000')
-      const cur = out.get(id) ?? { ...d, key: id, details: [], env, by: [], keys: [], confidence: l.confidence, deadEnd: false, routes: [], all: [] }
+      const cur = out.get(id) ?? { ...d, key: id, details: [], env, by: [], keys: [], confidence: l.confidence, deadEnd: false, links: [] }
       if (!cur.details.includes(detail)) cur.details.push(detail)
       if (!cur.by.includes(a.name)) cur.by.push(a.name)
       if (l.key && !cur.keys.includes(l.key)) cur.keys.push(l.key)
       if (l.confidence !== 'EXACT') cur.confidence = l.confidence
       cur.deadEnd ||= l.deadEnd
-      cur.all.push(routeOf(l))
+      cur.links.push(l)
       out.set(id, cur)
     }
   }
-  return [...out.values()].map(({ all, ...d }) => ({ ...d, routes: mergeRoutes(all) }))
+  return [...out.values()]
 }
 
 // DeployedApp is an app of an env, whatever the hosts it is deployed on:
@@ -142,7 +151,8 @@ export function ProjectPage() {
   const inEnv = (e?: string | null) => !env.length || env.includes(e ?? '')
   const apps = useMemo(() => (n?.apps.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
   const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => inEnv(h.environment?.slug)), [n, env])
-  const deps = useMemo(() => dependencies(apps), [apps])
+  const merged = useMemo(() => (n?.merged.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
+  const deps = useMemo(() => dependencies(merged), [merged])
   // Who uses the project, through the proxies: its apps, the services of
   // its hosts, and their webservers where a route ends at them.
   const { others: usedBy, self: usedBySelf } = useMemo(() => splitUsedBy([
@@ -150,8 +160,8 @@ export function ProjectPage() {
       ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
       ...h.webservers.flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type, host: h })),
     ]),
-    ...apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
-  ], (r) => hostOf(r.link.from)?.project?.slug === slug), [hosts, apps, slug])
+    ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
+  ], (r) => hostOf(r.link.from)?.project?.slug === slug), [hosts, merged, slug])
   // An app deployed in several versions in one env diverges.
   const diverging = useMemo(() => {
     const versions = new Map<string, Set<string>>()
@@ -171,7 +181,7 @@ export function ProjectPage() {
   const depRows = useMemo(() => deps.filter((d) => !kinds.length || kinds.includes(d.kind)), [deps, kinds])
   const depTable = useTable(depRows, (d) => [d.target, d.project ?? '', ...d.details, ...d.keys, ...d.by],
     (d, by) => by === 'env' ? d.env : by === 'project' ? d.project ?? '' : by === 'by' ? d.by.join() : by === 'confidence' ? d.confidence : d.target, 'target')
-  const depOpen = useExpanded(depRows.filter((d) => crosses(d.routes)).map((d) => d.key))
+  const depOpen = useExpanded(depRows.filter((d) => crossing(d.links).length).map((d) => d.key))
 
   const domains = useMemo(() => [...new Set(apps.flatMap((a) => a.vhosts.map((v) => `${v}\u0000${a.name}\u0000${a.environment?.slug ?? ''}`)))]
     .sort().map((x) => x.split('\u0000')), [apps])
@@ -280,14 +290,14 @@ export function ProjectPage() {
               </tr></thead>
               <tbody>{depTable.shown.map((d) => (
                 <Fragment key={d.key}><tr>
-                  <PathToggle shown={crosses(d.routes)} open={depOpen.isOpen(d.key)} onToggle={() => depOpen.toggle(d.key)} />
+                  <PathToggle shown={crossing(d.links).length > 0} open={depOpen.isOpen(d.key)} onToggle={() => depOpen.toggle(d.key)} />
                   <td><span className="inline-flex items-center gap-2">
                     <span className="lc-node__techs"><TechLogo tech={d.tech ?? (d.kind === 'external' ? 'ext' : d.kind)} /></span>
                     {d.appId ? <Link className="font-semibold" to={`/${ns}/apps/${d.appId}`}>{d.target}</Link>
                       : d.hostId ? <span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${d.hostId}`}>{d.target}</Link><CopyButton value={d.target} /></span>
                       : d.kind === 'external' ? <Copyable value={d.target} /> : <span className="font-semibold">{d.target}</span>}
                     <PathBadges deadEnd={d.deadEnd} />
-                    <Via routes={d.routes} />
+                    <Via links={d.links} />
                   </span></td>
                   <td>{d.project ? <Link to={`/${ns}/projects/${d.project}`}>{d.project}</Link> : <span className="lc-muted">—</span>}</td>
                   <td className="text-ink-muted">{d.details.join(', ')}</td>
@@ -296,7 +306,7 @@ export function ProjectPage() {
                   <td><div className="flex flex-wrap gap-x-3">{d.keys.map((k) => <Copyable key={k} value={k} />)}</div></td>
                   <td>{confidenceText(d.confidence)}</td>
                 </tr>
-                  {depOpen.isOpen(d.key) ? <PathDetail routes={d.routes.filter((r) => r.length > 2)} colSpan={8} /> : null}
+                  {depOpen.isOpen(d.key) ? <PathDetail ns={ns} links={d.links} colSpan={8} /> : null}
                 </Fragment>
               ))}</tbody>
             </table></div>

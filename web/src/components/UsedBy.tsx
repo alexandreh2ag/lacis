@@ -3,23 +3,22 @@ import { Link } from 'react-router'
 import { Copyable } from './Copy'
 import { TechLogo } from './Icon'
 import { FilterBar, type FilterField } from './FilterBar'
-import { ExpandAll, hostOf, mergeRoutes, nameOf, PathBadges, PathDetail, PathToggle, routeOf, crosses, techOf, useExpanded, Via,
-  type End, type PathLink, type Route } from './LinkPath'
+import { crossing, ExpandAll, hostOf, nameOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
+  type End, type PathLink } from './LinkPath'
 import { Pager, SearchInput, SortHeader, useTable } from './Listing'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 
 export { hostOf, nameOf, techOf, type End } from './LinkPath'
 
-// UsedByRow is an effective link to a component: who uses it, and which
-// one.
+// UsedByRow is an app link to a component: who uses it, and which one.
 export interface UsedByRow {
   link: PathLink
   // target names the component used, on the host page or the project page.
   target: { name: string; tech: string; host?: { id: string; hostname: string } }
 }
 
-// usedByRows are the effective links to a component.
+// usedByRows are the app links to a component.
 export function usedByRows(links: PathLink[], target: UsedByRow['target']): UsedByRow[] {
   return links.map((link) => ({ link, target }))
 }
@@ -34,31 +33,28 @@ export interface UsedByGroup {
   targets: { name: string; tech: string }[]
   keys: string[]
   confidence: string
-  // routes are the paths of its requests, merged across the hosts.
-  routes: Route[]
+  // links are its app links, whose routes unfold under the row.
+  links: PathLink[]
 }
 
 // mergeUsedBy groups the links by consumer, project, env and component
 // used, whatever the hosts: the listing says who uses what, once.
 export function mergeUsedBy(rows: UsedByRow[]): UsedByGroup[] {
-  const out = new Map<string, UsedByGroup & { all: Route[] }>()
+  const out = new Map<string, UsedByGroup>()
   for (const r of rows) {
     const from = r.link.from
     const host = hostOf(from)
     const project = host?.project?.slug
     const env = host?.environment?.slug
     const id = [from.__typename, techOf(from), nameOf(from), project, env, r.target.tech, r.target.name].join('\u0000')
-    const g = out.get(id) ?? { id, from, project, env, targets: [], keys: [], confidence: r.link.confidence, routes: [], all: [] }
+    const g = out.get(id) ?? { id, from, project, env, targets: [], keys: [], confidence: r.link.confidence, links: [] }
     if (!g.targets.some((x) => x.name === r.target.name && x.tech === r.target.tech)) g.targets.push({ name: r.target.name, tech: r.target.tech })
     if (r.link.key && !g.keys.includes(r.link.key)) g.keys.push(r.link.key)
     if (r.link.confidence !== 'EXACT') g.confidence = r.link.confidence
-    g.all.push(routeOf(r.link))
+    if (!g.links.some((l) => l.id === r.link.id)) g.links.push(r.link)
     out.set(id, g)
   }
-  return [...out.values()].map(({ all, ...g }) => {
-    g.targets.sort((a, b) => a.name.localeCompare(b.name))
-    return { ...g, routes: mergeRoutes(all) }
-  })
+  return [...out.values()].map((g) => ({ ...g, targets: g.targets.sort((a, b) => a.name.localeCompare(b.name)) }))
 }
 
 // splitUsedBy sets apart the links the entity makes to itself, then merges
@@ -84,7 +80,7 @@ export function UsedBy({ ns, rows, fields = [], emptyText, isSelf }: {
     (r, by) => by === 'project' ? r.project ?? '' : by === 'env' ? r.env ?? ''
       : by === 'target' ? r.targets.map((x) => x.name).join() : by === 'confidence' ? r.confidence : nameOf(r.from) + (r.env ?? ''),
     'from')
-  const x = useExpanded(rows.filter((r) => crosses(r.routes)).map((r) => r.id))
+  const x = useExpanded(rows.filter((r) => crossing(r.links).length).map((r) => r.id))
   const empty = <p className="lc-muted m-0">{emptyText ?? m.empty}</p>
   // Without filter to clear, the empty listing says so alone.
   if (rows.length === 0 && !fields.some((f) => f.value !== null)) return empty
@@ -102,13 +98,13 @@ export function UsedBy({ ns, rows, fields = [], emptyText, isSelf }: {
         <tbody>{t.shown.map((r) => (
           <Fragment key={r.id}>
             <tr>
-              <PathToggle shown={crosses(r.routes)} open={x.isOpen(r.id)} onToggle={() => x.toggle(r.id)} />
+              <PathToggle shown={crossing(r.links).length > 0} open={x.isOpen(r.id)} onToggle={() => x.toggle(r.id)} />
               <td>
                 <span className="inline-flex items-center gap-2">
                   <span className="lc-node__techs"><TechLogo tech={techOf(r.from)} /></span>
                   <EndName ns={ns} end={r.from} />
                   <PathBadges self={isSelf?.(r)} />
-                  <Via routes={r.routes} />
+                  <Via links={r.links} />
                 </span>
               </td>
               <td>{r.project ? <Link to={`/${ns}/projects/${r.project}`}>{r.project}</Link> : <span className="lc-muted">—</span>}</td>
@@ -128,7 +124,7 @@ export function UsedBy({ ns, rows, fields = [], emptyText, isSelf }: {
               </td>
               <td>{confidenceText(r.confidence)}</td>
             </tr>
-            {x.isOpen(r.id) ? <PathDetail routes={r.routes.filter((y) => y.length > 2)} colSpan={7} /> : null}
+            {x.isOpen(r.id) ? <PathDetail ns={ns} links={r.links} colSpan={7} /> : null}
           </Fragment>
         ))}</tbody>
       </table></div>

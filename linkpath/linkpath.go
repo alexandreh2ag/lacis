@@ -11,6 +11,7 @@ package linkpath
 import (
 	"encoding/json"
 	"slices"
+	"sync"
 
 	"github.com/alexandreh2ag/lacis/domainmatch"
 	"github.com/alexandreh2ag/lacis/model"
@@ -34,7 +35,6 @@ func (p Path) Last() *model.Link { return p.Links[len(p.Links)-1] }
 
 // Confidence is the weakest confidence of the links crossed.
 func (p Path) Confidence() string {
-	rank := map[string]int{model.LinkConfidenceExact: 0, model.LinkConfidenceInferred: 1, model.LinkConfidenceAmbiguous: 2}
 	out := model.LinkConfidenceExact
 	for _, l := range p.Links {
 		if rank[l.Confidence] > rank[out] {
@@ -55,13 +55,18 @@ type Graph struct {
 	// reached on.
 	ports  map[*model.Link]int
 	listen map[*model.Link][]int
+	// uses keeps the effective links of each consumer once computed: the
+	// consumers behind a proxy are walked again for every thing it leads
+	// to. The graph is read concurrently.
+	mu   sync.Mutex
+	uses map[uuid.UUID][]Path
 }
 
 // New indexes the links of a namespace; they must not change while the
 // graph is used.
 func New(links []model.Link) *Graph {
 	g := &Graph{from: map[uuid.UUID][]*model.Link{}, to: map[uuid.UUID][]*model.Link{},
-		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}}
+		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
 	for i := range links {
 		l := &links[i]
 		g.from[l.FromID] = append(g.from[l.FromID], l)
@@ -82,12 +87,21 @@ func New(links []model.Link) *Graph {
 }
 
 // Uses are the effective links from an entity: one per link, or per route
-// taken through the webservers it reaches.
+// taken through the webservers it reaches. The slice is shared: it must
+// not be changed.
 func (g *Graph) Uses(id uuid.UUID) []Path {
-	var out []Path
+	g.mu.Lock()
+	out, ok := g.uses[id]
+	g.mu.Unlock()
+	if ok {
+		return out
+	}
 	for _, l := range g.from[id] {
 		out = append(out, g.From(l)...)
 	}
+	g.mu.Lock()
+	g.uses[id] = out
+	g.mu.Unlock()
 	return out
 }
 
@@ -253,3 +267,40 @@ func sameEnd(a, b *model.Link) bool {
 	}
 	return *a.ToID == *b.ToID
 }
+
+// Group is effective links merged under one id: those of one consumer, one
+// dependency and one thing used, whatever the hosts of their ends.
+type Group struct {
+	ID    string
+	Paths []Path
+}
+
+// GroupBy merges the paths by the id given, in the order met.
+func GroupBy(paths []Path, id func(Path) string) []Group {
+	at := map[string]int{}
+	var out []Group
+	for _, p := range paths {
+		k := id(p)
+		i, ok := at[k]
+		if !ok {
+			i = len(out)
+			at[k] = i
+			out = append(out, Group{ID: k})
+		}
+		out[i].Paths = append(out[i].Paths, p)
+	}
+	return out
+}
+
+// Confidence is the weakest confidence of the paths of the group.
+func (g Group) Confidence() string {
+	worst := model.LinkConfidenceExact
+	for _, p := range g.Paths {
+		if c := p.Confidence(); rank[c] > rank[worst] {
+			worst = c
+		}
+	}
+	return worst
+}
+
+var rank = map[string]int{model.LinkConfidenceExact: 0, model.LinkConfidenceInferred: 1, model.LinkConfidenceAmbiguous: 2}

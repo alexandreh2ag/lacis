@@ -113,52 +113,80 @@ func (r *appResolver) Deployments(ctx context.Context, obj *model.App) ([]model.
 }
 
 // Uses is the resolver for the uses field.
-func (r *appResolver) Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error) {
+func (r *appResolver) Uses(ctx context.Context, obj *model.App) ([]linkpath.Group, error) {
 	x, err := r.index(ctx, obj.NamespaceID)
 	if err != nil {
 		return nil, err
 	}
-	return orEmpty(x.paths.Uses(obj.ID)), nil
+	return x.appUses(obj), nil
 }
 
 // UsedBy is the resolver for the usedBy field.
-func (r *appResolver) UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Path, error) {
-	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
+func (r *appResolver) UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Group, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.appUsedBy(obj), nil
+}
+
+// ID is the resolver for the id field.
+func (r *appLinkResolver) ID(ctx context.Context, obj *linkpath.Group) (string, error) {
+	return encodeID(obj.ID), nil
 }
 
 // From is the resolver for the from field.
-func (r *effectiveLinkResolver) From(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error) {
-	l := obj.First()
+func (r *appLinkResolver) From(ctx context.Context, obj *linkpath.Group) (union.LinkEnd, error) {
+	l := obj.Paths[0].First()
 	return r.end(ctx, l, l.FromType, &l.FromID)
 }
 
 // To is the resolver for the to field.
-func (r *effectiveLinkResolver) To(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error) {
-	l := obj.Last()
+func (r *appLinkResolver) To(ctx context.Context, obj *linkpath.Group) (union.LinkEnd, error) {
+	l := obj.Paths[0].Last()
 	return r.end(ctx, l, l.ToType, l.ToID)
 }
 
 // Key is the resolver for the key field.
-func (r *effectiveLinkResolver) Key(ctx context.Context, obj *linkpath.Path) (*string, error) {
-	return optional(detail(obj.First()).Key), nil
+func (r *appLinkResolver) Key(ctx context.Context, obj *linkpath.Group) (*string, error) {
+	return optional(detail(obj.Paths[0].First()).Key), nil
 }
 
 // Confidence is the resolver for the confidence field.
-func (r *effectiveLinkResolver) Confidence(ctx context.Context, obj *linkpath.Path) (graph.LinkConfidence, error) {
-	c := graph.LinkConfidence(strings.ToUpper(obj.Confidence()))
-	if !c.IsValid() {
-		return "", fmt.Errorf("link %s: unknown confidence %q", obj.Last().ID, obj.Confidence())
-	}
-	return c, nil
+func (r *appLinkResolver) Confidence(ctx context.Context, obj *linkpath.Group) (graph.LinkConfidence, error) {
+	return graph.LinkConfidence(strings.ToUpper(obj.Confidence())), nil
 }
 
-// Path is the resolver for the path field.
-func (r *effectiveLinkResolver) Path(ctx context.Context, obj *linkpath.Path) ([]model.Link, error) {
-	out := make([]model.Link, 0, len(obj.Links))
-	for _, l := range obj.Links {
-		out = append(out, *l)
+// DeadEnd is the resolver for the deadEnd field.
+func (r *appLinkResolver) DeadEnd(ctx context.Context, obj *linkpath.Group) (bool, error) {
+	return deadEnd(obj), nil
+}
+
+// ResolvedBy is the resolver for the resolvedBy field.
+func (r *appLinkResolver) ResolvedBy(ctx context.Context, obj *linkpath.Group) ([]string, error) {
+	out := []string{}
+	for _, p := range obj.Paths {
+		out = appendNew(out, ruleOf(detail(p.First())))
 	}
 	return out, nil
+}
+
+// Via is the resolver for the via field.
+func (r *appLinkResolver) Via(ctx context.Context, obj *linkpath.Group) ([]string, error) {
+	x, err := r.index(ctx, obj.Paths[0].First().NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.via(obj), nil
+}
+
+// Routes is the resolver for the routes field.
+func (r *appLinkResolver) Routes(ctx context.Context, obj *linkpath.Group) ([]graph.LinkRoute, error) {
+	x, err := r.index(ctx, obj.Paths[0].First().NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.routes(obj.Paths), nil
 }
 
 // Project is the resolver for the project field.
@@ -331,7 +359,7 @@ func (r *serviceResolver) Dependents(ctx context.Context, obj *model.Service) ([
 }
 
 // UsedBy is the resolver for the usedBy field.
-func (r *serviceResolver) UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Path, error) {
+func (r *serviceResolver) UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Group, error) {
 	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
 }
 
@@ -371,15 +399,15 @@ func (r *webserverResolver) Links(ctx context.Context, obj *model.Webserver) ([]
 }
 
 // UsedBy is the resolver for the usedBy field.
-func (r *webserverResolver) UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Path, error) {
+func (r *webserverResolver) UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error) {
 	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
 }
 
 // App returns graph.AppResolver implementation.
 func (r *Resolver) App() graph.AppResolver { return &appResolver{r} }
 
-// EffectiveLink returns graph.EffectiveLinkResolver implementation.
-func (r *Resolver) EffectiveLink() graph.EffectiveLinkResolver { return &effectiveLinkResolver{r} }
+// AppLink returns graph.AppLinkResolver implementation.
+func (r *Resolver) AppLink() graph.AppLinkResolver { return &appLinkResolver{r} }
 
 // Host returns graph.HostResolver implementation.
 func (r *Resolver) Host() graph.HostResolver { return &hostResolver{r} }
@@ -397,7 +425,7 @@ func (r *Resolver) Service() graph.ServiceResolver { return &serviceResolver{r} 
 func (r *Resolver) Webserver() graph.WebserverResolver { return &webserverResolver{r} }
 
 type appResolver struct{ *Resolver }
-type effectiveLinkResolver struct{ *Resolver }
+type appLinkResolver struct{ *Resolver }
 type hostResolver struct{ *Resolver }
 type hostIPResolver struct{ *Resolver }
 type linkResolver struct{ *Resolver }

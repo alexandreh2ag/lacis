@@ -28,15 +28,15 @@ const HostPageDoc = graphql(`
         ips { address prefixLength interface defaultRoute network { slug name } }
         runtimes { id type version path manager packageVersion firstSeenAt }
         containers { id name containerId image version state ports networks composeProject composeService firstSeenAt }
-        services { id type instance version packageVersion details firstSeenAt usedBy { ...EffectiveLink } }
-        webservers { id type version domains firstSeenAt usedBy { ...EffectiveLink } }
+        services { id type instance version packageVersion details firstSeenAt usedBy { ...AppLink } }
+        webservers { id type version domains firstSeenAt usedBy { ...AppLink } }
         apps {
           id name path role framework frameworkVersion vhosts firstSeenAt
           code { version commit branch deployedAt }
           runtime { type version packageVersion source }
           dependencies { key }
           uses { key }
-          usedBy { ...EffectiveLink }
+          usedBy { ...AppLink }
         }
         history(page: { limit: 8 }) { items { id occurredAt hostname entityType kind before after } hasMore }
       }

@@ -50,7 +50,7 @@ type ResolverRoot interface {
 	Account() AccountResolver
 	Agent() AgentResolver
 	App() AppResolver
-	EffectiveLink() EffectiveLinkResolver
+	AppLink() AppLinkResolver
 	Environment() EnvironmentResolver
 	Host() HostResolver
 	HostIP() HostIPResolver
@@ -147,6 +147,18 @@ type ComplexityRoot struct {
 		Version     func(childComplexity int) int
 	}
 
+	AppLink struct {
+		Confidence func(childComplexity int) int
+		DeadEnd    func(childComplexity int) int
+		From       func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Key        func(childComplexity int) int
+		ResolvedBy func(childComplexity int) int
+		Routes     func(childComplexity int) int
+		To         func(childComplexity int) int
+		Via        func(childComplexity int) int
+	}
+
 	AppList struct {
 		Items func(childComplexity int) int
 		Total func(childComplexity int) int
@@ -213,15 +225,6 @@ type ComplexityRoot struct {
 		Source   func(childComplexity int) int
 		Target   func(childComplexity int) int
 		Unparsed func(childComplexity int) int
-	}
-
-	EffectiveLink struct {
-		Confidence func(childComplexity int) int
-		DeadEnd    func(childComplexity int) int
-		From       func(childComplexity int) int
-		Key        func(childComplexity int) int
-		Path       func(childComplexity int) int
-		To         func(childComplexity int) int
 	}
 
 	EnrollmentToken struct {
@@ -378,6 +381,10 @@ type ComplexityRoot struct {
 		To         func(childComplexity int) int
 	}
 
+	LinkRoute struct {
+		Steps func(childComplexity int) int
+	}
+
 	Mutation struct {
 		ChangePassword        func(childComplexity int, currentPassword string, newPassword string) int
 		CreateEnrollmentToken func(childComplexity int, label *string, ttl int) int
@@ -424,6 +431,7 @@ type ComplexityRoot struct {
 		ID                func(childComplexity int) int
 		Impact            func(childComplexity int, level GraphLevel, filter *GraphFilter, node string, direction ImpactDirection, throughProxies *bool) int
 		InactiveAfter     func(childComplexity int) int
+		LinkRoutes        func(childComplexity int, ids []string) int
 		Name              func(childComplexity int) int
 		Networks          func(childComplexity int) int
 		Projects          func(childComplexity int) int
@@ -535,6 +543,15 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 	}
 
+	RouteStep struct {
+		Confidence func(childComplexity int) int
+		Details    func(childComplexity int) int
+		Hosts      func(childComplexity int) int
+		Names      func(childComplexity int) int
+		Node       func(childComplexity int) int
+		Rule       func(childComplexity int) int
+	}
+
 	Runtime struct {
 		FirstSeenAt    func(childComplexity int) int
 		ID             func(childComplexity int) int
@@ -642,16 +659,19 @@ type AppResolver interface {
 	Links(ctx context.Context, obj *model.App) ([]model.Link, error)
 	Dependents(ctx context.Context, obj *model.App) ([]model.Link, error)
 	Deployments(ctx context.Context, obj *model.App) ([]model.App, error)
-	Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
-	UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
+	Uses(ctx context.Context, obj *model.App) ([]linkpath.Group, error)
+	UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Group, error)
 }
-type EffectiveLinkResolver interface {
-	From(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error)
-	To(ctx context.Context, obj *linkpath.Path) (union.LinkEnd, error)
-	Key(ctx context.Context, obj *linkpath.Path) (*string, error)
-	Confidence(ctx context.Context, obj *linkpath.Path) (LinkConfidence, error)
-
-	Path(ctx context.Context, obj *linkpath.Path) ([]model.Link, error)
+type AppLinkResolver interface {
+	ID(ctx context.Context, obj *linkpath.Group) (string, error)
+	From(ctx context.Context, obj *linkpath.Group) (union.LinkEnd, error)
+	To(ctx context.Context, obj *linkpath.Group) (union.LinkEnd, error)
+	Key(ctx context.Context, obj *linkpath.Group) (*string, error)
+	Confidence(ctx context.Context, obj *linkpath.Group) (LinkConfidence, error)
+	DeadEnd(ctx context.Context, obj *linkpath.Group) (bool, error)
+	ResolvedBy(ctx context.Context, obj *linkpath.Group) ([]string, error)
+	Via(ctx context.Context, obj *linkpath.Group) ([]string, error)
+	Routes(ctx context.Context, obj *linkpath.Group) ([]LinkRoute, error)
 }
 type EnvironmentResolver interface {
 	Usage(ctx context.Context, obj *model.Environment) (*CatalogUsage, error)
@@ -727,6 +747,7 @@ type NamespaceResolver interface {
 	Host(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.Host, error)
 	Apps(ctx context.Context, obj *model.Namespace, filter *AppFilter, sort *AppSort, page *PageInput, merge *bool) (*AppList, error)
 	App(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.App, error)
+	LinkRoutes(ctx context.Context, obj *model.Namespace, ids []string) ([]LinkRoute, error)
 	Services(ctx context.Context, obj *model.Namespace, filter *ServiceFilter, sort *ServiceSort, page *PageInput) (*ServiceList, error)
 	Service(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.Service, error)
 	Components(ctx context.Context, obj *model.Namespace, filter *ComponentFilter, sort *ServiceSort, page *PageInput) (*ComponentList, error)
@@ -765,7 +786,7 @@ type ServiceResolver interface {
 	Host(ctx context.Context, obj *model.Service) (*model.Host, error)
 
 	Dependents(ctx context.Context, obj *model.Service) ([]model.Link, error)
-	UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Path, error)
+	UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Group, error)
 }
 type TaskRunResolver interface {
 	ID(ctx context.Context, obj *service.TaskRun) (string, error)
@@ -784,7 +805,7 @@ type WebserverResolver interface {
 
 	Dependents(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
 	Links(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
-	UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Path, error)
+	UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error)
 }
 
 type executableSchema struct {
@@ -1148,6 +1169,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.AppCode.Version(childComplexity), true
 
+	case "AppLink.confidence":
+		if e.complexity.AppLink.Confidence == nil {
+			break
+		}
+
+		return e.complexity.AppLink.Confidence(childComplexity), true
+	case "AppLink.deadEnd":
+		if e.complexity.AppLink.DeadEnd == nil {
+			break
+		}
+
+		return e.complexity.AppLink.DeadEnd(childComplexity), true
+	case "AppLink.from":
+		if e.complexity.AppLink.From == nil {
+			break
+		}
+
+		return e.complexity.AppLink.From(childComplexity), true
+	case "AppLink.id":
+		if e.complexity.AppLink.ID == nil {
+			break
+		}
+
+		return e.complexity.AppLink.ID(childComplexity), true
+	case "AppLink.key":
+		if e.complexity.AppLink.Key == nil {
+			break
+		}
+
+		return e.complexity.AppLink.Key(childComplexity), true
+	case "AppLink.resolvedBy":
+		if e.complexity.AppLink.ResolvedBy == nil {
+			break
+		}
+
+		return e.complexity.AppLink.ResolvedBy(childComplexity), true
+	case "AppLink.routes":
+		if e.complexity.AppLink.Routes == nil {
+			break
+		}
+
+		return e.complexity.AppLink.Routes(childComplexity), true
+	case "AppLink.to":
+		if e.complexity.AppLink.To == nil {
+			break
+		}
+
+		return e.complexity.AppLink.To(childComplexity), true
+	case "AppLink.via":
+		if e.complexity.AppLink.Via == nil {
+			break
+		}
+
+		return e.complexity.AppLink.Via(childComplexity), true
+
 	case "AppList.items":
 		if e.complexity.AppList.Items == nil {
 			break
@@ -1402,43 +1478,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Dependency.Unparsed(childComplexity), true
-
-	case "EffectiveLink.confidence":
-		if e.complexity.EffectiveLink.Confidence == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.Confidence(childComplexity), true
-	case "EffectiveLink.deadEnd":
-		if e.complexity.EffectiveLink.DeadEnd == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.DeadEnd(childComplexity), true
-	case "EffectiveLink.from":
-		if e.complexity.EffectiveLink.From == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.From(childComplexity), true
-	case "EffectiveLink.key":
-		if e.complexity.EffectiveLink.Key == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.Key(childComplexity), true
-	case "EffectiveLink.path":
-		if e.complexity.EffectiveLink.Path == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.Path(childComplexity), true
-	case "EffectiveLink.to":
-		if e.complexity.EffectiveLink.To == nil {
-			break
-		}
-
-		return e.complexity.EffectiveLink.To(childComplexity), true
 
 	case "EnrollmentToken.agents":
 		if e.complexity.EnrollmentToken.Agents == nil {
@@ -2080,6 +2119,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Link.To(childComplexity), true
 
+	case "LinkRoute.steps":
+		if e.complexity.LinkRoute.Steps == nil {
+			break
+		}
+
+		return e.complexity.LinkRoute.Steps(childComplexity), true
+
 	case "Mutation.changePassword":
 		if e.complexity.Mutation.ChangePassword == nil {
 			break
@@ -2508,6 +2554,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Namespace.InactiveAfter(childComplexity), true
+	case "Namespace.linkRoutes":
+		if e.complexity.Namespace.LinkRoutes == nil {
+			break
+		}
+
+		args, err := ec.field_Namespace_linkRoutes_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Namespace.LinkRoutes(childComplexity, args["ids"].([]string)), true
 	case "Namespace.name":
 		if e.complexity.Namespace.Name == nil {
 			break
@@ -3005,6 +3062,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.RoleRef.ID(childComplexity), true
+
+	case "RouteStep.confidence":
+		if e.complexity.RouteStep.Confidence == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Confidence(childComplexity), true
+	case "RouteStep.details":
+		if e.complexity.RouteStep.Details == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Details(childComplexity), true
+	case "RouteStep.hosts":
+		if e.complexity.RouteStep.Hosts == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Hosts(childComplexity), true
+	case "RouteStep.names":
+		if e.complexity.RouteStep.Names == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Names(childComplexity), true
+	case "RouteStep.node":
+		if e.complexity.RouteStep.Node == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Node(childComplexity), true
+	case "RouteStep.rule":
+		if e.complexity.RouteStep.Rule == nil {
+			break
+		}
+
+		return e.complexity.RouteStep.Rule(childComplexity), true
 
 	case "Runtime.firstSeenAt":
 		if e.complexity.Runtime.FirstSeenAt == nil {
@@ -4108,6 +4202,17 @@ func (ec *executionContext) field_Namespace_impact_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["throughProxies"] = arg4
+	return args, nil
+}
+
+func (ec *executionContext) field_Namespace_linkRoutes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids", ec.unmarshalNString2ᚕstringᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -5788,7 +5893,7 @@ func (ec *executionContext) _App_uses(ctx context.Context, field graphql.Collect
 			return ec.resolvers.App().Uses(ctx, obj)
 		},
 		nil,
-		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
 		true,
 		true,
 	)
@@ -5802,20 +5907,26 @@ func (ec *executionContext) fieldContext_App_uses(_ context.Context, field graph
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
 			case "from":
-				return ec.fieldContext_EffectiveLink_from(ctx, field)
+				return ec.fieldContext_AppLink_from(ctx, field)
 			case "to":
-				return ec.fieldContext_EffectiveLink_to(ctx, field)
+				return ec.fieldContext_AppLink_to(ctx, field)
 			case "key":
-				return ec.fieldContext_EffectiveLink_key(ctx, field)
+				return ec.fieldContext_AppLink_key(ctx, field)
 			case "confidence":
-				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+				return ec.fieldContext_AppLink_confidence(ctx, field)
 			case "deadEnd":
-				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
-			case "path":
-				return ec.fieldContext_EffectiveLink_path(ctx, field)
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -5831,7 +5942,7 @@ func (ec *executionContext) _App_usedBy(ctx context.Context, field graphql.Colle
 			return ec.resolvers.App().UsedBy(ctx, obj)
 		},
 		nil,
-		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
 		true,
 		true,
 	)
@@ -5845,20 +5956,26 @@ func (ec *executionContext) fieldContext_App_usedBy(_ context.Context, field gra
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
 			case "from":
-				return ec.fieldContext_EffectiveLink_from(ctx, field)
+				return ec.fieldContext_AppLink_from(ctx, field)
 			case "to":
-				return ec.fieldContext_EffectiveLink_to(ctx, field)
+				return ec.fieldContext_AppLink_to(ctx, field)
 			case "key":
-				return ec.fieldContext_EffectiveLink_key(ctx, field)
+				return ec.fieldContext_AppLink_key(ctx, field)
 			case "confidence":
-				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+				return ec.fieldContext_AppLink_confidence(ctx, field)
 			case "deadEnd":
-				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
-			case "path":
-				return ec.fieldContext_EffectiveLink_path(ctx, field)
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -6149,6 +6266,271 @@ func (ec *executionContext) fieldContext_AppCode_deployedBy(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_id(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().ID(ctx, obj)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_from(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_from,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().From(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_to(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_to,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().To(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_key(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_key,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().Key(ctx, obj)
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_confidence(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_confidence,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().Confidence(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkConfidence2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkConfidence does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_deadEnd(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_deadEnd,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().DeadEnd(ctx, obj)
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_deadEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_resolvedBy(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_resolvedBy,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().ResolvedBy(ctx, obj)
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_resolvedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_via(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_via,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().Via(ctx, obj)
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_via(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppLink_routes(ctx context.Context, field graphql.CollectedField, obj *linkpath.Group) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppLink_routes,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AppLink().Routes(ctx, obj)
+		},
+		nil,
+		ec.marshalNLinkRoute2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkRouteᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppLink_routes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "steps":
+				return ec.fieldContext_LinkRoute_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LinkRoute", field.Name)
 		},
 	}
 	return fc, nil
@@ -7416,202 +7798,6 @@ func (ec *executionContext) fieldContext_Dependency_unparsed(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_from(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_from,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.EffectiveLink().From(ctx, obj)
-		},
-		nil,
-		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type LinkEnd does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_to(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_to,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.EffectiveLink().To(ctx, obj)
-		},
-		nil,
-		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type LinkEnd does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_key(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_key,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.EffectiveLink().Key(ctx, obj)
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_confidence(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_confidence,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.EffectiveLink().Confidence(ctx, obj)
-		},
-		nil,
-		ec.marshalNLinkConfidence2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type LinkConfidence does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_deadEnd(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_deadEnd,
-		func(ctx context.Context) (any, error) {
-			return obj.DeadEnd, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_deadEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EffectiveLink_path(ctx context.Context, field graphql.CollectedField, obj *linkpath.Path) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EffectiveLink_path,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.EffectiveLink().Path(ctx, obj)
-		},
-		nil,
-		ec.marshalNLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLinkᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EffectiveLink_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EffectiveLink",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Link_id(ctx, field)
-			case "source":
-				return ec.fieldContext_Link_source(ctx, field)
-			case "confidence":
-				return ec.fieldContext_Link_confidence(ctx, field)
-			case "rule":
-				return ec.fieldContext_Link_rule(ctx, field)
-			case "reason":
-				return ec.fieldContext_Link_reason(ctx, field)
-			case "key":
-				return ec.fieldContext_Link_key(ctx, field)
-			case "from":
-				return ec.fieldContext_Link_from(ctx, field)
-			case "to":
-				return ec.fieldContext_Link_to(ctx, field)
-			case "detail":
-				return ec.fieldContext_Link_detail(ctx, field)
-			case "computedAt":
-				return ec.fieldContext_Link_computedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Link", field.Name)
 		},
 	}
 	return fc, nil
@@ -11014,6 +11200,49 @@ func (ec *executionContext) fieldContext_Link_computedAt(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _LinkRoute_steps(ctx context.Context, field graphql.CollectedField, obj *LinkRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LinkRoute_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNRouteStep2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐRouteStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LinkRoute_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LinkRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_RouteStep_node(ctx, field)
+			case "hosts":
+				return ec.fieldContext_RouteStep_hosts(ctx, field)
+			case "rule":
+				return ec.fieldContext_RouteStep_rule(ctx, field)
+			case "confidence":
+				return ec.fieldContext_RouteStep_confidence(ctx, field)
+			case "details":
+				return ec.fieldContext_RouteStep_details(ctx, field)
+			case "names":
+				return ec.fieldContext_RouteStep_names(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RouteStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_updateNamespace(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11096,6 +11325,8 @@ func (ec *executionContext) fieldContext_Mutation_updateNamespace(ctx context.Co
 				return ec.fieldContext_Namespace_apps(ctx, field)
 			case "app":
 				return ec.fieldContext_Namespace_app(ctx, field)
+			case "linkRoutes":
+				return ec.fieldContext_Namespace_linkRoutes(ctx, field)
 			case "services":
 				return ec.fieldContext_Namespace_services(ctx, field)
 			case "service":
@@ -13722,6 +13953,51 @@ func (ec *executionContext) fieldContext_Namespace_app(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Namespace_linkRoutes(ctx context.Context, field graphql.CollectedField, obj *model.Namespace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Namespace_linkRoutes,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Namespace().LinkRoutes(ctx, obj, fc.Args["ids"].([]string))
+		},
+		nil,
+		ec.marshalNLinkRoute2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkRouteᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Namespace_linkRoutes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Namespace",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "steps":
+				return ec.fieldContext_LinkRoute_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LinkRoute", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Namespace_linkRoutes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Namespace_services(ctx context.Context, field graphql.CollectedField, obj *model.Namespace) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15337,6 +15613,8 @@ func (ec *executionContext) fieldContext_Query_namespaces(_ context.Context, fie
 				return ec.fieldContext_Namespace_apps(ctx, field)
 			case "app":
 				return ec.fieldContext_Namespace_app(ctx, field)
+			case "linkRoutes":
+				return ec.fieldContext_Namespace_linkRoutes(ctx, field)
 			case "services":
 				return ec.fieldContext_Namespace_services(ctx, field)
 			case "service":
@@ -15417,6 +15695,8 @@ func (ec *executionContext) fieldContext_Query_namespace(ctx context.Context, fi
 				return ec.fieldContext_Namespace_apps(ctx, field)
 			case "app":
 				return ec.fieldContext_Namespace_app(ctx, field)
+			case "linkRoutes":
+				return ec.fieldContext_Namespace_linkRoutes(ctx, field)
 			case "services":
 				return ec.fieldContext_Namespace_services(ctx, field)
 			case "service":
@@ -16772,6 +17052,180 @@ func (ec *executionContext) fieldContext_RoleRef_description(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _RouteStep_node(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RouteStep_hosts(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_hosts,
+		func(ctx context.Context) (any, error) {
+			return obj.Hosts, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_hosts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RouteStep_rule(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_rule,
+		func(ctx context.Context) (any, error) {
+			return obj.Rule, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_rule(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RouteStep_confidence(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_confidence,
+		func(ctx context.Context) (any, error) {
+			return obj.Confidence, nil
+		},
+		nil,
+		ec.marshalOLinkConfidence2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LinkConfidence does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RouteStep_details(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_details,
+		func(ctx context.Context) (any, error) {
+			return obj.Details, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_details(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RouteStep_names(ctx context.Context, field graphql.CollectedField, obj *RouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RouteStep_names,
+		func(ctx context.Context) (any, error) {
+			return obj.Names, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RouteStep_names(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Runtime_id(ctx context.Context, field graphql.CollectedField, obj *model.Runtime) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17310,7 +17764,7 @@ func (ec *executionContext) _Service_usedBy(ctx context.Context, field graphql.C
 			return ec.resolvers.Service().UsedBy(ctx, obj)
 		},
 		nil,
-		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
 		true,
 		true,
 	)
@@ -17324,20 +17778,26 @@ func (ec *executionContext) fieldContext_Service_usedBy(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
 			case "from":
-				return ec.fieldContext_EffectiveLink_from(ctx, field)
+				return ec.fieldContext_AppLink_from(ctx, field)
 			case "to":
-				return ec.fieldContext_EffectiveLink_to(ctx, field)
+				return ec.fieldContext_AppLink_to(ctx, field)
 			case "key":
-				return ec.fieldContext_EffectiveLink_key(ctx, field)
+				return ec.fieldContext_AppLink_key(ctx, field)
 			case "confidence":
-				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+				return ec.fieldContext_AppLink_confidence(ctx, field)
 			case "deadEnd":
-				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
-			case "path":
-				return ec.fieldContext_EffectiveLink_path(ctx, field)
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -18585,7 +19045,7 @@ func (ec *executionContext) _Webserver_usedBy(ctx context.Context, field graphql
 			return ec.resolvers.Webserver().UsedBy(ctx, obj)
 		},
 		nil,
-		ec.marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
 		true,
 		true,
 	)
@@ -18599,20 +19059,26 @@ func (ec *executionContext) fieldContext_Webserver_usedBy(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
 			case "from":
-				return ec.fieldContext_EffectiveLink_from(ctx, field)
+				return ec.fieldContext_AppLink_from(ctx, field)
 			case "to":
-				return ec.fieldContext_EffectiveLink_to(ctx, field)
+				return ec.fieldContext_AppLink_to(ctx, field)
 			case "key":
-				return ec.fieldContext_EffectiveLink_key(ctx, field)
+				return ec.fieldContext_AppLink_key(ctx, field)
 			case "confidence":
-				return ec.fieldContext_EffectiveLink_confidence(ctx, field)
+				return ec.fieldContext_AppLink_confidence(ctx, field)
 			case "deadEnd":
-				return ec.fieldContext_EffectiveLink_deadEnd(ctx, field)
-			case "path":
-				return ec.fieldContext_EffectiveLink_path(ctx, field)
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type EffectiveLink", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -22013,6 +22479,361 @@ func (ec *executionContext) _AppCode(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var appLinkImplementors = []string{"AppLink"}
+
+func (ec *executionContext) _AppLink(ctx context.Context, sel ast.SelectionSet, obj *linkpath.Group) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, appLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AppLink")
+		case "id":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_id(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "from":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_from(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "to":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_to(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "key":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_key(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "confidence":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_confidence(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "deadEnd":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_deadEnd(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "resolvedBy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_resolvedBy(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "via":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_via(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "routes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AppLink_routes(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var appListImplementors = []string{"AppList"}
 
 func (ec *executionContext) _AppList(ctx context.Context, sel ast.SelectionSet, obj *AppList) graphql.Marshaler {
@@ -22456,222 +23277,6 @@ func (ec *executionContext) _Dependency(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var effectiveLinkImplementors = []string{"EffectiveLink"}
-
-func (ec *executionContext) _EffectiveLink(ctx context.Context, sel ast.SelectionSet, obj *linkpath.Path) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, effectiveLinkImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("EffectiveLink")
-		case "from":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._EffectiveLink_from(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "to":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._EffectiveLink_to(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "key":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._EffectiveLink_key(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "confidence":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._EffectiveLink_confidence(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "deadEnd":
-			out.Values[i] = ec._EffectiveLink_deadEnd(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "path":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._EffectiveLink_path(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -24355,6 +24960,45 @@ func (ec *executionContext) _Link(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var linkRouteImplementors = []string{"LinkRoute"}
+
+func (ec *executionContext) _LinkRoute(ctx context.Context, sel ast.SelectionSet, obj *LinkRoute) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, linkRouteImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LinkRoute")
+		case "steps":
+			out.Values[i] = ec._LinkRoute_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -25053,6 +25697,42 @@ func (ec *executionContext) _Namespace(ctx context.Context, sel ast.SelectionSet
 					}
 				}()
 				res = ec._Namespace_app(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "linkRoutes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Namespace_linkRoutes(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -26416,6 +27096,64 @@ func (ec *executionContext) _RoleRef(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "description":
 			out.Values[i] = ec._RoleRef_description(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var routeStepImplementors = []string{"RouteStep"}
+
+func (ec *executionContext) _RouteStep(ctx context.Context, sel ast.SelectionSet, obj *RouteStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, routeStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RouteStep")
+		case "node":
+			out.Values[i] = ec._RouteStep_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hosts":
+			out.Values[i] = ec._RouteStep_hosts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rule":
+			out.Values[i] = ec._RouteStep_rule(ctx, field, obj)
+		case "confidence":
+			out.Values[i] = ec._RouteStep_confidence(ctx, field, obj)
+		case "details":
+			out.Values[i] = ec._RouteStep_details(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "names":
+			out.Values[i] = ec._RouteStep_names(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -27896,6 +28634,54 @@ func (ec *executionContext) marshalNApp2ᚕgithubᚗcomᚋalexandreh2agᚋlacis�
 	return ret
 }
 
+func (ec *executionContext) marshalNAppLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroup(ctx context.Context, sel ast.SelectionSet, v linkpath.Group) graphql.Marshaler {
+	return ec._AppLink(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []linkpath.Group) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAppLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroup(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNAppList2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐAppList(ctx context.Context, sel ast.SelectionSet, v AppList) graphql.Marshaler {
 	return ec._AppList(ctx, sel, &v)
 }
@@ -28186,54 +28972,6 @@ func (ec *executionContext) marshalNDependency2ᚕgithubᚗcomᚋalexandreh2ag�
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNDependency2githubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐAppDependency(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNEffectiveLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPath(ctx context.Context, sel ast.SelectionSet, v linkpath.Path) graphql.Marshaler {
-	return ec._EffectiveLink(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNEffectiveLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPathᚄ(ctx context.Context, sel ast.SelectionSet, v []linkpath.Path) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNEffectiveLink2githubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐPath(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -29173,6 +29911,54 @@ func (ec *executionContext) marshalNLinkEnd2githubᚗcomᚋalexandreh2agᚋlacis
 	return ec._LinkEnd(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNLinkRoute2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkRoute(ctx context.Context, sel ast.SelectionSet, v LinkRoute) graphql.Marshaler {
+	return ec._LinkRoute(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLinkRoute2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkRouteᚄ(ctx context.Context, sel ast.SelectionSet, v []LinkRoute) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNLinkRoute2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkRoute(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNNamespace2githubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐNamespace(ctx context.Context, sel ast.SelectionSet, v model.Namespace) graphql.Marshaler {
 	return ec._Namespace(ctx, sel, &v)
 }
@@ -29682,6 +30468,54 @@ func (ec *executionContext) marshalNRoleRef2ᚕgithubᚗcomᚋalexandreh2agᚋla
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNRoleRef2githubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐRole(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRouteStep2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐRouteStep(ctx context.Context, sel ast.SelectionSet, v RouteStep) graphql.Marshaler {
+	return ec._RouteStep(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNRouteStep2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐRouteStepᚄ(ctx context.Context, sel ast.SelectionSet, v []RouteStep) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNRouteStep2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐRouteStep(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -30850,6 +31684,22 @@ func (ec *executionContext) marshalOLinkConfidence2ᚕgithubᚗcomᚋalexandreh2
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalOLinkConfidence2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence(ctx context.Context, v any) (*LinkConfidence, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(LinkConfidence)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOLinkConfidence2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐLinkConfidence(ctx context.Context, sel ast.SelectionSet, v *LinkConfidence) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOLinkEnd2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚋunionᚐLinkEnd(ctx context.Context, sel ast.SelectionSet, v union.LinkEnd) graphql.Marshaler {

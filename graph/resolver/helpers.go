@@ -71,13 +71,13 @@ func (r *Resolver) history(ctx context.Context, namespace string, f service.Hist
 	return &graph.ChangeEventList{Items: rows, HasMore: more}, nil
 }
 
-// usedBy are the effective links to an app, a service or a webserver.
-func (r *Resolver) usedBy(ctx context.Context, namespaceID, id uuid.UUID) ([]linkpath.Path, error) {
+// usedBy are the app links to a service or a webserver.
+func (r *Resolver) usedBy(ctx context.Context, namespaceID, id uuid.UUID) ([]linkpath.Group, error) {
 	x, err := r.index(ctx, namespaceID)
 	if err != nil {
 		return nil, err
 	}
-	return orEmpty(x.paths.UsedBy(id)), nil
+	return orEmpty(x.groups(x.paths.UsedBy(id))), nil
 }
 
 // detail decodes the detail of a link.

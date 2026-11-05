@@ -192,8 +192,8 @@ type Service {
   firstSeenAt: Time!
   "The links to the service."
   dependents: [Link!]!
-  "Who uses the service, through the proxies in between."
-  usedBy: [EffectiveLink!]!
+  "Who uses the service, through the proxies in between, once per app whatever its hosts."
+  usedBy: [AppLink!]!
 }
 
 type Webserver {
@@ -210,8 +210,8 @@ type Webserver {
   dependents: [Link!]!
   "The links from the webserver, to the apps it serves and the backends it routes to."
   links: [Link!]!
-  "Who uses the webserver for a name its routes lead nowhere known with: the paths ending at it."
-  usedBy: [EffectiveLink!]!
+  "Who uses the webserver for a name its routes lead nowhere known with: the routes ending at it."
+  usedBy: [AppLink!]!
 }
 
 type App {
@@ -238,10 +238,10 @@ type App {
   dependents: [Link!]!
   "The deployments of the app in its project and env, itself included, by hostname; itself alone without project or env."
   deployments: [App!]!
-  "What the app uses, through the proxies in between."
-  uses: [EffectiveLink!]!
-  "Who uses the app, through the proxies in between."
-  usedBy: [EffectiveLink!]!
+  "What the app uses, through the proxies in between, all its deployments together."
+  uses: [AppLink!]!
+  "Who uses the app, through the proxies in between, all its deployments together."
+  usedBy: [AppLink!]!
 }
 
 type AppRuntime {
@@ -307,22 +307,49 @@ type Link {
 union LinkEnd = App | Service | Webserver | Host | External
 
 """
-What a consumer uses through the proxies in between: a link to a webserver goes on along the
-routes of the name called, to the app or the service at the end. The links crossed are its path.
+What an app uses through the proxies in between, whatever the hosts: the effective links of
+one consumer (an app of a project and an env), one dependency and one thing used (an app, a
+service or a webserver of a project and an env, a host, an external target), merged.
 """
-type EffectiveLink {
-  "The consumer: the app the path starts from."
+type AppLink {
+  "Its id, for linkRoutes."
+  id: String!
+  "One of the deployments of the consumer."
   from: LinkEnd!
-  "What it uses: the end of the path."
+  "One of the ends of what is used."
   to: LinkEnd!
-  "The dependency the path starts from."
+  "The dependency the links start from."
   key: String
   "The weakest confidence of the links crossed."
   confidence: LinkConfidence!
-  "The path ends at a webserver whose routes lead nowhere known for the name called."
+  "A route ends at a webserver whose routes lead nowhere known for the name called."
   deadEnd: Boolean!
-  "The links crossed, in order; one for a direct link."
-  path: [Link!]!
+  "How the first link of the routes was resolved: rule, reason and CDN."
+  resolvedBy: [String!]!
+  "The webservers a route crosses, in order, by type; none when no route crosses one."
+  via: [String!]!
+  "The routes, step by step: what linkRoutes gives."
+  routes: [LinkRoute!]!
+}
+
+"A route of an effective link, read from the consumer to what it uses."
+type LinkRoute {
+  steps: [RouteStep!]!
+}
+
+"A node of a route, whatever its hosts, and how the link before it was resolved."
+type RouteStep {
+  "One of the ends standing for the node."
+  node: LinkEnd!
+  "The hostnames of the node."
+  hosts: [String!]!
+  "How the link reaching the node was resolved; none for the consumer."
+  rule: String
+  confidence: LinkConfidence
+  "The dependency (key = target) for the first link, the routes of a webserver after."
+  details: [String!]!
+  "The domains a webserver routes the name called with."
+  names: [String!]!
 }
 
 "A target out of the namespace, or one the resolution could not place."

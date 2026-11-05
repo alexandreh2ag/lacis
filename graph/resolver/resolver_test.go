@@ -334,27 +334,66 @@ func TestNamespace_EffectiveLinks(t *testing.T) {
 		ToType: model.LinkNodeWebserver, ToID: &nginx, Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: d, ComputedAt: now})
 	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inv, nil)
 
+	routes := `routes { steps { node { __typename } hosts rule confidence details names } }`
 	got := f.post(t, `{ namespace(slug:"acme") {
-		front: app(id:"`+front.String()+`") { uses { key confidence deadEnd to { __typename ... on App { name } } path { rule to { __typename } } } }
+		front: app(id:"`+front.String()+`") { uses { key confidence deadEnd resolvedBy via to { __typename ... on App { name } } `+routes+` } }
 		api: app(id:"`+id(20).String()+`") {
-			uses { key to { __typename } path { id } }
-			usedBy { key confidence deadEnd from { ... on App { name } } path { id } }
+			uses { key via to { __typename } }
+			usedBy { key confidence via from { ... on App { name } } }
 		}
 		service(id:"`+id(21).String()+`") { usedBy { from { ... on App { name } } } }
 		webserver(id:"`+nginx.String()+`") { usedBy { key } }
 	} }`)
 	assert.JSONEq(t, `{"namespace":{
-		"front":{"uses":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"to":{"__typename":"App","name":"api"},
-			"path":[{"rule":"route","to":{"__typename":"Webserver"}},{"rule":"vhost","to":{"__typename":"App"}}]}]},
+		"front":{"uses":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"resolvedBy":["route"],"via":["nginx"],
+			"to":{"__typename":"App","name":"api"},
+			"routes":[{"steps":[
+				{"node":{"__typename":"App"},"hosts":["old-1"],"rule":null,"confidence":null,"details":[],"names":[]},
+				{"node":{"__typename":"Webserver"},"hosts":["web-1"],"rule":"route","confidence":"EXACT","details":["API_URL = https://api.example"],"names":[]},
+				{"node":{"__typename":"App"},"hosts":["web-1"],"rule":"vhost","confidence":"INFERRED","details":[],"names":[]}
+			]}]}]},
 		"api":{
-			"uses":[{"key":"DATABASE_URL","to":{"__typename":"Service"},"path":[{"id":"`+id(50).String()+`"}]},
-				{"key":"S3_URL","to":{"__typename":"External"},"path":[{"id":"`+id(51).String()+`"}]},
-				{"key":"CACHE_URL","to":{"__typename":"Host"},"path":[{"id":"`+id(53).String()+`"}]}],
-			"usedBy":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"from":{"name":"front"},
-				"path":[{"id":"`+id(54).String()+`"},{"id":"`+id(52).String()+`"}]}]},
+			"uses":[{"key":"DATABASE_URL","via":[],"to":{"__typename":"Service"}},
+				{"key":"S3_URL","via":[],"to":{"__typename":"External"}},
+				{"key":"CACHE_URL","via":[],"to":{"__typename":"Host"}}],
+			"usedBy":[{"key":"API_URL","confidence":"INFERRED","via":["nginx"],"from":{"name":"front"}}]},
 		"service":{"usedBy":[{"from":{"name":"api"}}]},
 		"webserver":{"usedBy":[]}
 	}}`, got)
+}
+
+func TestNamespace_LinkRoutes(t *testing.T) {
+	f := newFixture(t, reader())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).Times(2)
+	inv := inventory(t)
+	// api runs on web-1 and db-1, both calling postgresql: one app link,
+	// one route, the hosts of the api merged.
+	api2 := inv.Apps[0]
+	api2.ID, api2.HostID = id(24), id(11)
+	d, err := json.Marshal(linker.Detail{Rule: linker.RulePrivateIP, Key: "DATABASE_URL", Target: "10.0.1.20:5432"})
+	require.NoError(t, err)
+	pg := id(21)
+	inv.Apps = append(inv.Apps, api2)
+	inv.Links = append(inv.Links, model.Link{Base: model.Base{ID: id(55)}, NamespaceID: acmeID, FromType: model.LinkNodeApp, FromID: api2.ID,
+		ToType: model.LinkNodeService, ToID: &pg, Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: d, ComputedAt: now})
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inv, nil).Times(2)
+
+	var res struct {
+		Namespace struct {
+			App struct {
+				Uses []struct {
+					ID  string
+					Key string
+				}
+			}
+		}
+	}
+	require.NoError(t, json.Unmarshal([]byte(f.post(t, `{ namespace(slug:"acme") { app(id:"`+id(24).String()+`") { uses { id key } } } }`)), &res))
+	require.Len(t, res.Namespace.App.Uses, 3, "both deployments together")
+	db := res.Namespace.App.Uses[0]
+	require.Equal(t, "DATABASE_URL", db.Key)
+	assert.JSONEq(t, `{"namespace":{"linkRoutes":[{"steps":[{"hosts":["db-1","web-1"],"details":[]},{"hosts":["db-1"],"details":["DATABASE_URL","DATABASE_URL = 10.0.1.20:5432"]}]}]}}`,
+		f.post(t, `{ namespace(slug:"acme") { linkRoutes(ids: ["`+db.ID+`", "`+db.ID+`", "nope"]) { steps { hosts details } } } }`))
 }
 
 func TestNamespace_EmptyFields(t *testing.T) {

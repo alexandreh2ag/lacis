@@ -133,12 +133,16 @@ Through a webserver:
 - with no route left, the webserver is the end of the path, a **dead end**;
 - of several routes of one dependency to the same end, the shortest is kept.
 
-The confidence of an effective link is the weakest of its path. The front lists
-the effective links in *Uses* and *Used by*, the proxies crossed in a `via` chip
-and, unfolded, step by step; the page of a webserver keeps its own links. In
-GraphQL, `App.uses`, `App.usedBy`, `Service.usedBy` and `Webserver.usedBy` (the
-paths ending at it) give them; `impact(throughProxies: true)` crosses the
-webservers without counting them as a level.
+The confidence of an effective link is the weakest of its path. The effective links
+are given whatever the hosts, an app being its name in its project and env: one per
+consumer, dependency and thing used, the hosts of each step of their routes kept as an
+information. The front lists them in *Uses* and *Used by*, the proxies crossed in a
+`via` chip and, unfolded, step by step; the page of a webserver keeps its own links.
+In GraphQL, `App.uses` and `App.usedBy` (all the deployments of the app together),
+`Service.usedBy` and `Webserver.usedBy` (the routes ending at it) give them as
+`AppLink`s; `linkRoutes(ids)` gives their routes, step by step;
+`impact(throughProxies: true)` crosses the webservers without counting them as a
+level.
 
 ## CDN
 

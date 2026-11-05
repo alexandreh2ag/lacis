@@ -181,6 +181,15 @@ func (r *namespaceResolver) App(ctx context.Context, obj *model.Namespace, id uu
 	return x.apps[id], nil
 }
 
+// LinkRoutes is the resolver for the linkRoutes field.
+func (r *namespaceResolver) LinkRoutes(ctx context.Context, obj *model.Namespace, ids []string) ([]graph.LinkRoute, error) {
+	x, err := r.index(ctx, obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	return x.linkRoutes(ids), nil
+}
+
 // Services is the resolver for the services field.
 func (r *namespaceResolver) Services(ctx context.Context, obj *model.Namespace, filter *graph.ServiceFilter, sort *graph.ServiceSort, page *graph.PageInput) (*graph.ServiceList, error) {
 	x, err := r.index(ctx, obj.ID)

@@ -90,9 +90,11 @@ models:
         resolver: true
   LinkEnd:
     model: github.com/alexandreh2ag/lacis/graph/union.LinkEnd
-  EffectiveLink:
-    model: github.com/alexandreh2ag/lacis/linkpath.Path
+  AppLink:
+    model: github.com/alexandreh2ag/lacis/linkpath.Group
     fields:
+      id:
+        resolver: true
       from:
         resolver: true
       to:
@@ -101,7 +103,13 @@ models:
         resolver: true
       confidence:
         resolver: true
-      path:
+      deadEnd:
+        resolver: true
+      resolvedBy:
+        resolver: true
+      via:
+        resolver: true
+      routes:
         resolver: true
   Component:
     model: github.com/alexandreh2ag/lacis/graph/union.Component
