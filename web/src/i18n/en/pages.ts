@@ -186,7 +186,7 @@ export const pages: Messages['pages'] = {
     meta: 'project',
     namespaceHistory: 'History of the namespace',
     content: 'Content of the project',
-    searchApps: 'Search an app, a host, a version',
+    searchApps: 'Search an app, a version, a domain',
     differs: 'differs',
     searchHosts: 'Search a host, an IP',
     ip: 'IP',

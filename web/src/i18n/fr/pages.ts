@@ -187,7 +187,7 @@ export const pages = {
     meta: 'projet',
     namespaceHistory: 'Historique du namespace',
     content: 'Contenu du projet',
-    searchApps: 'Chercher une app, un host, une version',
+    searchApps: 'Chercher une app, une version, un domaine',
     differs: 'diffère',
     searchHosts: 'Chercher un host, une IP',
     ip: 'IP',

@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -36,6 +37,8 @@ type index struct {
 	domains      map[uuid.UUID][]string
 	linksFrom    map[uuid.UUID][]model.Link
 	linksTo      map[uuid.UUID][]model.Link
+	// deployments are the apps of each name, project and env.
+	deployments map[string][]model.App
 	// paths are the effective links, through the proxies.
 	paths *linkpath.Graph
 	// hostsIn are the hosts of each network.
@@ -52,7 +55,7 @@ func newIndex(inv *model.Inventory) *index {
 		runtimesOf: map[uuid.UUID][]model.Runtime{}, containersOf: map[uuid.UUID][]model.Container{}, servicesOf: map[uuid.UUID][]model.Service{},
 		webserversOf: map[uuid.UUID][]model.Webserver{}, appsOf: map[uuid.UUID][]model.App{},
 		dependencies: map[uuid.UUID][]model.AppDependency{}, domains: map[uuid.UUID][]string{},
-		linksFrom: map[uuid.UUID][]model.Link{}, linksTo: map[uuid.UUID][]model.Link{},
+		linksFrom: map[uuid.UUID][]model.Link{}, linksTo: map[uuid.UUID][]model.Link{}, deployments: map[string][]model.App{},
 		nets: linker.NewNetworks(inv), hostsIn: map[uuid.UUID][]*model.Host{}, usage: map[uuid.UUID]*graph.CatalogUsage{}}
 	for i := range inv.Projects {
 		x.projects[inv.Projects[i].ID] = &inv.Projects[i]
@@ -104,6 +107,9 @@ func newIndex(inv *model.Inventory) *index {
 			}
 		}
 		x.appsOf[a.HostID] = append(x.appsOf[a.HostID], a)
+		if key, ok := deploymentKey(&a); ok {
+			x.deployments[key] = append(x.deployments[key], a)
+		}
 	}
 	for _, d := range inv.Dependencies {
 		x.dependencies[d.AppID] = append(x.dependencies[d.AppID], d)
@@ -227,4 +233,54 @@ func (r *Resolver) forgetAll(ctx context.Context) {
 		defer c.mu.Unlock()
 		c.indexes = map[uuid.UUID]*index{}
 	}
+}
+
+// deploymentKey names the deployments of one app: its name, project and
+// env. An app without project or env has none: nothing tells two of them
+// apart from two apps of the same name.
+func deploymentKey(a *model.App) (string, bool) {
+	if a.ProjectID == nil || a.EnvironmentID == nil {
+		return "", false
+	}
+	return a.Name + "\x00" + a.ProjectID.String() + "\x00" + a.EnvironmentID.String(), true
+}
+
+// deploymentsOf are the deployments of an app, itself included, by
+// hostname.
+func (x *index) deploymentsOf(a *model.App) []model.App {
+	key, ok := deploymentKey(a)
+	if !ok {
+		return []model.App{*a}
+	}
+	hostname := func(id uuid.UUID) string {
+		if h := x.hosts[id]; h != nil {
+			return h.Hostname
+		}
+		return ""
+	}
+	out := slices.Clone(x.deployments[key])
+	slices.SortFunc(out, func(a, b model.App) int {
+		if c := natural(hostname(a.HostID), hostname(b.HostID)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+	return out
+}
+
+// mergeDeployments keeps the first app of each name, project and env, in
+// the order given.
+func mergeDeployments(apps []model.App) []model.App {
+	seen := map[string]bool{}
+	out := apps[:0:0]
+	for _, a := range apps {
+		if key, ok := deploymentKey(&a); ok {
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+		}
+		out = append(out, a)
+	}
+	return out
 }

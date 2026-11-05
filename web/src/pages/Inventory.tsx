@@ -18,9 +18,9 @@ const AppsDoc = graphql(`
       environments { id slug sortOrder }
       projects { id slug }
       facets { frameworks { name versions } runtimes { name versions } }
-      apps(filter: $filter, sort: $sort, page: $page) {
+      apps(filter: $filter, sort: $sort, page: $page, merge: true) {
         total
-        items { id name path framework frameworkVersion vhosts project { slug } environment { slug } host { id hostname } code { version commit } runtime { type version } }
+        items { id name path framework frameworkVersion vhosts project { slug } environment { slug } code { version commit } runtime { type version } deployments { id code { version } } }
       }
     }
   }
@@ -48,6 +48,20 @@ const kinds: ComponentKind[] = ['SERVICE', 'WEBSERVER']
 
 function HostLink({ ns, host }: { ns: string; host: { id: string; hostname: string } }) {
   return <span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${host.id}`}>{host.hostname}</Link><CopyButton value={host.hostname} /></span>
+}
+
+// Versions are those of the deployments of an app, once each, told apart
+// when they differ.
+function Versions({ versions }: { versions: (string | null | undefined)[] }) {
+  const t = useT()
+  const all = [...new Set(versions.filter((v): v is string => !!v))]
+  if (all.length < 2) return all[0] ? <Copyable value={all[0]} /> : null
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-3">
+      {all.map((v) => <span key={v} className="lc-mono text-status-stale">{v}</span>)}
+      <span className="lc-badge lc-badge--stale h-[18px] text-[11px]">{t.pages.project.differs}</span>
+    </span>
+  )
 }
 
 export function Apps() {
@@ -81,14 +95,13 @@ export function Apps() {
 
       {error ? <p role="alert">{error.message}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-        <thead><tr>{head(ts.app, 'NAME')}{head(ts.project, 'PROJECT')}{head(ts.env, 'ENV')}{head(ts.host, 'HOSTNAME')}{head(ts.version, 'VERSION')}{head(ts.framework, 'FRAMEWORK')}<th>{ts.domain}</th></tr></thead>
+        <thead><tr>{head(ts.app, 'NAME')}{head(ts.project, 'PROJECT')}{head(ts.env, 'ENV')}{head(ts.version, 'VERSION')}{head(ts.framework, 'FRAMEWORK')}<th>{ts.domain}</th></tr></thead>
         <tbody>{(list?.items ?? []).map((a) => (
           <tr key={a.id}>
             <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
             <td>{a.project ? <Link to={`/${ns}/projects/${a.project.slug}`}>{a.project.slug}</Link> : '—'}</td>
             <td>{a.environment?.slug}</td>
-            <td><HostLink ns={ns} host={a.host} /></td>
-            <td>{a.code?.version ? <Copyable value={a.code.version} /> : null}</td>
+            <td><Versions versions={a.deployments.map((d) => d.code?.version)} /></td>
             <td className="text-ink-muted">{[a.framework, a.frameworkVersion].filter(Boolean).join(' ')}</td>
             <td>{a.vhosts[0] ? <Copyable value={a.vhosts[0]} /> : null}</td>
           </tr>

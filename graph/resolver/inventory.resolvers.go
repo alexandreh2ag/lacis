@@ -103,6 +103,15 @@ func (r *appResolver) Dependents(ctx context.Context, obj *model.App) ([]model.L
 	return x.linksTo[obj.ID], nil
 }
 
+// Deployments is the resolver for the deployments field.
+func (r *appResolver) Deployments(ctx context.Context, obj *model.App) ([]model.App, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.deploymentsOf(obj), nil
+}
+
 // Uses is the resolver for the uses field.
 func (r *appResolver) Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error) {
 	x, err := r.index(ctx, obj.NamespaceID)

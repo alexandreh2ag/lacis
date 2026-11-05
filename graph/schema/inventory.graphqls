@@ -232,6 +232,8 @@ type App {
   links: [Link!]!
   "The links to the app, from the webservers serving it."
   dependents: [Link!]!
+  "The deployments of the app in its project and env, itself included, by hostname; itself alone without project or env."
+  deployments: [App!]!
   "What the app uses, through the proxies in between."
   uses: [EffectiveLink!]!
   "Who uses the app, through the proxies in between."

@@ -101,6 +101,35 @@ function dependencies(apps: App[]): Dep[] {
   return [...out.values()].map(({ all, ...d }) => ({ ...d, routes: mergeRoutes(all) }))
 }
 
+// DeployedApp is an app of an env, whatever the hosts it is deployed on:
+// its versions and commits, several when they diverge.
+interface DeployedApp {
+  key: string
+  // id is one of its deployments, whose page lists the others.
+  id: string
+  name: string
+  framework?: string | null
+  env: string
+  versions: string[]
+  commits: string[]
+  vhosts: string[]
+}
+
+function deployedApps(apps: App[]): DeployedApp[] {
+  const out = new Map<string, DeployedApp>()
+  for (const a of apps) {
+    const env = a.environment?.slug ?? ''
+    const key = a.name + '\u0000' + env
+    const d = out.get(key) ?? { key, id: a.id, name: a.name, framework: a.framework, env, versions: [], commits: [], vhosts: [] }
+    const version = a.code?.version
+    if (version && !d.versions.includes(version)) d.versions.push(version)
+    if (a.code?.commit && !d.commits.includes(a.code.commit)) d.commits.push(a.code.commit)
+    for (const v of a.vhosts) if (!d.vhosts.includes(v)) d.vhosts.push(v)
+    out.set(key, d)
+  }
+  return [...out.values()]
+}
+
 export function ProjectPage() {
   const { ns = '', slug = '' } = useParams()
   const { data, error } = useQuery(ProjectPageDoc, { variables: { ns, project: slug }, ...refresh })
@@ -133,8 +162,9 @@ export function ProjectPage() {
     return new Set([...versions].filter(([, v]) => v.size > 1).map(([k]) => k))
   }, [apps])
 
-  const appTable = useTable(apps, (a) => [a.name, a.host.hostname, a.code?.version ?? '', ...a.vhosts],
-    (a, by) => by === 'env' ? a.environment?.slug ?? '' : by === 'host' ? a.host.hostname : by === 'version' ? a.code?.version ?? '' : a.name, 'name')
+  const deployed = useMemo(() => deployedApps(apps), [apps])
+  const appTable = useTable(deployed, (a) => [a.name, ...a.versions, ...a.vhosts],
+    (a, by) => by === 'env' ? a.env : by === 'version' ? a.versions.join() : a.name, 'name')
   const hostTable = useTable(hosts, (h) => [h.hostname, ...h.ips.map((i) => i.address)],
     (h, by) => by === 'env' ? h.environment?.slug ?? '' : by === 'apps' ? h.apps.length : by === 'status' ? h.status : h.hostname, 'hostname')
   const [kinds, setKinds] = useState<string[]>([])
@@ -147,7 +177,7 @@ export function ProjectPage() {
     .sort().map((x) => x.split('\u0000')), [apps])
   const tabs = [
     { id: 'general', label: ts.general },
-    { id: 'apps', label: tp.tabs.apps, count: apps.length },
+    { id: 'apps', label: tp.tabs.apps, count: deployed.length },
     { id: 'hosts', label: tp.tabs.hosts, count: hosts.length },
     { id: 'dependencies', label: ts.dependencies, count: deps.length },
     { id: 'used-by', label: ts.usedBy, count: usedBy.length },
@@ -179,30 +209,28 @@ export function ProjectPage() {
         {tab === 'apps' ? (
           <>
             <FilterBar search={<SearchInput value={appTable.q} onChange={appTable.setQ} placeholder={tp.searchApps} width={300} />}
-              fields={[envField]} count={ts.deployments(apps.length)} />
+              fields={[envField]} count={ts.apps(deployed.length)} />
             <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
               <thead><tr>
                 <SortHeader label={ts.app} by="name" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
                 <SortHeader label={ts.env} by="env" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
-                <SortHeader label={ts.host} by="host" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
                 <SortHeader label={ts.version} by="version" sort={appTable.sort.by} desc={appTable.sort.desc} onSort={appTable.onSort} />
                 <th>{ts.commit}</th><th>{ts.domain}</th>
               </tr></thead>
               <tbody>{appTable.shown.map((a) => {
-                const diverges = diverging.has(a.name + '@' + (a.environment?.slug ?? ''))
+                const diverges = a.versions.length > 1 || a.commits.length > 1
                 return (
-                  <tr key={a.id}>
+                  <tr key={a.key}>
                     <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
-                    <td>{a.environment?.slug}</td>
-                    <td><span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${a.host.id}`}>{a.host.hostname}</Link><CopyButton value={a.host.hostname} /></span></td>
-                    <td><span className={'lc-mono' + (diverges ? ' text-status-stale' : '')}>{a.code?.version}</span>{diverges ? <span className="lc-badge lc-badge--stale ml-1.5 h-[18px] text-[11px]">{tp.differs}</span> : null}</td>
-                    <td>{a.code?.commit ? <Copyable value={a.code.commit} shown={a.code.commit.slice(0, 7)} /> : null}</td>
+                    <td>{a.env}</td>
+                    <td><span className={'lc-mono' + (diverges ? ' text-status-stale' : '')}>{a.versions.join(', ')}</span>{diverges ? <span className="lc-badge lc-badge--stale ml-1.5 h-[18px] text-[11px]">{tp.differs}</span> : null}</td>
+                    <td><span className="flex flex-wrap gap-x-3">{a.commits.map((c) => <Copyable key={c} value={c} shown={c.slice(0, 7)} />)}</span></td>
                     <td>{a.vhosts[0] ? <Copyable value={a.vhosts[0]} /> : null}</td>
                   </tr>
                 )
               })}</tbody>
             </table></div>
-            <Pager page={appTable.page} size={appTable.size} total={appTable.list.length} noun={ts.nouns.deployments} onPage={appTable.setPage} onSize={appTable.setSize} />
+            <Pager page={appTable.page} size={appTable.size} total={appTable.list.length} noun={ts.nouns.apps} onPage={appTable.setPage} onSize={appTable.setSize} />
           </>
         ) : null}
         {tab === 'hosts' ? (

@@ -146,7 +146,7 @@ func (r *namespaceResolver) Host(ctx context.Context, obj *model.Namespace, id u
 }
 
 // Apps is the resolver for the apps field.
-func (r *namespaceResolver) Apps(ctx context.Context, obj *model.Namespace, filter *graph.AppFilter, sort *graph.AppSort, page *graph.PageInput) (*graph.AppList, error) {
+func (r *namespaceResolver) Apps(ctx context.Context, obj *model.Namespace, filter *graph.AppFilter, sort *graph.AppSort, page *graph.PageInput, merge *bool) (*graph.AppList, error) {
 	x, err := r.index(ctx, obj.ID)
 	if err != nil {
 		return nil, err
@@ -165,6 +165,9 @@ func (r *namespaceResolver) Apps(ctx context.Context, obj *model.Namespace, filt
 		}
 	}
 	x.sortApps(apps, sort)
+	if merge != nil && *merge {
+		apps = mergeDeployments(apps)
+	}
 	items, total := paginate(apps, page)
 	return &graph.AppList{Items: items, Total: total}, nil
 }

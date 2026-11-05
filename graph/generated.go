@@ -113,6 +113,7 @@ type ComplexityRoot struct {
 		Code             func(childComplexity int) int
 		Dependencies     func(childComplexity int) int
 		Dependents       func(childComplexity int) int
+		Deployments      func(childComplexity int) int
 		Environment      func(childComplexity int) int
 		FirstSeenAt      func(childComplexity int) int
 		Framework        func(childComplexity int) int
@@ -408,7 +409,7 @@ type ComplexityRoot struct {
 
 	Namespace struct {
 		App               func(childComplexity int, id uuid.UUID) int
-		Apps              func(childComplexity int, filter *AppFilter, sort *AppSort, page *PageInput) int
+		Apps              func(childComplexity int, filter *AppFilter, sort *AppSort, page *PageInput, merge *bool) int
 		CanEdit           func(childComplexity int) int
 		Components        func(childComplexity int, filter *ComponentFilter, sort *ServiceSort, page *PageInput) int
 		Counts            func(childComplexity int) int
@@ -639,6 +640,7 @@ type AppResolver interface {
 	Dependencies(ctx context.Context, obj *model.App) ([]model.AppDependency, error)
 	Links(ctx context.Context, obj *model.App) ([]model.Link, error)
 	Dependents(ctx context.Context, obj *model.App) ([]model.Link, error)
+	Deployments(ctx context.Context, obj *model.App) ([]model.App, error)
 	Uses(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
 	UsedBy(ctx context.Context, obj *model.App) ([]linkpath.Path, error)
 }
@@ -722,7 +724,7 @@ type NamespaceResolver interface {
 	Networks(ctx context.Context, obj *model.Namespace) ([]model.Network, error)
 	Hosts(ctx context.Context, obj *model.Namespace, filter *HostFilter, sort *HostSort, page *PageInput) (*HostList, error)
 	Host(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.Host, error)
-	Apps(ctx context.Context, obj *model.Namespace, filter *AppFilter, sort *AppSort, page *PageInput) (*AppList, error)
+	Apps(ctx context.Context, obj *model.Namespace, filter *AppFilter, sort *AppSort, page *PageInput, merge *bool) (*AppList, error)
 	App(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.App, error)
 	Services(ctx context.Context, obj *model.Namespace, filter *ServiceFilter, sort *ServiceSort, page *PageInput) (*ServiceList, error)
 	Service(ctx context.Context, obj *model.Namespace, id uuid.UUID) (*model.Service, error)
@@ -969,6 +971,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.App.Dependents(childComplexity), true
+	case "App.deployments":
+		if e.complexity.App.Deployments == nil {
+			break
+		}
+
+		return e.complexity.App.Deployments(childComplexity), true
 	case "App.environment":
 		if e.complexity.App.Environment == nil {
 			break
@@ -2384,7 +2392,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Namespace.Apps(childComplexity, args["filter"].(*AppFilter), args["sort"].(*AppSort), args["page"].(*PageInput)), true
+		return e.complexity.Namespace.Apps(childComplexity, args["filter"].(*AppFilter), args["sort"].(*AppSort), args["page"].(*PageInput), args["merge"].(*bool)), true
 	case "Namespace.canEdit":
 		if e.complexity.Namespace.CanEdit == nil {
 			break
@@ -3972,6 +3980,11 @@ func (ec *executionContext) field_Namespace_apps_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["page"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "merge", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["merge"] = arg3
 	return args, nil
 }
 
@@ -5683,6 +5696,81 @@ func (ec *executionContext) fieldContext_App_dependents(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _App_deployments(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_App_deployments,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.App().Deployments(ctx, obj)
+		},
+		nil,
+		ec.marshalNApp2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐAppᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_App_deployments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "App",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_App_id(ctx, field)
+			case "name":
+				return ec.fieldContext_App_name(ctx, field)
+			case "path":
+				return ec.fieldContext_App_path(ctx, field)
+			case "resolvedPath":
+				return ec.fieldContext_App_resolvedPath(ctx, field)
+			case "role":
+				return ec.fieldContext_App_role(ctx, field)
+			case "project":
+				return ec.fieldContext_App_project(ctx, field)
+			case "environment":
+				return ec.fieldContext_App_environment(ctx, field)
+			case "framework":
+				return ec.fieldContext_App_framework(ctx, field)
+			case "frameworkVersion":
+				return ec.fieldContext_App_frameworkVersion(ctx, field)
+			case "runtime":
+				return ec.fieldContext_App_runtime(ctx, field)
+			case "code":
+				return ec.fieldContext_App_code(ctx, field)
+			case "vhosts":
+				return ec.fieldContext_App_vhosts(ctx, field)
+			case "launchers":
+				return ec.fieldContext_App_launchers(ctx, field)
+			case "info":
+				return ec.fieldContext_App_info(ctx, field)
+			case "host":
+				return ec.fieldContext_App_host(ctx, field)
+			case "firstSeenAt":
+				return ec.fieldContext_App_firstSeenAt(ctx, field)
+			case "dependencies":
+				return ec.fieldContext_App_dependencies(ctx, field)
+			case "links":
+				return ec.fieldContext_App_links(ctx, field)
+			case "dependents":
+				return ec.fieldContext_App_dependents(ctx, field)
+			case "deployments":
+				return ec.fieldContext_App_deployments(ctx, field)
+			case "uses":
+				return ec.fieldContext_App_uses(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_App_usedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type App", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _App_uses(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6121,6 +6209,8 @@ func (ec *executionContext) fieldContext_AppList_items(_ context.Context, field 
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "deployments":
+				return ec.fieldContext_App_deployments(ctx, field)
 			case "uses":
 				return ec.fieldContext_App_uses(ctx, field)
 			case "usedBy":
@@ -10269,6 +10359,8 @@ func (ec *executionContext) fieldContext_Host_apps(_ context.Context, field grap
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "deployments":
+				return ec.fieldContext_App_deployments(ctx, field)
 			case "uses":
 				return ec.fieldContext_App_uses(ctx, field)
 			case "usedBy":
@@ -13460,7 +13552,7 @@ func (ec *executionContext) _Namespace_apps(ctx context.Context, field graphql.C
 		ec.fieldContext_Namespace_apps,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Namespace().Apps(ctx, obj, fc.Args["filter"].(*AppFilter), fc.Args["sort"].(*AppSort), fc.Args["page"].(*PageInput))
+			return ec.resolvers.Namespace().Apps(ctx, obj, fc.Args["filter"].(*AppFilter), fc.Args["sort"].(*AppSort), fc.Args["page"].(*PageInput), fc.Args["merge"].(*bool))
 		},
 		nil,
 		ec.marshalNAppList2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐAppList,
@@ -13562,6 +13654,8 @@ func (ec *executionContext) fieldContext_Namespace_app(ctx context.Context, fiel
 				return ec.fieldContext_App_links(ctx, field)
 			case "dependents":
 				return ec.fieldContext_App_dependents(ctx, field)
+			case "deployments":
+				return ec.fieldContext_App_deployments(ctx, field)
 			case "uses":
 				return ec.fieldContext_App_uses(ctx, field)
 			case "usedBy":
@@ -21654,6 +21748,42 @@ func (ec *executionContext) _App(ctx context.Context, sel ast.SelectionSet, obj 
 					}
 				}()
 				res = ec._App_dependents(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "deployments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._App_deployments(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

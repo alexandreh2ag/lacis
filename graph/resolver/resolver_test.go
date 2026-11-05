@@ -726,6 +726,33 @@ func TestNamespace_AppFilters(t *testing.T) {
 		"recent":{"total":1},"old":{"total":0},"symfony7":{"total":1},"symfony6":{"total":0},"laravel":{"total":0},"searched":{"total":1}}}`, got)
 }
 
+func TestNamespace_MergedApps(t *testing.T) {
+	f := newFixture(t, reader())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil)
+	inv := inventory(t)
+	// api runs on web-1 and db-1 in shop/production; two apps without env
+	// share a name on old-1 and web-1.
+	api2 := inv.Apps[0]
+	api2.ID, api2.HostID, api2.Code = id(24), id(11), json.RawMessage(`{"source":"git","version":"v2.5.0"}`)
+	tool := model.App{Base: model.Base{ID: id(25)}, NamespaceID: acmeID, HostID: id(12), Name: "tool", Path: "/srv/tool"}
+	tool2 := tool
+	tool2.ID, tool2.HostID = id(26), id(10)
+	inv.Apps = append(inv.Apps, api2, tool, tool2)
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inv, nil)
+
+	got := f.post(t, `{ namespace(slug:"acme") {
+		all: apps { total }
+		merged: apps(merge: true, sort: {by: HOSTNAME}) { total items { name host { hostname } deployments { host { hostname } code { version } } } }
+	} }`)
+	assert.JSONEq(t, `{"namespace":{
+		"all":{"total":4},
+		"merged":{"total":3,"items":[
+			{"name":"api","host":{"hostname":"db-1"},"deployments":[{"host":{"hostname":"db-1"},"code":{"version":"v2.5.0"}},{"host":{"hostname":"web-1"},"code":{"version":"v2.4.0"}}]},
+			{"name":"tool","host":{"hostname":"old-1"},"deployments":[{"host":{"hostname":"old-1"},"code":null}]},
+			{"name":"tool","host":{"hostname":"web-1"},"deployments":[{"host":{"hostname":"web-1"},"code":null}]}
+		]}}}`, got)
+}
+
 func TestNamespace_SplitNetworks(t *testing.T) {
 	f := newFixture(t, reader())
 	inv := inventory(t)

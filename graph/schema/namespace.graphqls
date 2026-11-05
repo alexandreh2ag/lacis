@@ -18,7 +18,12 @@ type Namespace {
 
   hosts(filter: HostFilter, sort: HostSort, page: PageInput): HostList!
   host(id: ID!): Host
-  apps(filter: AppFilter, sort: AppSort, page: PageInput): AppList!
+  """
+  The apps. With merge, one app per name, project and env, whatever the hosts it is
+  deployed on: the first in the order stands for the others, its deployments listing them
+  all; an app without project or env is not merged.
+  """
+  apps(filter: AppFilter, sort: AppSort, page: PageInput, merge: Boolean = false): AppList!
   app(id: ID!): App
   services(filter: ServiceFilter, sort: ServiceSort, page: PageInput): ServiceList!
   service(id: ID!): Service
