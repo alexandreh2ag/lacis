@@ -28,9 +28,19 @@ export interface Box {
   parent?: string
 }
 
+export interface Point {
+  x: number
+  y: number
+}
+
 export interface Layout {
   nodes: Map<string, Placed>
   boxes: Box[]
+  // at is where each node was placed in the graph, routes where ELK drew
+  // each edge between them: its start, bend points and end, in the graph
+  // too. A route holds while its two ends stay where they were placed.
+  at: Map<string, Point>
+  routes: Map<string, Point[]>
   // colors give each source node a color of link-1…8 in turn, top to
   // bottom then left to right, so that neighbouring edges differ.
   colors: Map<string, number>
@@ -106,6 +116,13 @@ function options(s: Spacing) {
     'elk.spacing.edgeNode': '24',
     'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
     'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+    // The edges go round the cards, through the room left between them,
+    // as smooth curves.
+    'elk.edgeRouting': 'SPLINES',
+    'elk.layered.edgeRouting.splines.mode': 'CONSERVATIVE',
+    'elk.spacing.edgeEdge': '10',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '24',
+    'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
   }
 }
 
@@ -155,6 +172,7 @@ async function envLanes(graph: GraphData, envOrder: string[], sizes: Sizes, spac
   const placed = new Map<string, Placed>()
   const boxes: Box[] = []
   const absolute = new Map<string, { x: number; y: number }>()
+  const routes = new Map<string, Point[]>()
   let y = 0
   groups.forEach((g, i) => {
     const l = laid[i]
@@ -166,9 +184,20 @@ async function envLanes(graph: GraphData, envOrder: string[], sizes: Sizes, spac
       placed.set(k.id, g.env ? { id: k.id, x: k.x ?? 0, y: k.y ?? 0, parent: l.id } : { id: k.id, x: k.x ?? 0, y: y + (k.y ?? 0) })
       absolute.set(k.id, { x: k.x ?? 0, y: y + (k.y ?? 0) })
     }
+    routesOf(l, 0, y, routes)
     y += (l.height ?? 0) + LANE_GAP
   })
-  return { nodes: placed, boxes, colors: colors(graph, absolute) }
+  return { nodes: placed, boxes, colors: colors(graph, absolute), at: absolute, routes }
+}
+
+// routesOf reads the routes ELK drew for the edges of a node laid out at
+// x, y.
+function routesOf(n: ElkNode, x: number, y: number, into: Map<string, Point[]>) {
+  for (const e of n.edges ?? []) {
+    const s = (e as { sections?: { startPoint: Point; bendPoints?: Point[]; endPoint: Point }[] }).sections?.[0]
+    if (!s) continue
+    into.set(e.id, [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => ({ x: p.x + x, y: p.y + y })))
+  }
 }
 
 // colors give each source node a color of link-1…8 in turn.
@@ -221,5 +250,7 @@ async function hostBoxes(graph: GraphData, spacing: Spacing): Promise<Layout> {
       absolute.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 })
     }
   }
-  return { nodes: placed, boxes: placedBoxes, colors: colors(graph, absolute) }
+  const routes = new Map<string, Point[]>()
+  routesOf(out, 0, 0, routes)
+  return { nodes: placed, boxes: placedBoxes, colors: colors(graph, absolute), at: absolute, routes }
 }

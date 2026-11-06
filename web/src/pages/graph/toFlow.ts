@@ -77,7 +77,8 @@ export function toFlowEdges(view: GraphData, placed: Layout, nodes: Node[], byId
   const color = (id: string) => placed.colors.get(id) ?? placed.colors.get(parentOf.get(id) ?? '') ?? (hash(id) % 8) + 1
   return view.edges.filter((e) => parentOf.has(e.from) && parentOf.has(e.to)).map((e) => ({
     id: e.id, source: e.from, target: e.to, type: 'link',
-    data: { edge: e, color: color(e.from), fromLabel: label(e.from), toLabel: label(e.to), impact: !!impact?.edges.has(e.id) } satisfies LinkData,
+    data: { edge: e, color: color(e.from), fromLabel: label(e.from), toLabel: label(e.to), impact: !!impact?.edges.has(e.id),
+      route: placed.routes.get(e.id), from: placed.at.get(e.from), to: placed.at.get(e.to) } satisfies LinkData,
   }))
 }
 

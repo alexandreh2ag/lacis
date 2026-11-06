@@ -23,6 +23,8 @@ const placed: Layout = {
   nodes: new Map([[zone, { id: zone, x: 0, y: 0, parent: 'lane:prod' }], ['project:db@prod', { id: 'project:db@prod', x: 500, y: 0, parent: 'lane:prod' }]]),
   boxes: [{ id: 'lane:prod', label: 'prod', kind: 'lane', x: 0, y: 0, width: 900, height: 400 }],
   colors: new Map([[zone, 3]]),
+  at: new Map([[zone, { x: 0, y: 0 }], ['project:db@prod', { x: 500, y: 0 }]]),
+  routes: new Map([['project:db@prod→lost', [{ x: 716, y: 28 }, { x: 900, y: 28 }]]]),
 }
 const zones = planZones(graph)
 const options = { ns: 'acme', level: 'PROJECT', impact: null, other: () => null, onClose: () => {} }
@@ -48,7 +50,7 @@ test('toFlowEdges keeps the edges between drawn nodes, an item taking the color 
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
   const edges = toFlowEdges(graph, placed, nodes, byId, { target: item, levels: new Map(), edges: new Set([`${item}→project:db@prod`]) })
   expect(edges.map((e) => e.id)).toEqual([`${item}→project:db@prod`])
-  expect(edges[0].data).toMatchObject({ color: 3, impact: true, fromLabel: item, toLabel: 'project:db@prod' })
+  expect(edges[0].data).toMatchObject({ color: 3, impact: true, fromLabel: item, toLabel: 'project:db@prod', route: undefined })
   expect(hash('x')).toBe(hash('x'))
 })
 

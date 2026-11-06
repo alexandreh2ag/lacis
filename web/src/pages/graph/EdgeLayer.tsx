@@ -3,7 +3,7 @@ import { memo, useContext, useMemo, useSyncExternalStore } from 'react'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 import { HighlightContext, useEdgeState } from './highlight'
-import { NODE_H, NODE_W } from './layout'
+import { NODE_H, NODE_W, type Point } from './layout'
 import type { GEdge } from './query'
 
 export interface LinkData extends Record<string, unknown> {
@@ -13,6 +13,11 @@ export interface LinkData extends Record<string, unknown> {
   toLabel: string
   // impact draws an edge of the impact chain.
   impact?: boolean
+  // route is the way ELK drew the edge, round the cards; it holds while
+  // its ends stay at from and to, where the layout put them.
+  route?: Point[]
+  from?: Point
+  to?: Point
 }
 
 export type LinkEdge = Edge<LinkData>
@@ -49,6 +54,13 @@ export const EdgeLayer = memo(function EdgeLayer({ edges, crossHidden }: { edges
       const a = lookup.get(e.source)
       const b = lookup.get(e.target)
       if (!a || !b || a.hidden || b.hidden || !e.data) continue
+      const pa = a.internals.positionAbsolute
+      const pb = b.internals.positionAbsolute
+      const d = e.data
+      if (d.route && d.from && d.to && near(pa, d.from) && near(pb, d.to)) {
+        out.push({ id: e.id, data: d, ...routed(d.route) })
+        continue
+      }
       const sa = size(a)
       const sb = size(b)
       const [path, labelX, labelY] = getBezierPath({
@@ -73,6 +85,24 @@ export const EdgeLayer = memo(function EdgeLayer({ edges, crossHidden }: { edges
     </ViewportPortal>
   )
 })
+
+const near = (p: Point, q: Point) => Math.abs(p.x - q.x) < 0.5 && Math.abs(p.y - q.y) < 0.5
+
+// routed draws the route of ELK: its spline as cubic segments, else a
+// smooth curve through its points; the label sits at its middle point.
+export function routed(pts: Point[]): { path: string; labelX: number; labelY: number } {
+  const mid = pts[Math.floor(pts.length / 2)]
+  let path = `M${pts[0].x},${pts[0].y}`
+  if ((pts.length - 1) % 3 === 0) {
+    for (let i = 1; i < pts.length; i += 3) path += ` C${pts[i].x},${pts[i].y} ${pts[i + 1].x},${pts[i + 1].y} ${pts[i + 2].x},${pts[i + 2].y}`
+  } else {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] ?? pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] ?? p2
+      path += ` C${p1.x + (p2.x - p0.x) / 6},${p1.y + (p2.y - p0.y) / 6} ${p2.x - (p3.x - p1.x) / 6},${p2.y - (p3.y - p1.y) / 6} ${p2.x},${p2.y}`
+    }
+  }
+  return { path, labelX: mid.x, labelY: mid.y }
+}
 
 const strokeOf = (d: LinkData) => (d.impact ? 'var(--danger)' : `var(--link-${d.color})`)
 
