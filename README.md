@@ -144,7 +144,7 @@ collectors:                           # optional, defaults shown
           - { path: config/extra.yaml, format: yaml }  # env, php, ini, yaml or json
   envfiles:                           # keys compared case-insensitively
     allow_keys: ["*_URL", "*_DSN", "*_HOST", "*_PORT", APP_ENV, NODE_ENV]
-    deny_keys: ["*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*", "*PRIVATE*", "*SALT*", "*COOKIE*"]
+    deny_keys: ["*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*", "*PRIVATE*", "*SALT*", "*COOKIE*", "*WEBHOOK*"]
 ```
 
 Built-in framework loaders: symfony, next, laravel, nuxt, nestjs (.env files), zend1

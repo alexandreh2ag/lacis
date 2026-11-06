@@ -37,17 +37,27 @@ func TestParse(t *testing.T) {
 		{
 			name: "https api with path",
 			raw:  "https://api.client.example.com/v1/endpoint",
-			want: DSN{Scheme: "https", Host: "api.client.example.com", Port: 443, DefaultPort: true},
+			want: DSN{Scheme: "https", Host: "api.client.example.com", Port: 443, DefaultPort: true, URLPath: "/v1/endpoint"},
 		},
 		{
-			name: "webhook token in path and query dropped",
-			raw:  "https://hooks.example.com/services/T000/B000/XXXXSECRET?token=QUERYSECRET#frag",
-			want: DSN{Scheme: "https", Host: "hooks.example.com", Port: 443, DefaultPort: true},
+			name: "https root: no path",
+			raw:  "https://www.example.com/",
+			want: DSN{Scheme: "https", Host: "www.example.com", Port: 443, DefaultPort: true},
 		},
 		{
-			name: "http userinfo and path dropped",
-			raw:  "http://user:pass@api.example.net:8080/v2/key/SECRET",
-			want: DSN{Scheme: "http", Host: "api.example.net", Port: 8080},
+			name: "query and fragment dropped, path kept",
+			raw:  "https://hooks.example.com/services/T000?token=QUERYSECRET#frag",
+			want: DSN{Scheme: "https", Host: "hooks.example.com", Port: 443, DefaultPort: true, URLPath: "/services/T000"},
+		},
+		{
+			name: "http userinfo dropped, path kept",
+			raw:  "http://user:pass@api.example.net:8080/v2/items/",
+			want: DSN{Scheme: "http", Host: "api.example.net", Port: 8080, URLPath: "/v2/items/"},
+		},
+		{
+			name: "websocket path kept",
+			raw:  "wss://sockets.example.com/.well-known/mercure",
+			want: DSN{Scheme: "wss", Host: "sockets.example.com", Port: 443, DefaultPort: true, URLPath: "/.well-known/mercure"},
 		},
 		{
 			name: "unknown scheme path dropped",
@@ -151,7 +161,7 @@ func TestParse(t *testing.T) {
 		},
 		{name: "invalid port", raw: "mysql://db:99999/app", wantErr: ErrUnparsable},
 		{name: "no host", raw: "mysql:///app", wantErr: ErrUnparsable},
-		{name: "printf template in path", raw: "https://media.example.com/prc/%s/mail/", want: DSN{Scheme: "https", Host: "media.example.com", Port: 443, DefaultPort: true}},
+		{name: "printf template in path", raw: "https://media.example.com/prc/%s/mail/", want: DSN{Scheme: "https", Host: "media.example.com", Port: 443, DefaultPort: true, URLPath: "/prc/%s/mail/"}},
 		{name: "escape kept", raw: "amqp://10.0.0.1:5672/%2fvhost", want: DSN{Scheme: "amqp", Host: "10.0.0.1", Port: 5672, Path: "vhost"}},
 		{name: "socket path", raw: "/var/run/mysqld/mysqld.sock", want: DSN{Socket: "/var/run/mysqld/mysqld.sock"}},
 		{name: "run path", raw: "/run/redis/redis-server", want: DSN{Socket: "/run/redis/redis-server"}},

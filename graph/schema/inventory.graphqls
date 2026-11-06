@@ -287,7 +287,10 @@ type Dependency {
   key: String!
   scheme: String
   port: Int
+  "The database name, Redis index or AMQP vhost."
   path: String
+  "The path of an HTTP URL: the route it calls."
+  urlPath: String
   "The hosts, IPs or socket it targets."
   target: JSON
   "Where it was read."

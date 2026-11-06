@@ -315,16 +315,19 @@ Credentials are removed **on the host**, before the snapshot leaves it:
 - From the app configuration, **only the keys matching `allow_keys` and none of
   `deny_keys` are read**, compared ignoring case. Defaults: allowed `*_URL`,
   `*_DSN`, `*_HOST`, `*_PORT`, `APP_ENV`, `NODE_ENV`; denied `*SECRET*`, `*PASS*`,
-  `*PWD*`, `*TOKEN*`, `*KEY*`, `*CRED*`, `*AUTH*`, `*PRIVATE*`, `*SALT*`, `*COOKIE*`.
+  `*PWD*`, `*TOKEN*`, `*KEY*`, `*CRED*`, `*AUTH*`, `*PRIVATE*`, `*SALT*`, `*COOKIE*`, `*WEBHOOK*`.
   A flattened key of a structured source (`DOCTRINE_DBAL_URL`) is filtered the same
   way. In the blocks of Laminas and Zend 1, only the `dsn`, `url`,
   `host`/`hostname`/`server`, `port`, `dbname`/`database` and `adapter` leaves of a
   block are read, and denied keys never.
 - A connection string is reduced to **scheme, host, port, socket** and, for
   database and broker schemes (`mysql`, `postgres`, `redis`, `amqp`, `mongodb`,
-  `clickhouse`…), the resource name. Everything up to the last `@` after `://` is
-  dropped as credentials, the query string is dropped, and the path of any other
-  URL (an HTTP webhook URL often holds a token) is dropped.
+  `clickhouse`…), the resource name; an HTTP URL (`http`, `https`, `ws`, `wss`)
+  keeps its **path**, the route it calls through the reverse proxies. Everything up
+  to the last `@` after `://` is dropped as credentials, the query string and the
+  fragment are dropped, and the path of any other URL is dropped. **A URL whose path
+  holds a token**, such as a Slack or Teams webhook URL, is to be left out by
+  `deny_keys`: `*WEBHOOK*` is denied by default, add the others.
 - A value that cannot be parsed is sent as its **key alone** (`unparsed`), never as
   its value.
 - The other values of the configuration files are never sent: no raw `.env`

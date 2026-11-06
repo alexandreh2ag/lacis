@@ -70,7 +70,7 @@ AWS_KEY_URL=https://s3.amazonaws.com
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"APP_ENV": "prod"}, apps[0].Info)
 	assert.Equal(t, []snapshot.Dependency{
-		{Key: "API_URL", Source: snapshot.DependencySource{File: "/var/www/api/.env.prod", Line: 3}, Scheme: "https", Port: 443,
+		{Key: "API_URL", Source: snapshot.DependencySource{File: "/var/www/api/.env.prod", Line: 3}, Scheme: "https", Port: 443, URLPath: "/v2",
 			Target: &snapshot.Target{Kind: "name", Value: "api.partner.example.net", Resolver: "failed"}},
 		// A cluster gives one dependency per host.
 		{Key: "CACHE_DSN", Source: snapshot.DependencySource{File: "/var/www/api/.env.prod.local", Line: 2}, Scheme: "redis", Port: 6379,
@@ -85,7 +85,7 @@ AWS_KEY_URL=https://s3.amazonaws.com
 			Target: &snapshot.Target{Kind: "ip", Value: "10.0.1.30"}},
 		{Key: "REDIS_URL", Source: snapshot.DependencySource{File: "/etc/supervisor/conf.d/w.conf"}, Scheme: "redis", Port: 6380,
 			Target: &snapshot.Target{Kind: "name", Value: "cache.internal", Resolved: []string{"10.0.1.60"}, Resolver: "dns"}},
-		{Key: "SENTRY_DSN", Source: snapshot.DependencySource{File: "/var/www/api/.env.local", Line: 2}, Scheme: "https", Port: 443,
+		{Key: "SENTRY_DSN", Source: snapshot.DependencySource{File: "/var/www/api/.env.local", Line: 2}, Scheme: "https", Port: 443, URLPath: "/42",
 			Target: &snapshot.Target{Kind: "name", Value: "o1.ingest.sentry.io", Resolved: []string{"34.120.195.249"}, Resolver: "dns"}},
 		{Key: "SESSION_URL", Source: snapshot.DependencySource{File: "/var/www/api/.env.prod.local", Line: 3}, Unparsed: true},
 	}, apps[0].Dependencies, "AWS_KEY_URL, APP_SECRET denied; doctrine and null not network")
@@ -271,7 +271,7 @@ func TestCollect_Zend1(t *testing.T) {
 		{Key: "resources.mail.transport", Source: snapshot.DependencySource{File: file, Line: 10, KeyPath: "resources.mail.transport"},
 			Port: 2525, Target: &snapshot.Target{Kind: "name", Value: "smtp.internal", Resolved: []string{"10.0.1.90"}, Resolver: "hosts"}},
 		{Key: "resources.search", Source: snapshot.DependencySource{File: file, Line: 12, KeyPath: "resources.search"},
-			Scheme: "http", Port: 9200, Target: &snapshot.Target{Kind: "ip", Value: "10.0.1.80"}},
+			Scheme: "http", Port: 9200, URLPath: "/site", Target: &snapshot.Target{Kind: "ip", Value: "10.0.1.80"}},
 	}, apps[0].Dependencies, "file:// and sqlite left out, credentials never read")
 
 	db := func(app snapshot.App) snapshot.Dependency {

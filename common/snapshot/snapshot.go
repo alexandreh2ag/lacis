@@ -362,7 +362,9 @@ type Dependency struct {
 	Scheme string           `json:"scheme,omitempty"`
 	Port   int              `json:"port,omitempty"`
 	Path   string           `json:"path,omitempty"`
-	Target *Target          `json:"target,omitempty"`
+	// URLPath is the path of an HTTP URL: the route it calls.
+	URLPath string  `json:"url_path,omitempty"`
+	Target  *Target `json:"target,omitempty"`
 	// Unparsed is true when the value could not be parsed: only the key is
 	// sent.
 	Unparsed bool `json:"unparsed,omitempty"`

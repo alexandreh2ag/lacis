@@ -140,11 +140,13 @@ func (Endpoint) TableName() string { return "endpoints" }
 
 type AppDependency struct {
 	Base
-	AppID    uuid.UUID `gorm:"type:uuid"`
-	Key      string
-	Scheme   *string
-	Port     *int
-	Path     *string
+	AppID  uuid.UUID `gorm:"type:uuid"`
+	Key    string
+	Scheme *string
+	Port   *int
+	Path   *string
+	// URLPath is the path of an HTTP URL: the route it calls.
+	URLPath  *string         `gorm:"column:url_path"`
 	Target   json.RawMessage `gorm:"type:jsonb;serializer:json"`
 	Source   json.RawMessage `gorm:"type:jsonb;serializer:json;not null"`
 	Unparsed bool

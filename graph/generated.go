@@ -224,6 +224,7 @@ type ComplexityRoot struct {
 		Scheme   func(childComplexity int) int
 		Source   func(childComplexity int) int
 		Target   func(childComplexity int) int
+		URLPath  func(childComplexity int) int
 		Unparsed func(childComplexity int) int
 	}
 
@@ -1491,6 +1492,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Dependency.Target(childComplexity), true
+	case "Dependency.urlPath":
+		if e.complexity.Dependency.URLPath == nil {
+			break
+		}
+
+		return e.complexity.Dependency.URLPath(childComplexity), true
 	case "Dependency.unparsed":
 		if e.complexity.Dependency.Unparsed == nil {
 			break
@@ -5777,6 +5784,8 @@ func (ec *executionContext) fieldContext_App_dependencies(_ context.Context, fie
 				return ec.fieldContext_Dependency_port(ctx, field)
 			case "path":
 				return ec.fieldContext_Dependency_path(ctx, field)
+			case "urlPath":
+				return ec.fieldContext_Dependency_urlPath(ctx, field)
 			case "target":
 				return ec.fieldContext_Dependency_target(ctx, field)
 			case "source":
@@ -7788,6 +7797,35 @@ func (ec *executionContext) _Dependency_path(ctx context.Context, field graphql.
 }
 
 func (ec *executionContext) fieldContext_Dependency_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Dependency",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Dependency_urlPath(ctx context.Context, field graphql.CollectedField, obj *model.AppDependency) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Dependency_urlPath,
+		func(ctx context.Context) (any, error) {
+			return obj.URLPath, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Dependency_urlPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Dependency",
 		Field:      field,
@@ -23751,6 +23789,8 @@ func (ec *executionContext) _Dependency(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._Dependency_port(ctx, field, obj)
 		case "path":
 			out.Values[i] = ec._Dependency_path(ctx, field, obj)
+		case "urlPath":
+			out.Values[i] = ec._Dependency_urlPath(ctx, field, obj)
 		case "target":
 			out.Values[i] = ec._Dependency_target(ctx, field, obj)
 		case "source":

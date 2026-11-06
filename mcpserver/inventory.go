@@ -395,6 +395,7 @@ type Dependency struct {
 	Scheme   string `json:"scheme,omitempty"`
 	Port     int    `json:"port,omitempty"`
 	Path     string `json:"path,omitempty"`
+	URLPath  string `json:"url_path,omitempty"`
 	Target   any    `json:"target,omitempty"`
 	Source   any    `json:"source,omitempty"`
 	Unparsed bool   `json:"unparsed,omitempty"`
@@ -421,7 +422,7 @@ func (x *index) app(a *model.App) AppOut {
 		Code: raw(a.Code), Launchers: raw(a.Launchers), Info: raw(a.Info), FirstSeenAt: a.FirstSeenAt}
 	for _, d := range x.inv.Dependencies {
 		if d.AppID == a.ID {
-			out.Dependencies = append(out.Dependencies, Dependency{Key: d.Key, Scheme: deref(d.Scheme), Port: deref(d.Port), Path: deref(d.Path),
+			out.Dependencies = append(out.Dependencies, Dependency{Key: d.Key, Scheme: deref(d.Scheme), Port: deref(d.Port), Path: deref(d.Path), URLPath: deref(d.URLPath),
 				Target: raw(d.Target), Source: raw(d.Source), Unparsed: d.Unparsed})
 		}
 	}

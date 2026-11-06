@@ -2,11 +2,12 @@
 // (URLs, PDO DSNs, libpq key/value strings, host:port) and keeps only what is
 // needed to link an app to its dependencies.
 //
-// Credentials, paths and query strings never leave this package: a parsed DSN
-// only carries the scheme, the host, the port, the resource name of the
-// schemes that have one (database name, Redis index, AMQP vhost) and, for
-// local connections, the unix socket. The path of an HTTP URL is never kept:
-// it often holds a token, as in a webhook URL.
+// Credentials and query strings never leave this package: a parsed DSN only
+// carries the scheme, the host, the port, the resource name of the schemes
+// that have one (database name, Redis index, AMQP vhost), the path of an
+// HTTP URL (the route it calls) and, for local connections, the unix socket.
+// The path of any other URL is dropped. The path of an HTTP URL may hold a
+// token, as in a webhook URL: its key is to be denied.
 package dsn
 
 import (
@@ -49,8 +50,11 @@ type DSN struct {
 	// Path is the database name, the RabbitMQ vhost or the Redis index; it
 	// is only set for the schemes of PathSchemes, and for PDO and libpq
 	// strings.
-	Path   string
-	Socket string
+	Path string
+	// URLPath is the path of an HTTP URL, such as /api/v1: the route it
+	// calls; empty for the root.
+	URLPath string
+	Socket  string
 }
 
 // Kind returns the kind of target of the DSN.
@@ -128,9 +132,14 @@ var nonNetworkSchemes = map[string]bool{
 	"sync":      true,
 }
 
+// HTTPSchemes are the schemes whose URL path is a route of the target: it
+// is kept as the URLPath.
+var HTTPSchemes = map[string]bool{"http": true, "https": true, "ws": true, "wss": true}
+
 // PathSchemes are the schemes whose URL path names a resource of the
 // target (a database, a Redis index, an AMQP vhost) rather than something
-// the target serves: the path of any other URL is dropped.
+// the target serves: the path of any other URL than those and HTTPSchemes
+// is dropped.
 var PathSchemes = map[string]bool{
 	"amqp":        true,
 	"amqps":       true,
@@ -201,7 +210,7 @@ func parseURL(value string) (DSN, error) {
 	if strings.Contains(authority(value), ",") {
 		return DSN{}, ErrMultipleHosts
 	}
-	u, err := url.Parse(strayPercent.ReplaceAllString(value, "%25"))
+	u, err := url.Parse(strayPercent.ReplaceAllString(value, "%25${1}"))
 	if err != nil {
 		return DSN{}, fmt.Errorf("%w: %s", ErrUnparsable, scrub(err))
 	}
@@ -214,6 +223,9 @@ func parseURL(value string) (DSN, error) {
 		}
 		if PathSchemes[scheme] {
 			d.Path = path.Base(p)
+		}
+		if HTTPSchemes[scheme] {
+			d.URLPath = u.Path
 		}
 	}
 	if socket := socketFromQuery(u.Query()); socket != "" {

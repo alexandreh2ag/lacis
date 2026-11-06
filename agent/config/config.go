@@ -261,7 +261,7 @@ func DefaultConfig() *Config {
 				AllowKeys: []string{"*_URL", "*_DSN", "*_HOST", "*_PORT", "APP_ENV", "NODE_ENV"},
 				DenyKeys: []string{
 					"*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*", "*PRIVATE*",
-					"*SALT*", "*COOKIE*",
+					"*SALT*", "*COOKIE*", "*WEBHOOK*",
 				},
 			},
 			Docker: DockerConfig{

@@ -32,7 +32,7 @@ const AppPageDoc = graphql(`
         environment { slug }
         host { id hostname status lastSeenAt }
         deployments { id path host { id hostname status } code { version commit branch deployedAt } }
-        dependencies { key scheme port path target unparsed }
+        dependencies { key scheme port path urlPath target unparsed }
         uses { ...AppLink }
         usedBy { ...AppLink }
       }
@@ -396,7 +396,7 @@ function Config({ app: a }: { app: App }) {
         return (
           <tr key={d.key}>
             <td style={{ whiteSpace: 'normal', maxWidth: 320, wordBreak: 'break-all' }}><Copyable value={d.key} /></td>
-            <td className="lc-mono" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{target}{d.path ? ` ${d.path}` : ''}</td>
+            <td className="lc-mono" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{target}{d.urlPath ?? ''}{d.path ? ` ${d.path}` : ''}</td>
             <td className="lc-mono">{d.scheme}</td>
             <td className="lc-num">{d.port}</td>
             <td>{d.unparsed ? <span className="lc-badge lc-badge--stale">{ta.unparsed}</span> : resolved.has(d.key) ? <span className="lc-badge">{ta.resolvedState}</span>

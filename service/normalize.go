@@ -723,7 +723,7 @@ func (n *normalizer) appSlug(a snapshot.App, key, value string) string {
 func dependencies(appID uuid.UUID, deps []snapshot.Dependency) []model.AppDependency {
 	out := make([]model.AppDependency, 0, len(deps))
 	for _, d := range deps {
-		row := model.AppDependency{AppID: appID, Key: d.Key, Scheme: optional(d.Scheme), Path: optional(d.Path),
+		row := model.AppDependency{AppID: appID, Key: d.Key, Scheme: optional(d.Scheme), Path: optional(d.Path), URLPath: optional(d.URLPath),
 			Target: marshalOrNil(d.Target), Source: marshalOrNil(d.Source), Unparsed: d.Unparsed}
 		if d.Port != 0 {
 			port := d.Port

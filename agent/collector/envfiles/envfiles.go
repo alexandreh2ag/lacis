@@ -210,7 +210,7 @@ func dependencies(e env, cfg config.EnvfilesConfig, res *resolver) []snapshot.De
 // dependency describes a parsed target; a URL with several hosts gives one
 // dependency per host, under the same key.
 func dependency(key string, source snapshot.DependencySource, d dsn.DSN, res *resolver) snapshot.Dependency {
-	return snapshot.Dependency{Key: key, Source: source, Scheme: d.Scheme, Port: d.Port, Path: d.Path, Target: res.target(d)}
+	return snapshot.Dependency{Key: key, Source: source, Scheme: d.Scheme, Port: d.Port, Path: d.Path, URLPath: d.URLPath, Target: res.target(d)}
 }
 
 // blockDependencies turns the blocks of a structured configuration into

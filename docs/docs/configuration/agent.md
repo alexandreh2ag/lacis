@@ -96,7 +96,7 @@ collectors:
   envfiles:
     allow_keys: ["*_URL", "*_DSN", "*_HOST", "*_PORT", APP_ENV, NODE_ENV]
     deny_keys: ["*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*",
-                "*PRIVATE*", "*SALT*", "*COOKIE*"]
+                "*PRIVATE*", "*SALT*", "*COOKIE*", "*WEBHOOK*"]
   traefik:
     api_url: http://127.0.0.1:8080
     username: lacis
@@ -255,7 +255,7 @@ framework sources.
 | Key                              | Type | Default | Description |
 | -------------------------------- | ---- | ------- | ----------- |
 | `collectors.envfiles.allow_keys` | list | `[*_URL, *_DSN, *_HOST, *_PORT, APP_ENV, NODE_ENV]` | Keys read from the app configuration (shell-style patterns). |
-| `collectors.envfiles.deny_keys`  | list | `[*SECRET*, *PASS*, *PWD*, *TOKEN*, *KEY*, *CRED*, *AUTH*, *PRIVATE*, *SALT*, *COOKIE*]` | Keys never read, even when allowed. |
+| `collectors.envfiles.deny_keys`  | list | `[*SECRET*, *PASS*, *PWD*, *TOKEN*, *KEY*, *CRED*, *AUTH*, *PRIVATE*, *SALT*, *COOKIE*, *WEBHOOK*]` | Keys never read, even when allowed. |
 
 Keys and patterns are compared ignoring case: `db_password` is denied like
 `DB_PASSWORD`. See [what is never sent](../collectors.md#what-is-never-sent).
