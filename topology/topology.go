@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexandreh2ag/lacis/linker"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/google/uuid"
 )
 
@@ -216,6 +217,7 @@ func prepare(inv *model.Inventory, f Filter) (*builder, error) {
 	}
 	b := newBuilder(inv, f)
 	b.nodes()
+	b.locate()
 	b.fold()
 	b.stack()
 	b.visible = b.visibleLinks()
@@ -228,7 +230,7 @@ func (b *builder) draw() *Graph {
 	// selected are the nodes the filter selects, hosts included.
 	selected := map[string]bool{}
 	for id, n := range b.all {
-		if matches(f.Projects, n.Project) && matches(f.Envs, n.Env) && matches(f.Hosts, n.Host) {
+		if b.placedIn(id) && matches(f.Hosts, n.Host) {
 			selected[id] = true
 		}
 	}
@@ -247,35 +249,34 @@ func (b *builder) draw() *Graph {
 		if (!selected[l.from] && !selected[l.to]) || b.internal(l) {
 			continue
 		}
-		for _, vf := range b.view(l.from, l.to) {
-			for _, vt := range b.view(l.to, l.from) {
-				if vf == vt || b.inZone(vf, vt) || b.inZone(vt, vf) {
-					continue
-				}
-				keep(vf, l.from)
-				keep(vt, l.to)
-				key := vf + "\x00" + vt
-				if f.Level == LevelService {
-					key += "\x00" + string(l.source)
-				}
-				e, ok := edges[key]
-				if !ok {
-					e = &Edge{From: vf, To: vt, Source: l.source, Confidence: l.confidence, Rule: l.detail.Rule}
-					edges[key] = e
-					order = append(order, key)
-				}
-				e.Count++
-				e.Confidence = weakest(e.Confidence, l.confidence)
-				if e.Rule != l.detail.Rule {
-					e.Rule = "mixed"
-				}
-				if e.Source != l.source {
-					e.Source = SourceMixed
-				}
-				for _, label := range b.labels(l.detail, vt) {
-					if !slices.Contains(e.Labels, label) {
-						e.Labels = append(e.Labels, label)
-					}
+		for _, pair := range b.pairs(l.from, l.to) {
+			vf, vt := pair[0], pair[1]
+			if vf == vt || b.inZone(vf, vt) || b.inZone(vt, vf) {
+				continue
+			}
+			keep(vf, l.from)
+			keep(vt, l.to)
+			key := vf + "\x00" + vt
+			if f.Level == LevelService {
+				key += "\x00" + string(l.source)
+			}
+			e, ok := edges[key]
+			if !ok {
+				e = &Edge{From: vf, To: vt, Source: l.source, Confidence: l.confidence, Rule: l.detail.Rule}
+				edges[key] = e
+				order = append(order, key)
+			}
+			e.Count++
+			e.Confidence = weakest(e.Confidence, l.confidence)
+			if e.Rule != l.detail.Rule {
+				e.Rule = "mixed"
+			}
+			if e.Source != l.source {
+				e.Source = SourceMixed
+			}
+			for _, label := range b.labels(l.detail, vt) {
+				if !slices.Contains(e.Labels, label) {
+					e.Labels = append(e.Labels, label)
 				}
 			}
 		}
@@ -292,11 +293,17 @@ func (b *builder) draw() *Graph {
 	}
 	// An expanded zone shows all its content, linked or not.
 	for _, zone := range f.Expand {
-		for _, h := range b.zoneHosts(zone) {
-			keep(zone, h)
-			for _, child := range b.hostChildren[h] {
-				for _, v := range b.view(child, "") {
-					keep(v, child)
+		for id, n := range b.all {
+			if n.Kind == KindExternal || !slices.Contains(b.zonesOf(id), zone) {
+				continue
+			}
+			if n.Kind == KindHost {
+				keep(zone, id)
+				continue
+			}
+			for _, v := range b.view(id, "") {
+				if v == zone || b.inZone(v, zone) {
+					keep(v, id)
 				}
 			}
 		}
@@ -426,13 +433,20 @@ type builder struct {
 	stackOf    map[string]string   // host node → stack node
 	stacks     map[string][]string // stack node → host nodes
 	expanded   map[string]bool     // zones drawn with their content
+	// places are the projects and envs of each node, by slug: an app its
+	// own, a host those of its labels and of its apps, a service or a
+	// webserver those of its host and of the apps it serves or that use it.
+	places map[string][]place
 }
+
+// place is a project and an env, by slug.
+type place struct{ project, env string }
 
 func newBuilder(inv *model.Inventory, f Filter) *builder {
 	b := &builder{inv: inv, f: f, hosts: map[uuid.UUID]*model.Host{}, apps: map[uuid.UUID]*model.App{}, projects: map[uuid.UUID]string{},
 		envs: map[uuid.UUID]string{}, all: map[string]Node{}, host: map[string]string{}, hostChildren: map[string][]string{},
 		content: map[string]*content{}, elements: map[string]element{}, folded: map[string][]string{}, foldedInto: map[string][]string{},
-		stackOf: map[string]string{}, stacks: map[string][]string{}, expanded: map[string]bool{}}
+		stackOf: map[string]string{}, stacks: map[string][]string{}, expanded: map[string]bool{}, places: map[string][]place{}}
 	if f.Level == LevelProject || f.Level == LevelHost {
 		for _, zone := range f.Expand {
 			b.expanded[zone] = true
@@ -791,11 +805,11 @@ func (b *builder) view(id, other string) []string {
 	}
 	switch b.f.Level {
 	case LevelHost, LevelProject:
-		zone := b.zone(id)
-		if b.expanded[zone] && n.Kind != KindHost {
-			return []string{b.element(itemPrefix(zone)+string(n.Kind)+"|"+n.Label, element{kind: elementItem, zone: zone, nodeKind: n.Kind, label: n.Label})}
+		var out []string
+		for _, zone := range b.zonesIn(id, other) {
+			out = append(out, b.viewIn(id, zone))
 		}
-		return []string{zone}
+		return out
 	case LevelApp:
 		if apps, ok := b.folded[id]; ok {
 			return apps
@@ -804,30 +818,146 @@ func (b *builder) view(id, other string) []string {
 	return []string{id}
 }
 
-// zone is the node of the levels of the hosts and the projects a node is
-// drawn in: its stack or host, or its project and env.
-func (b *builder) zone(id string) string {
-	h := b.hostOf(id)
-	if b.f.Level == LevelProject {
-		host := b.all[h]
-		return b.element(string(KindProject)+":"+host.Project+"@"+host.Env, element{kind: elementProject, project: host.Project, env: host.Env})
-	}
-	if s, ok := b.stackOf[h]; ok {
-		return s
-	}
-	return h
-}
-
-// zoneHosts are the host nodes of a zone.
-func (b *builder) zoneHosts(zone string) []string {
-	var hosts []string
-	for id, n := range b.all {
-		if n.Kind == KindHost && b.zone(id) == zone {
-			hosts = append(hosts, id)
+// pairs are the nodes of the level a link is drawn between: inside each
+// zone its ends share, else between all their views.
+func (b *builder) pairs(from, to string) [][2]string {
+	var out [][2]string
+	if b.f.Level == LevelProject && b.all[from].Kind != KindExternal && b.all[to].Kind != KindExternal {
+		theirs := b.zonesOf(to)
+		for _, zone := range b.zonesOf(from) {
+			if slices.Contains(theirs, zone) {
+				out = append(out, [2]string{b.viewIn(from, zone), b.viewIn(to, zone)})
+			}
+		}
+		if len(out) > 0 {
+			return out
 		}
 	}
-	slices.SortFunc(hosts, func(x, y string) int { return cmp.Compare(b.all[x].Host, b.all[y].Host) })
-	return hosts
+	for _, vf := range b.view(from, to) {
+		for _, vt := range b.view(to, from) {
+			out = append(out, [2]string{vf, vt})
+		}
+	}
+	return out
+}
+
+// viewIn is the node of the level a node is drawn as in a zone: the zone,
+// or its item when the zone is expanded.
+func (b *builder) viewIn(id, zone string) string {
+	n := b.all[id]
+	if b.expanded[zone] && n.Kind != KindHost {
+		return b.element(itemPrefix(zone)+string(n.Kind)+"|"+n.Label, element{kind: elementItem, zone: zone, nodeKind: n.Kind, label: n.Label})
+	}
+	return zone
+}
+
+// zonesIn are the zones a node is drawn in for a link with other: those
+// they share, so that a link inside a zone stays in it, else all its own.
+func (b *builder) zonesIn(id, other string) []string {
+	zones := b.zonesOf(id)
+	if other == "" {
+		return zones
+	}
+	theirs := b.zonesOf(other)
+	shared := slices.DeleteFunc(slices.Clone(zones), func(z string) bool { return !slices.Contains(theirs, z) })
+	if len(shared) > 0 {
+		return shared
+	}
+	return zones
+}
+
+// zonesOf are the nodes of the levels of the hosts and the projects a node
+// is drawn in: its stack or host; at the level of the projects, each
+// project and env it holds, a host or a component being in several when it
+// serves several projects.
+func (b *builder) zonesOf(id string) []string {
+	if b.all[id].Kind == KindExternal {
+		return nil
+	}
+	h := b.hostOf(id)
+	if b.f.Level != LevelProject {
+		if s, ok := b.stackOf[h]; ok {
+			return []string{s}
+		}
+		return []string{h}
+	}
+	places := b.places[id]
+	if len(places) == 0 {
+		host := b.all[h]
+		places = []place{{host.Project, host.Env}}
+	}
+	out := make([]string, 0, len(places))
+	for _, p := range places {
+		out = append(out, b.element(string(KindProject)+":"+p.project+"@"+p.env, element{kind: elementProject, project: p.project, env: p.env}))
+	}
+	return out
+}
+
+// locate gives every node of the inventory its places.
+func (b *builder) locate() {
+	places := placement.New(b.inv)
+	runtimes := make(map[uuid.UUID]*model.Runtime, len(b.inv.Runtimes))
+	for i := range b.inv.Runtimes {
+		runtimes[b.inv.Runtimes[i].ID] = &b.inv.Runtimes[i]
+	}
+	add := func(list []place, p placement.Place) []place {
+		pl := place{b.projects[p.Project], b.envs[p.Env]}
+		if !slices.Contains(list, pl) {
+			list = append(list, pl)
+		}
+		return list
+	}
+	for id, n := range b.all {
+		if n.Entity == nil {
+			continue
+		}
+		var out []place
+		switch n.Kind {
+		case KindApp:
+			out = []place{{n.Project, n.Env}}
+		case KindRuntime:
+			// The apps of its host running it.
+			r := runtimes[*n.Entity]
+			for _, a := range b.inv.Apps {
+				if rt := runtimeRef(&a); a.HostID == n.HostIDs[0] && r != nil && (rt.Path == r.Path || rt.Type == r.Type && rt.Version == r.Version) {
+					out = appendPlace(out, b.all[b.id(KindApp, a.ID, nil)])
+				}
+			}
+		default:
+			for _, p := range places.Of(*n.Entity) {
+				out = add(out, p)
+			}
+		}
+		if len(out) == 0 {
+			out = []place{{n.Project, n.Env}}
+		}
+		b.places[id] = out
+	}
+}
+
+// appendPlace adds the place of a node once.
+func appendPlace(list []place, n Node) []place {
+	if p := (place{n.Project, n.Env}); !slices.Contains(list, p) {
+		list = append(list, p)
+	}
+	return list
+}
+
+// runtimeRef is the runtime an app runs on, as collected.
+func runtimeRef(a *model.App) struct{ Type, Version, Path string } {
+	var rt struct{ Type, Version, Path string }
+	_ = json.Unmarshal(a.Runtime, &rt)
+	return rt
+}
+
+// placedIn tells a node with a place in the projects and the envs of the
+// filter.
+func (b *builder) placedIn(id string) bool {
+	places := b.places[id]
+	if len(places) == 0 {
+		places = []place{{b.all[id].Project, b.all[id].Env}}
+	}
+	return slices.ContainsFunc(places, func(p place) bool { return matches(b.f.Projects, p.project) && matches(b.f.Envs, p.env) })
 }
 
 func itemPrefix(zone string) string {
@@ -877,17 +1007,17 @@ func (b *builder) node(id string, raw map[string]bool) Node {
 	case elementProject:
 		var hosts []string
 		for hid, n := range b.all {
-			if n.Kind == KindHost && n.Project == e.project && n.Env == e.env {
+			if n.Kind == KindHost && slices.Contains(b.zonesOf(hid), id) {
 				hosts = append(hosts, hid)
 			}
 		}
-		n := b.aggregate(hosts)
+		n := b.aggregate(hosts, id)
 		n.ID, n.Kind, n.Label, n.Project, n.Env = id, KindProject, e.project, e.project, e.env
 		n.Expanded = b.expanded[id]
 		return n
 	case elementStack:
 		hosts := b.stacks[id]
-		n := b.aggregate(hosts)
+		n := b.aggregate(hosts, "")
 		first := b.all[hosts[0]]
 		n.ID, n.Kind, n.Label, n.Project, n.Env = id, KindHost, stackLabel(n.Members), first.Project, first.Env
 		n.Divergences = b.divergences(hosts)
@@ -899,7 +1029,7 @@ func (b *builder) node(id string, raw map[string]bool) Node {
 	n := b.all[id]
 	switch n.Kind {
 	case KindHost:
-		h := b.aggregate([]string{id})
+		h := b.aggregate([]string{id}, "")
 		n.Role, n.Techs, n.Apps, n.Detail = h.Role, h.Techs, h.Apps, h.Detail
 		n.Expanded = b.expanded[id]
 	case KindApp:
@@ -918,6 +1048,9 @@ func (b *builder) item(id string, e element, raw map[string]bool) Node {
 	slices.SortFunc(ids, func(x, y string) int { return cmp.Or(cmp.Compare(b.all[x].Host, b.all[y].Host), cmp.Compare(x, y)) })
 	first := b.all[ids[0]]
 	n := Node{ID: id, Kind: kind, Label: label, Project: first.Project, Env: first.Env, Techs: first.Techs, Count: len(ids), Role: first.Role}
+	if z := b.elements[e.zone]; z.kind == elementProject {
+		n.Project, n.Env = z.project, z.env
+	}
 	var details, versions []string
 	var deployed []Deployment
 	diverges := false
@@ -975,8 +1108,12 @@ func (b *builder) zones(nodes []Node) []Group {
 }
 
 // aggregate draws what hosts hold together: their role, technologies,
-// apps and the versions of their services.
-func (b *builder) aggregate(hosts []string) Node {
+// apps and the versions of their services; in a zone of a project, only
+// what the zone holds.
+func (b *builder) aggregate(hosts []string, zone string) Node {
+	in := func(kind NodeKind, id uuid.UUID) bool {
+		return zone == "" || slices.Contains(b.zonesOf(b.id(kind, id, nil)), zone)
+	}
 	n := Node{Count: len(hosts)}
 	var frameworks, runtimes, services, versions, webservers, names []string
 	proxy := false
@@ -990,19 +1127,27 @@ func (b *builder) aggregate(hosts []string) Node {
 		n.Members = append(n.Members, host.Host)
 		n.HostIDs = append(n.HostIDs, *host.Entity)
 		c := b.content[h]
-		n.Apps += len(c.apps)
 		proxy = proxy || c.proxy
 		for _, a := range c.apps {
+			if !in(KindApp, a.ID) {
+				continue
+			}
+			n.Apps++
 			add(&frameworks, deref(a.Framework))
 			add(&runtimes, runtimeOf(a))
 			add(&names, a.Name)
 		}
 		for _, s := range c.services {
+			if !in(KindService, s.ID) {
+				continue
+			}
 			add(&services, s.Type)
 			add(&versions, deref(s.Version))
 		}
 		for _, w := range c.webservers {
-			add(&webservers, w.Type)
+			if in(KindWebserver, w.ID) {
+				add(&webservers, w.Type)
+			}
 		}
 	}
 	slices.Sort(n.Members)

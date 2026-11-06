@@ -556,3 +556,68 @@ func TestStackLabel(t *testing.T) {
 		assert.Equal(t, tt.want, stackLabel(tt.hostnames), "%v", tt.hostnames)
 	}
 }
+
+// sharedHost adds to web-prod (shop) the app posts of blog, behind its
+// nginx.
+func sharedHost(t *testing.T) *model.Inventory {
+	inv, i := inventory(t)
+	blog, posts := uuid.New(), uuid.New()
+	inv.Projects = append(inv.Projects, model.Project{Base: model.Base{ID: blog}, Slug: "blog"})
+	inv.Apps = append(inv.Apps, model.App{Base: model.Base{ID: posts}, HostID: i.webProd, Name: "posts", Role: "web", ProjectID: &blog,
+		EnvironmentID: inv.Hosts[0].EnvironmentID, Framework: ptr("wordpress")})
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeWebserver, FromID: i.ws, ToType: model.LinkNodeApp, ToID: &posts,
+		Source: model.LinkSourceWebserver, Confidence: model.LinkConfidenceExact, Detail: json.RawMessage(`{"rule":"vhost"}`)})
+	// Its nginx passes both apps to the same php-fpm.
+	fpm := uuid.New()
+	inv.Services = append(inv.Services, model.Service{Base: model.Base{ID: fpm}, HostID: i.webProd, Type: "php-fpm", Instance: "8.3"})
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeWebserver, FromID: i.ws, ToType: model.LinkNodeService, ToID: &fpm,
+		Source: model.LinkSourceWebserver, Confidence: model.LinkConfidenceExact, Detail: json.RawMessage(`{"rule":"fastcgi"}`)})
+	return inv
+}
+
+func TestBuild_ProjectSharedHost(t *testing.T) {
+	inv := sharedHost(t)
+	g, err := Build(inv, Filter{Level: LevelProject})
+	require.NoError(t, err)
+	byID := map[string]Node{}
+	for _, n := range g.Nodes {
+		byID[n.ID] = n
+	}
+	blog, shop := byID["project:blog@production"], byID["project:shop@production"]
+	assert.Equal(t, 1, blog.Apps, "only its own app")
+	assert.Equal(t, "posts", blog.Detail)
+	assert.Equal(t, []string{"web-prod"}, blog.Members, "the host running its app")
+	assert.Equal(t, 1, shop.Apps)
+	assert.Equal(t, "api", shop.Detail)
+
+	var edges []string
+	for _, e := range g.Edges {
+		edges = append(edges, e.From+" -> "+e.To)
+	}
+	assert.Contains(t, edges, "project:infra@production -> project:blog@production", "the proxy routes to the nginx serving both")
+	assert.Contains(t, edges, "project:infra@production -> project:shop@production")
+	assert.NotContains(t, edges, "project:shop@production -> project:blog@production", "nginx serves posts inside the zone of blog")
+	assert.NotContains(t, edges, "project:blog@production -> project:shop@production", "nginx and php-fpm, in both zones, link inside each")
+
+	g, err = Build(inv, Filter{Level: LevelProject, Expand: []string{"project:blog@production"}})
+	require.NoError(t, err)
+	var items []string
+	for _, n := range g.Nodes {
+		if strings.HasPrefix(n.ID, "item:project:blog@production|") {
+			items = append(items, string(n.Kind)+" "+n.Label+" "+n.Project)
+		}
+	}
+	slices.Sort(items)
+	assert.Equal(t, []string{"app posts blog", "service php-fpm 8.3 blog", "webserver nginx blog"}, items, "the zone holds its app and what serves it, not api")
+
+	g, err = Build(inv, Filter{Projects: []string{"blog"}})
+	require.NoError(t, err)
+	var selected []string
+	for _, n := range g.Nodes {
+		if n.Selected {
+			selected = append(selected, string(n.Kind)+" "+n.Label)
+		}
+	}
+	slices.Sort(selected)
+	assert.Equal(t, []string{"app posts", "service php-fpm 8.3", "webserver nginx"}, selected)
+}

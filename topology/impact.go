@@ -112,11 +112,9 @@ func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction, thr
 				if !ok {
 					continue
 				}
-				for _, vf := range b.view(r.from, r.to) {
-					for _, vt := range b.view(r.to, r.from) {
-						if vf != vt && drawn[vf] && drawn[vt] {
-							edges[vf+"→"+vt] = true
-						}
+				for _, pair := range b.pairs(r.from, r.to) {
+					if vf, vt := pair[0], pair[1]; vf != vt && drawn[vf] && drawn[vt] {
+						edges[vf+"→"+vt] = true
 					}
 				}
 				for _, v := range b.view(far, near) {
