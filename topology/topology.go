@@ -650,6 +650,9 @@ func (b *builder) effective(paths *linkpath.Graph, i int) []*link {
 			kept = true
 			continue
 		}
+		if b.isolatedPath(p) {
+			continue
+		}
 		last := p.Last()
 		d := &link{from: l.from, to: b.id(NodeKind(last.ToType), deref(last.ToID), last.ExternalTarget), fromKind: l.fromKind,
 			toKind: NodeKind(last.ToType), source: l.source, confidence: Confidence(p.Confidence()), detail: l.detail}
@@ -678,6 +681,22 @@ func (b *builder) isolated(l *link) bool {
 		return b.all[ws].Kind == KindWebserver && slices.Contains(b.f.Envs, b.all[ws].Env) && env != "" && !slices.Contains(b.f.Envs, env)
 	}
 	return shared(l.from, l.to) || shared(l.to, l.from)
+}
+
+// isolatedPath tells an effective link the filter isolates: one of the
+// links it goes through is, such as the call of a staging app to the
+// proxy of production, however prod its end.
+func (b *builder) isolatedPath(p linkpath.Path) bool {
+	if !b.f.Isolate || len(b.f.Envs) == 0 {
+		return false
+	}
+	for _, x := range p.Links {
+		h := &link{from: b.id(NodeKind(x.FromType), x.FromID, nil), to: b.id(NodeKind(x.ToType), deref(x.ToID), x.ExternalTarget)}
+		if b.present(h) && b.isolated(h) {
+			return true
+		}
+	}
+	return false
 }
 
 // internal tells a link a folded webserver makes inside its host: it is

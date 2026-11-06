@@ -190,6 +190,27 @@ func TestBuild_Isolate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, viaProxy(g), "without env nothing is isolated")
 
+	// The staging app calling a name the prod proxy routes to the prod app:
+	// drawn from the staging app to the prod app, isolated all the same.
+	shop, err := json.Marshal(linker.Detail{Rule: linker.RuleRoute, Key: "SHOP_URL", Target: "shop.example"})
+	require.NoError(t, err)
+	routed, err := json.Marshal(linker.Detail{Rule: linker.RulePrivateIP, Domains: []string{"shop.example"}})
+	require.NoError(t, err)
+	viaShop := append(slices.Clone(direct),
+		model.Link{FromType: model.LinkNodeApp, FromID: i.appStaging, ToType: model.LinkNodeWebserver, ToID: &i.trfk,
+			Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: shop},
+		model.Link{FromType: model.LinkNodeWebserver, FromID: i.trfk, ToType: model.LinkNodeApp, ToID: &i.appProd,
+			Source: model.LinkSourceTraefik, Confidence: model.LinkConfidenceExact, Detail: routed})
+	shopInv := &model.Inventory{Namespace: inv.Namespace, Projects: inv.Projects, Environments: inv.Environments, Hosts: inv.Hosts,
+		Apps: inv.Apps, Services: inv.Services, Webservers: inv.Webservers, Links: viaShop}
+	g, err = Build(shopInv, Filter{Envs: []string{"production"}})
+	require.NoError(t, err)
+	assert.Contains(t, g.Edges, Edge{From: staging, To: "app:" + i.appProd.String(), Source: model.LinkSourceEnv,
+		Confidence: model.LinkConfidenceExact, Rule: linker.RuleRoute, Labels: []string{"SHOP_URL"}, Count: 1, CrossEnv: true}, "drawn to what the proxy leads to")
+	g, err = Build(shopInv, Filter{Envs: []string{"production"}, Isolate: true})
+	require.NoError(t, err)
+	assert.NotContains(t, nodeIDs(g), "app web-staging api (neighbor)", "the call through the prod proxy is isolated")
+
 	im, err := BuildImpact(inv, Filter{Envs: []string{"production"}, Isolate: true}, trfk, Needs, false)
 	require.NoError(t, err)
 	assert.NotContains(t, im.Levels, staging, "the impact walks the same links")
