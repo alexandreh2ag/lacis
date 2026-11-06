@@ -11,6 +11,8 @@ package linkpath
 import (
 	"encoding/json"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/alexandreh2ag/lacis/domainmatch"
@@ -65,13 +67,17 @@ type Graph struct {
 	// to. The graph is read concurrently.
 	mu   sync.Mutex
 	uses map[uuid.UUID][]Path
+	// taken keeps the routes a call goes on through, by webserver, port,
+	// names and path: the apps calling a name behind a proxy are many, the
+	// names few.
+	taken map[string][]route
 }
 
 // New indexes the links of a namespace; they must not change while the
 // graph is used.
 func New(links []model.Link) *Graph {
 	g := &Graph{from: map[uuid.UUID][]*model.Link{}, to: map[uuid.UUID][]*model.Link{},
-		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, matches: map[*model.Link][]pathmatch.Match{}, path: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
+		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, matches: map[*model.Link][]pathmatch.Match{}, path: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}, taken: map[string][]route{}}
 	for i := range links {
 		l := &links[i]
 		g.from[l.FromID] = append(g.from[l.FromID], l)
@@ -192,13 +198,30 @@ func (g *Graph) follow(out []Path, path []*model.Link, names []string, urlPath s
 	if slices.ContainsFunc(path, func(l *model.Link) bool { return l.FromID == w }) {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
-	routes := g.byPath(g.routes(g.reached(g.from[w], g.ports[last]), names), urlPath)
+	routes := g.taking(w, g.ports[last], names, urlPath)
 	if len(routes) == 0 {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
 	for _, r := range routes {
 		out = g.follow(out, append(slices.Clone(path), r.link), r.names, urlPath)
 	}
+	return out
+}
+
+// taking gives the routes of a webserver a call goes on through, computed
+// once per port, names and path.
+func (g *Graph) taking(w uuid.UUID, port int, names []string, urlPath string) []route {
+	key := strings.Join(append([]string{w.String(), strconv.Itoa(port), urlPath, strconv.FormatBool(names == nil)}, names...), "\x00")
+	g.mu.Lock()
+	out, ok := g.taken[key]
+	g.mu.Unlock()
+	if ok {
+		return out
+	}
+	out = g.byPath(g.routes(g.reached(g.from[w], port), names), urlPath)
+	g.mu.Lock()
+	g.taken[key] = out
+	g.mu.Unlock()
 	return out
 }
 
