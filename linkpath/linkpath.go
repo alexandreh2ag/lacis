@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexandreh2ag/lacis/domainmatch"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/pathmatch"
 	"github.com/google/uuid"
 )
 
@@ -51,6 +52,10 @@ type Graph struct {
 	// domains are the names each link routes, its target the name it calls.
 	domains map[*model.Link][]string
 	names   map[*model.Link]string
+	// paths are the paths each link routes, path the path of the URL it
+	// calls.
+	paths map[*model.Link][]string
+	path  map[*model.Link]string
 	// ports are the ports each link calls, listen those its routes are
 	// reached on.
 	ports  map[*model.Link]int
@@ -66,7 +71,7 @@ type Graph struct {
 // graph is used.
 func New(links []model.Link) *Graph {
 	g := &Graph{from: map[uuid.UUID][]*model.Link{}, to: map[uuid.UUID][]*model.Link{},
-		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
+		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, paths: map[*model.Link][]string{}, path: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
 	for i := range links {
 		l := &links[i]
 		g.from[l.FromID] = append(g.from[l.FromID], l)
@@ -78,10 +83,18 @@ func New(links []model.Link) *Graph {
 			Port    int      `json:"port"`
 			Domains []string `json:"domains"`
 			Listen  []int    `json:"listen"`
+			Path    string   `json:"path"`
+			Paths   []string `json:"paths"`
 		}
 		_ = json.Unmarshal(l.Detail, &d)
 		g.domains[l], g.names[l] = d.Domains, domainmatch.NameOf(d.Target)
 		g.ports[l], g.listen[l] = d.Port, d.Listen
+		if d.Path != "" {
+			g.path[l] = d.Path
+		}
+		if len(d.Paths) > 0 {
+			g.paths[l] = d.Paths
+		}
 	}
 	return g
 }
@@ -115,7 +128,7 @@ func (g *Graph) From(l *model.Link) []Path {
 		names = []string{n}
 	}
 	var out []Path
-	for _, p := range g.follow(nil, []*model.Link{l}, names) {
+	for _, p := range g.follow(nil, []*model.Link{l}, names, g.path[l]) {
 		i := slices.IndexFunc(out, func(o Path) bool { return sameEnd(o.Last(), p.Last()) })
 		switch {
 		case i < 0:
@@ -167,8 +180,9 @@ func (g *Graph) UsedBy(id uuid.UUID) []Path {
 }
 
 // follow goes on from the end of the path while it is a webserver, along
-// the routes of the names called; nil names stand for a call by IP.
-func (g *Graph) follow(out []Path, path []*model.Link, names []string) []Path {
+// the routes of the names and the URL path called; nil names stand for a
+// call by IP.
+func (g *Graph) follow(out []Path, path []*model.Link, names []string, urlPath string) []Path {
 	last := path[len(path)-1]
 	if last.ToType != model.LinkNodeWebserver || last.ToID == nil {
 		return append(out, Path{Links: path})
@@ -178,12 +192,12 @@ func (g *Graph) follow(out []Path, path []*model.Link, names []string) []Path {
 	if slices.ContainsFunc(path, func(l *model.Link) bool { return l.FromID == w }) {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
-	routes := g.routes(g.reached(g.from[w], g.ports[last]), names)
+	routes := g.byPath(g.routes(g.reached(g.from[w], g.ports[last]), names), urlPath)
 	if len(routes) == 0 {
 		return append(out, Path{Links: path, DeadEnd: true})
 	}
 	for _, r := range routes {
-		out = g.follow(out, append(slices.Clone(path), r.link), r.names)
+		out = g.follow(out, append(slices.Clone(path), r.link), r.names, urlPath)
 	}
 	return out
 }
@@ -244,6 +258,24 @@ func (g *Graph) routes(links []*model.Link, names []string) []route {
 	out := make([]route, 0, len(anyName))
 	for _, l := range anyName {
 		out = append(out, route{link: l})
+	}
+	return out
+}
+
+// byPath keeps the routes the URL path called goes on through: those of
+// the paths serving it best, else those of any path.
+func (g *Graph) byPath(routes []route, urlPath string) []route {
+	if urlPath == "" || len(routes) < 2 {
+		return routes
+	}
+	paths := make([][]string, len(routes))
+	for i, r := range routes {
+		paths[i] = g.paths[r.link]
+	}
+	kept := pathmatch.Select(urlPath, paths)
+	out := make([]route, 0, len(kept))
+	for _, i := range kept {
+		out = append(out, routes[i])
 	}
 	return out
 }

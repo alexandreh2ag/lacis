@@ -81,7 +81,7 @@ dot:
 
 A webserver whose configuration names the domain receives its requests. When the
 name resolves to a host of the inventory, the webservers of that host are kept, with
-their **replicas**: the webservers routing the name to the same ends, such as the
+their **replicas**: the webservers routing the name and the path called to the same ends, such as the
 Traefik instances of a cluster, or two nginx each serving their deployment of an app
 (an app is its name in its project and env). Otherwise (a CDN in front, a name the
 DNS cannot resolve), all the webservers routing the name are kept. Only those in
@@ -131,6 +131,10 @@ Through a webserver:
 - the routes of the name called are taken (`Host()`, `server_name`, the domains a
   link routes); without any, the routes of no name (a default vhost, an HAProxy
   backend);
+- of these, the routes of the path of the URL called are taken: the exact path
+  (Traefik `Path()`), else the longest prefix or regexp (`PathPrefix()`,
+  `PathRegexp()`, a v2 path with variables), else the routes of any path; a call
+  without path, or one no route serves, takes them all;
 - a call by IP takes the routes of no name, or the routes of names when they all
   lead to the same place: anything else would be a guess;
 - when the routes reach an app, those reaching a service (the PHP-FPM running that

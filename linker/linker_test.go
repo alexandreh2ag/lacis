@@ -377,6 +377,64 @@ func TestResolve_RouteReplicas(t *testing.T) {
 	}
 }
 
+func TestResolve_RoutePath(t *testing.T) {
+	cloudflare, _ := cdnpkg.Known("cloudflare")
+	tests := []struct {
+		name, path string
+		want       string
+	}{
+		{name: "a path both route to the site: replicas", path: "/contact", want: exact},
+		{name: "a path only one routes to the tool: ambiguous", path: "/tool/x", want: model.LinkConfidenceAmbiguous},
+		{name: "no path: every route, ambiguous", path: "", want: model.LinkConfidenceAmbiguous},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture()
+			f.network("10.0.1.0/24")
+			f.service(f.host("site", "10.0.1.22"), "node", model.EndpointKindTCP, "0.0.0.0", 3000)
+			f.service(f.host("tool", "10.0.1.23"), "node", model.EndpointKindTCP, "0.0.0.0", 4000)
+			site := snapshot.Router{Name: "site@file", Rule: "Host(`www.acme.example`)", Service: "site@file"}
+			tool := snapshot.Router{Name: "tool@file", Rule: "Host(`www.acme.example`) && PathPrefix(`/tool`)", Service: "tool@file"}
+			services := []snapshot.ProxyService{{Name: "site@file", Servers: []string{"http://10.0.1.22:3000"}}, {Name: "tool@file", Servers: []string{"http://10.0.1.23:4000"}}}
+			// rp2 lacks the route of the tool.
+			f.webserver(f.host("rp1", "10.0.1.11"), "traefik", routing{Routers: []snapshot.Router{site, tool}, Services: services}, "www.acme.example")
+			f.webserver(f.host("rp2", "10.0.1.12"), "traefik", routing{Routers: []snapshot.Router{site}, Services: services}, "www.acme.example")
+			f.dep(f.app(f.host("api", "10.0.1.40")), "URL", "https", 443, name("www.acme.example", "dns", "104.16.1.1"))
+			f.inv.Dependencies[0].URLPath = &tt.path
+
+			var got []edge
+			for _, e := range f.resolveWith(t, Options{CDN: []cdnpkg.CDN{cloudflare}}) {
+				if e.From == "app api" {
+					got = append(got, e)
+				}
+			}
+			assert.ElementsMatch(t, []edge{
+				{From: "app api", To: "traefik rp1", Source: env, Confidence: tt.want, Rule: RuleRoute, CDN: "cloudflare"},
+				{From: "app api", To: "traefik rp2", Source: env, Confidence: tt.want, Rule: RuleRoute, CDN: "cloudflare"},
+			}, got)
+		})
+	}
+}
+
+func TestPathsOfRule(t *testing.T) {
+	tests := []struct {
+		rule string
+		want []string
+	}{
+		{"Host(`www.acme.example`)", nil},
+		{"(Host(`www.acme.example`) || Host(`acme.example`)) && PathPrefix(`/inspirations-ia`)", []string{"/inspirations-ia"}},
+		{"Host(`api.acme.example`) && PathRegexp(`^(/graphql|/api|/webhooks)`)", []string{"~^(/graphql|/api|/webhooks)"}},
+		{"Host(`acme.example`) && Path(`/health`)", []string{"=/health"}},
+		{"Host(`acme.example`) && PathPrefix(`/a`, `/b`)", []string{"/a", "/b"}},
+		{"Host(`acme.example`) && !PathPrefix(`/admin`)", nil},
+		{"Host(`acme.example`) && Path(`/items/{id:[0-9]+}`)", []string{"~^/items/([0-9]+)$"}},
+		{"Host(`acme.example`) && PathPrefix(`/u/{name}`)", []string{"~^/u/[^/]+"}},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, pathsOfRule(tt.rule), tt.rule)
+	}
+}
+
 func TestResolve_RouteDeployments(t *testing.T) {
 	cloudflare, _ := cdnpkg.Known("cloudflare")
 	f := newFixture()

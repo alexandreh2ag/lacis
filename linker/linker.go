@@ -22,6 +22,7 @@ import (
 	"github.com/alexandreh2ag/lacis/domainmatch"
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/pathmatch"
 	"github.com/google/uuid"
 )
 
@@ -70,6 +71,8 @@ type Detail struct {
 	// Target is the address as written: name, IP or socket, and port.
 	Target string `json:"target,omitempty"`
 	Port   int    `json:"port,omitempty"`
+	// Path is the path of the HTTP URL called: the route it takes.
+	Path string `json:"path,omitempty"`
 	// Via is the IP a name resolved to.
 	Via string `json:"via,omitempty"`
 	// CDN is the CDN in front of the target: its name in linking.cdns, or
@@ -79,6 +82,9 @@ type Detail struct {
 	// traffic of a webserver; Domains the names they route.
 	Routes  []string `json:"routes,omitempty"`
 	Domains []string `json:"domains,omitempty"`
+	// Paths are the paths these routes serve, as nginx locations ("/api"
+	// a prefix, "=/health" exact, "~^/(a|b)" a regexp); none for any.
+	Paths []string `json:"paths,omitempty"`
 	// Listen are the ports these routes are reached on: the binds of an
 	// HAProxy frontend, the listen of an nginx vhost; none when unknown.
 	Listen []int `json:"listen,omitempty"`
@@ -240,6 +246,11 @@ func (r *resolver) add(from node, to target, source string, detail Detail, merge
 	if p, ok := r.merged[key]; merge && ok {
 		p.detail.Routes = appendNew(p.detail.Routes, detail.Routes...)
 		p.detail.Domains = appendNew(p.detail.Domains, detail.Domains...)
+		if len(p.detail.Paths) == 0 || len(detail.Paths) == 0 {
+			p.detail.Paths = nil // a route of any path
+		} else {
+			p.detail.Paths = appendNew(p.detail.Paths, detail.Paths...)
+		}
 		for _, port := range detail.Listen {
 			if !slices.Contains(p.detail.Listen, port) {
 				p.detail.Listen = append(p.detail.Listen, port)
@@ -304,8 +315,8 @@ func (r *resolver) dependencies() {
 		if port == 0 {
 			port = DefaultPort(scheme)
 		}
-		detail.Target, detail.Port = t.Value, port
-		for _, to := range r.address(app.HostID, t, port, scheme) {
+		detail.Target, detail.Port, detail.Path = t.Value, port, deref(d.URLPath)
+		for _, to := range r.address(app.HostID, t, port, scheme, detail.Path) {
 			r.add(from, to, model.LinkSourceEnv, detail, false)
 		}
 	}
@@ -367,7 +378,7 @@ func (r *resolver) proxies() {
 		}
 		for _, router := range rt.Routers {
 			servers := rt.serviceServers(router.Service, map[string]bool{})
-			r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{router.Name}, Domains: domainsOfRule(router.Rule)}, false)
+			r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{router.Name}, Domains: domainsOfRule(router.Rule), Paths: pathsOfRule(router.Rule)}, false)
 		}
 		for _, f := range rt.Frontends {
 			for _, name := range appendNew(nil, append([]string{f.DefaultBackend}, f.Backends...)...) {
@@ -421,7 +432,7 @@ func (r *resolver) proxy(hostID uuid.UUID, from node, source string, servers []s
 		srv.Port = cmp.Or(srv.Port, via.Port)
 		d := detail
 		d.Target, d.Port = srv.Target.Value, srv.Port
-		for _, to := range r.address(hostID, srv.Target, srv.Port, srv.Scheme) {
+		for _, to := range r.address(hostID, srv.Target, srv.Port, srv.Scheme, "") {
 			if local && to.reason == ReasonPortNotFound {
 				continue
 			}
@@ -549,8 +560,9 @@ func (r *resolver) isHTTP(scheme string, port int) bool {
 	return port == 0 || r.httpPorts[port]
 }
 
-// address resolves a target seen from a host, by the rules in order.
-func (r *resolver) address(fromHost uuid.UUID, t snapshot.Target, port int, scheme string) []target {
+// address resolves a target seen from a host, by the rules in order; path
+// is the path of the HTTP URL called.
+func (r *resolver) address(fromHost uuid.UUID, t snapshot.Target, port int, scheme, path string) []target {
 	switch t.Kind {
 	case "socket":
 		for _, e := range r.endpoints[fromHost] {
@@ -566,14 +578,14 @@ func (r *resolver) address(fromHost uuid.UUID, t snapshot.Target, port int, sche
 		}
 		return r.ip(fromHost, ip.Unmap(), port)
 	default:
-		return r.name(fromHost, t, port, scheme)
+		return r.name(fromHost, t, port, scheme, path)
 	}
 }
 
 // localhost are the addresses localhost may resolve to.
 var localhost = []netip.Addr{netip.AddrFrom4([4]byte{127, 0, 0, 1}), netip.IPv6Loopback()}
 
-func (r *resolver) name(fromHost uuid.UUID, t snapshot.Target, port int, scheme string) []target {
+func (r *resolver) name(fromHost uuid.UUID, t snapshot.Target, port int, scheme, path string) []target {
 	name := domainmatch.Normalize(t.Value)
 	if name == "localhost" {
 		return r.onHost(fromHost, localhost, port, RuleLoopback, model.LinkConfidenceExact, localhost[0].String())
@@ -585,7 +597,7 @@ func (r *resolver) name(fromHost uuid.UUID, t snapshot.Target, port int, scheme 
 		}
 	}
 	if r.isHTTP(scheme, port) {
-		if out := r.route(name, resolved); len(out) > 0 {
+		if out := r.route(name, path, resolved); len(out) > 0 {
 			return out
 		}
 	}
@@ -624,9 +636,9 @@ func appendTarget(list []target, t target) []target {
 // the inventory, its webservers are kept, with their replicas, the
 // webservers routing the name to the same ends; else, behind a CDN or not
 // resolved, all of them. Only the webservers in front are kept, not the
-// backends behind that also know the name. Webservers leading the name to
-// different ends are ambiguous.
-func (r *resolver) route(name string, resolved []netip.Addr) []target {
+// backends behind that also know the name. Webservers leading the name, on
+// the path called, to different ends are ambiguous.
+func (r *resolver) route(name, path string, resolved []netip.Addr) []target {
 	var all []uuid.UUID
 	for _, id := range r.domains.Lookup(name) {
 		if !slices.Contains(all, id) {
@@ -661,7 +673,7 @@ func (r *resolver) route(name string, resolved []netip.Addr) []target {
 	}
 	ends := map[uuid.UUID]string{}
 	for _, id := range front {
-		ends[id] = r.ends(id, name)
+		ends[id] = r.ends(id, name, path)
 	}
 	if len(reached) > 0 {
 		for _, id := range front {
@@ -682,12 +694,12 @@ func (r *resolver) route(name string, resolved []netip.Addr) []target {
 	return out
 }
 
-// ends tells where a webserver leads a name, through the webservers it
-// routes it to: the same ends make replicas, such as two nginx each serving
+// ends tells where a webserver leads a name and a path, through the
+// webservers it routes them to: the same ends make replicas, such as two nginx each serving
 // their deployment of an app. A webserver routing the name nowhere known is
 // its own end.
-func (r *resolver) ends(webserverID uuid.UUID, name string) string {
-	key := webserverID.String() + "\x00" + name
+func (r *resolver) ends(webserverID uuid.UUID, name, path string) string {
+	key := strings.Join([]string{webserverID.String(), name, path}, "\x00")
 	if e, ok := r.endsOf[key]; ok && r.routed != nil {
 		return e
 	}
@@ -697,13 +709,16 @@ func (r *resolver) ends(webserverID uuid.UUID, name string) string {
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-		leaf := true
+		var routes []*pending
+		var paths [][]string
 		for _, p := range r.outgoing(cur) {
-			l := p.link
-			if len(p.detail.Domains) > 0 && len(domainmatch.Routed([]string{name}, p.detail.Domains)) == 0 {
-				continue
+			if len(p.detail.Domains) == 0 || len(domainmatch.Routed([]string{name}, p.detail.Domains)) > 0 {
+				routes, paths = append(routes, p), append(paths, p.detail.Paths)
 			}
-			leaf = false
+		}
+		leaf := len(routes) == 0
+		for _, i := range pathmatch.Select(path, paths) {
+			l := routes[i].link
 			if l.ToType == model.LinkNodeWebserver && l.ToID != nil {
 				if !seen[*l.ToID] {
 					seen[*l.ToID] = true
@@ -946,6 +961,58 @@ var (
 	ruleHost   = regexp.MustCompile(`\bHost(?:SNI)?\(([^)]*)\)`)
 	backquoted = regexp.MustCompile("`([^`]*)`")
 )
+
+var (
+	rulePath = regexp.MustCompile("(!\\s*)?\\b(PathRegexp|PathPrefix|Path)\\(((?:\\s*`[^`]*`\\s*,?)+)\\)")
+	// pathVar is a variable of a Traefik v2 path, {id} or {id:[0-9]+}.
+	pathVar = regexp.MustCompile(`\{[^}:]+(?::([^}]*))?\}`)
+)
+
+// pathsOfRule reads the paths of a Traefik rule as nginx locations: none
+// when it serves any path. A negated matcher is left out.
+func pathsOfRule(rule string) []string {
+	var out []string
+	for _, m := range rulePath.FindAllStringSubmatch(rule, -1) {
+		if m[1] != "" {
+			continue
+		}
+		for _, q := range backquoted.FindAllStringSubmatch(m[3], -1) {
+			out = appendNew(out, pathMatcher(m[2], q[1]))
+		}
+	}
+	return out
+}
+
+// pathMatcher writes a matcher of a Traefik rule as an nginx location; a
+// v2 path with variables becomes a regexp.
+func pathMatcher(kind, value string) string {
+	if kind == "PathRegexp" {
+		return "~" + value
+	}
+	if pathVar.MatchString(value) {
+		var b strings.Builder
+		b.WriteString("^")
+		last := 0
+		for _, loc := range pathVar.FindAllStringSubmatchIndex(value, -1) {
+			b.WriteString(regexp.QuoteMeta(value[last:loc[0]]))
+			if loc[2] >= 0 {
+				b.WriteString("(" + value[loc[2]:loc[3]] + ")")
+			} else {
+				b.WriteString("[^/]+")
+			}
+			last = loc[1]
+		}
+		b.WriteString(regexp.QuoteMeta(value[last:]))
+		if kind == "Path" {
+			b.WriteString("$")
+		}
+		return "~" + b.String()
+	}
+	if kind == "Path" {
+		return "=" + value
+	}
+	return value
+}
 
 // domainsOfRule reads the names of the Host() of a Traefik rule.
 func domainsOfRule(rule string) []string {

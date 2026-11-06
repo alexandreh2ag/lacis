@@ -138,6 +138,37 @@ func TestRoutes(t *testing.T) {
 		want  []string
 	}{
 		{
+			name: "the route of the path called wins over the route of any path",
+			links: []model.Link{
+				exact("app-a", "ws-x", map[string]any{"target": "www.example", "path": "/simulateur-enr/aides"}),
+				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
+				exact("ws-x", "app-quiz", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/quiz"}}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-x > app-simu"},
+		},
+		{
+			name: "a path no route serves takes the route of any path",
+			links: []model.Link{
+				exact("app-a", "ws-x", map[string]any{"target": "www.example", "path": "/contact"}),
+				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-x > app-site"},
+		},
+		{
+			name: "no path: every route of the name",
+			links: []model.Link{
+				exact("app-a", "ws-x", map[string]any{"target": "www.example"}),
+				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-x > app-site", "app-a > ws-x > app-simu"},
+		},
+		{
 			name: "the route of the name wins over the default one",
 			links: []model.Link{
 				exact("app-a", "ws-x", map[string]any{"target": "https://shop.example"}),

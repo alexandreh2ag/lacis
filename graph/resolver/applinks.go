@@ -117,9 +117,11 @@ func (x *index) routes(paths []linkpath.Path) []graph.LinkRoute {
 				Rule: new(ruleOf(ld)), Details: []string{}, Names: []string{}}, confidence: l.Confidence}
 			switch {
 			case i == 0 && d.Key != "" && d.Target != "":
-				s.Details = append(s.Details, d.Key+" = "+d.Target)
+				s.Details = append(s.Details, d.Key+" = "+d.Target+d.Path)
 			case i == 0:
-				s.Details = appendNew(s.Details, d.Key, d.Target)
+				s.Details = appendNew(s.Details, d.Key, d.Target+d.Path)
+			case len(ld.Paths) > 0:
+				s.Details = appendNew(s.Details, strings.Join(ld.Routes, ", ")+" ("+strings.Join(ld.Paths, ", ")+")")
 			default:
 				s.Details = appendNew(s.Details, strings.Join(ld.Routes, ", "))
 			}
