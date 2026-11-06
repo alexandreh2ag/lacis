@@ -147,6 +147,7 @@ function Graph() {
         ) : null}
         <HighlightContext.Provider value={highlight}>
           <ReactFlow
+            ref={highlight.setRoot}
             className="lc-flow"
             nodes={shown}
             edges={edges}

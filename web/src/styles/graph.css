@@ -8,7 +8,14 @@
 .lc-flow .react-flow__controls-button:hover { background: var(--surface-hover); }
 .lc-handle { opacity: 0; width: 1px !important; height: 1px !important; min-width: 0 !important; min-height: 0 !important; border: 0 !important; }
 /* A neighbor kept for being linked to the nodes selected by the filters. */
-.lc-node--neighbor:not(.lc-node--faded) { opacity: 0.72; }
+.lc-node--neighbor { opacity: 0.72; }
+/* While a hover or an impact lights some cards and edges, the others fade:
+   the class of the root does it, without rendering them again. At once: a
+   transition repaints the hundreds of curves on every frame. */
+.lc-flow .lc-node { transition: outline-color 120ms; }
+.lc-flow--lit .lc-node:not(.lc-node--related):not(.lc-node--hovered),
+.lc-flow--lit .lc-edge:not(.lc-edge--lit),
+.lc-flow--lit .lc-edge__weight:not(.lc-edge--lit) { opacity: 0.15; }
 
 .lc-box { width: 100%; height: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .lc-box--host { background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }

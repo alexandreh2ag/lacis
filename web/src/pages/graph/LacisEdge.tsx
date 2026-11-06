@@ -23,21 +23,21 @@ export const LacisEdge = memo(function LacisEdge(props: EdgeProps) {
   const state = useEdgeState(id)
   const hovered = state === 'hovered'
   const related = hovered || state === 'related'
-  const faded = state === 'faded'
+  // lit keeps the edge bright while the root of the graph fades the others.
+  const lit = related ? ' lc-edge--lit' : ''
   const t = useT()
   const [path, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
   const width = 1.5 + Math.min(e.count - 1, 3) * 0.75 + (related ? 1.5 : 0)
   const dash = e.confidence === 'INFERRED' ? '6 4' : e.confidence === 'AMBIGUOUS' ? '1 4' : undefined
   const stroke = impact ? 'var(--danger)' : `var(--link-${color})`
-  const opacity = faded ? 0.15 : 1
   return (
     <>
-      {e.crossEnv ? <path d={path} fill="none" stroke="var(--edge-cross-env)" strokeOpacity={0.3 * opacity} strokeWidth={width + 6} strokeLinecap="round" /> : null}
-      <BaseEdge id={id} path={path} markerEnd={`url(#lc-arrow-${impact ? 'danger' : color})`} interactionWidth={14}
-        style={{ stroke, strokeWidth: width, strokeDasharray: dash, strokeLinecap: 'round', opacity, transition: 'opacity 120ms' }} />
+      {e.crossEnv ? <path className={'lc-edge' + lit} d={path} fill="none" stroke="var(--edge-cross-env)" strokeOpacity={0.3} strokeWidth={width + 6} strokeLinecap="round" /> : null}
+      <BaseEdge id={id} className={'lc-edge' + lit} path={path} markerEnd={`url(#lc-arrow-${impact ? 'danger' : color})`} interactionWidth={14}
+        style={{ stroke, strokeWidth: width, strokeDasharray: dash, strokeLinecap: 'round' }} />
       <EdgeLabelRenderer>
         {e.count > 1 ? (
-          <div className="lc-edge__weight nodrag nopan" style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, borderColor: stroke, opacity }}>
+          <div className={'lc-edge__weight nodrag nopan' + lit} style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, borderColor: stroke }}>
             {e.count}
           </div>
         ) : null}

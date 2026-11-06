@@ -30,12 +30,16 @@ export function neighbours(edges: GEdge[]): Neighbours {
 }
 
 // State is the look of a node or an edge: hovered, lit with the hovered
-// one, faded by it, or plain.
-export type State = 'hovered' | 'related' | 'faded' | ''
+// one, or plain. What is not lit fades while something is: the class
+// LIT_CLASS on the root of the graph does it in CSS.
+export type State = 'hovered' | 'related' | ''
+
+// LIT_CLASS marks the root of the graph while something is lit.
+export const LIT_CLASS = 'lc-flow--lit'
 
 // Highlight holds the hover and the impact out of the React state of the
-// graph: a hover renders again only the cards and edges whose look
-// changes, never the whole graph.
+// graph: a hover renders again only the cards and edges it lights, the
+// others fading through the class of the root, never the whole graph.
 export class Highlight {
   private hoverNode: string | null = null
   private hoverEdge: GEdge | null = null
@@ -43,10 +47,18 @@ export class Highlight {
   private around: Neighbours = new Map()
   private lit: Lit | null = null
   private listeners = new Set<() => void>()
+  private root: Element | null = null
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
     return () => { this.listeners.delete(fn) }
+  }
+
+  // setRoot gives the element holding the graph, marked while something
+  // is lit.
+  setRoot = (el: Element | null) => {
+    this.root = el
+    this.root?.classList.toggle(LIT_CLASS, !!this.lit)
   }
 
   // setGraph gives the neighbours of the graph drawn.
@@ -75,12 +87,12 @@ export class Highlight {
     else if (this.hoverNode) this.lit = this.around.get(this.hoverNode) ?? { nodes: new Set([this.hoverNode]), edges: new Set() }
     else if (this.hoverEdge) this.lit = { nodes: new Set([this.hoverEdge.from, this.hoverEdge.to]), edges: new Set([this.hoverEdge.id]) }
     else this.lit = null
+    this.root?.classList.toggle(LIT_CLASS, !!this.lit)
     this.listeners.forEach((fn) => fn())
   }
 
   node(id: string): State {
-    if (!this.lit) return ''
-    if (!this.lit.nodes.has(id)) return 'faded'
+    if (!this.lit || !this.lit.nodes.has(id)) return ''
     // The hovered card itself stays as it is.
     return !this.impact && id === this.hoverNode ? 'hovered' : 'related'
   }
@@ -89,8 +101,7 @@ export class Highlight {
   // tooltip, impact or not.
   edge(id: string): State {
     if (id === this.hoverEdge?.id) return 'hovered'
-    if (!this.lit) return ''
-    return this.lit.edges.has(id) ? 'related' : 'faded'
+    return this.lit?.edges.has(id) ? 'related' : ''
   }
 }
 

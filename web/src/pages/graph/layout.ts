@@ -36,13 +36,34 @@ export interface Layout {
   colors: Map<string, number>
 }
 
-// The layout runs in a Web Worker, started on the first layout: ELK
-// takes seconds on a large graph, which would freeze the page.
-let engine: InstanceType<typeof ELK> | null = null
+// The layout runs in Web Workers, started on the first layout: ELK takes
+// seconds on a large graph, which would freeze the page. The env lanes
+// are laid out apart, each in a worker of its own, at once.
+const POOL = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1))
+const engines: InstanceType<typeof ELK>[] = []
 
-function elk(): InstanceType<typeof ELK> {
-  engine ??= new ELK({ workerFactory: () => new Worker(elkWorker) })
-  return engine
+function elk(i = 0): InstanceType<typeof ELK> {
+  const k = i % POOL
+  engines[k] ??= new ELK({ workerFactory: () => new Worker(elkWorker) })
+  return engines[k]
+}
+
+// laidOut keeps the last layouts of the lanes: opening a zone lays out
+// again its lane only, the others being the same.
+const laidOut = new Map<string, Promise<ElkNode>>()
+const KEEP = 32
+
+// layoutLane lays a lane out in worker i, or gives the layout of the same
+// lane kept.
+export function layoutLane(lane: ElkNode, i: number): Promise<ElkNode> {
+  const key = JSON.stringify(lane)
+  const kept = laidOut.get(key)
+  if (kept) return kept
+  const p = elk(i).layout(lane)
+  p.catch(() => laidOut.delete(key))
+  laidOut.set(key, p)
+  while (laidOut.size > KEEP) laidOut.delete(laidOut.keys().next().value!)
+  return p
 }
 
 // Spacing is the room around the cards: between two columns, and between
@@ -112,7 +133,7 @@ async function envLanes(graph: GraphData, envOrder: string[], sizes: Sizes, spac
   const loose = graph.nodes.filter((n) => !n.env)
   if (loose.length) groups.push({ env: null, nodes: loose })
 
-  const lay = (s: Spacing) => Promise.all(groups.map((g) => {
+  const lay = (s: Spacing) => Promise.all(groups.map((g, i) => {
     const ids = new Set(g.nodes.map((n) => n.id))
     const pad = g.env ? lanePadding : { top: 0, left: 0, bottom: 0, right: 0 }
     const lane: ElkNode = {
@@ -121,7 +142,7 @@ async function envLanes(graph: GraphData, envOrder: string[], sizes: Sizes, spac
       children: g.nodes.map((n) => ({ id: n.id, width: sizes.get(n.id)?.width ?? NODE_W, height: sizes.get(n.id)?.height ?? NODE_H })),
       edges: graph.edges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => ({ id: e.id, sources: [e.from], targets: [e.to] })),
     }
-    return elk().layout(lane)
+    return layoutLane(lane, i)
   }))
   let laid = await lay(spacing)
   // A graph narrower than the screen lays out again, its columns spread.

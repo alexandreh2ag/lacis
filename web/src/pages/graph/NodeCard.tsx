@@ -34,7 +34,7 @@ export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
     n.status === 'INACTIVE' ? 'lc-node--inactive' : '',
     selected ? 'lc-node--selected' : '',
     state === 'related' ? 'lc-node--related' : '',
-    state === 'faded' ? 'lc-node--faded' : '',
+    state === 'hovered' ? 'lc-node--hovered' : '',
     impact ? 'lc-node--impact' : '',
     n.selected ? '' : 'lc-node--neighbor'].join(' ')
   return (
