@@ -35,7 +35,9 @@ const size = (n: InternalNode) => ({ width: n.measured.width ?? n.width ?? NODE_
 // from the right side of a card to the left side of another, the color of
 // their source, the dash of their confidence, their weight when they merge
 // several links, and a tooltip when hovered.
-export const EdgeLayer = memo(function EdgeLayer({ edges }: { edges: LinkEdge[] }) {
+// With crossHidden, an edge between two envs is drawn only while lit: the
+// cards count them.
+export const EdgeLayer = memo(function EdgeLayer({ edges, crossHidden }: { edges: LinkEdge[]; crossHidden: boolean }) {
   // The nodes change with every move of a card and every measure: the
   // edges follow them, not the pans and zooms, which the viewport does.
   const nodes = useStore((s) => s.nodes)
@@ -62,9 +64,10 @@ export const EdgeLayer = memo(function EdgeLayer({ edges }: { edges: LinkEdge[] 
     <ViewportPortal>
       <div className="lc-edges-layer">
         <svg className="lc-edges" aria-hidden="true">
-          {drawn.map((d) => <EdgePath key={d.id} id={d.id} path={d.path} data={d.data} />)}
+          {drawn.map((d) => <EdgePath key={d.id} id={d.id} path={d.path} data={d.data} hidden={crossHidden && !!d.data.edge.crossEnv} />)}
         </svg>
-        {drawn.map((d) => (d.data.edge.count > 1 ? <EdgeWeight key={d.id} id={d.id} x={d.labelX} y={d.labelY} data={d.data} /> : null))}
+        {drawn.map((d) => (d.data.edge.count > 1
+          ? <EdgeWeight key={d.id} id={d.id} x={d.labelX} y={d.labelY} data={d.data} hidden={crossHidden && !!d.data.edge.crossEnv} /> : null))}
         <EdgeTooltip drawn={drawn} />
       </div>
     </ViewportPortal>
@@ -74,11 +77,12 @@ export const EdgeLayer = memo(function EdgeLayer({ edges }: { edges: LinkEdge[] 
 const strokeOf = (d: LinkData) => (d.impact ? 'var(--danger)' : `var(--link-${d.color})`)
 
 // EdgePath is the curve of an edge and its wider invisible twin, which the
-// pointer hovers.
-const EdgePath = memo(function EdgePath({ id, path, data }: { id: string; path: string; data: LinkData }) {
+// pointer hovers; a hidden edge shows only while lit.
+const EdgePath = memo(function EdgePath({ id, path, data, hidden }: { id: string; path: string; data: LinkData; hidden: boolean }) {
   const h = useContext(HighlightContext)
   const state = useEdgeState(id)
   const related = state === 'hovered' || state === 'related'
+  if (hidden && !related) return null
   const e = data.edge
   const width = 1.5 + Math.min(e.count - 1, 3) * 0.75 + (related ? 1.5 : 0)
   const dash = e.confidence === 'INFERRED' ? '6 4' : e.confidence === 'AMBIGUOUS' ? '1 4' : undefined
@@ -93,8 +97,9 @@ const EdgePath = memo(function EdgePath({ id, path, data }: { id: string; path: 
 })
 
 // EdgeWeight is the number of links an edge merges.
-const EdgeWeight = memo(function EdgeWeight({ id, x, y, data }: { id: string; x: number; y: number; data: LinkData }) {
+const EdgeWeight = memo(function EdgeWeight({ id, x, y, data, hidden }: { id: string; x: number; y: number; data: LinkData; hidden: boolean }) {
   const state = useEdgeState(id)
+  if (hidden && state !== 'hovered' && state !== 'related') return null
   const lit = state === 'hovered' || state === 'related' ? ' lc-edge--lit' : ''
   return (
     <div className={'lc-edge__weight nodrag nopan' + lit}

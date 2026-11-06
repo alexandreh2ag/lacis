@@ -80,6 +80,11 @@ export function GraphFilters({ ns, p, envs, projects, counts }: {
         <label className="flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={p.externals} onChange={(e) => p.set({ ext: e.target.checked ? null : '0' })} /> {t.graph.filters.externals}
         </label>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input type="checkbox" checked={p.crossEnv} aria-describedby="graph-cross-hint"
+            onChange={(e) => p.set({ xenv: e.target.checked ? 'all' : null })} /> {t.graph.filters.crossEnv}
+        </label>
+        <span id="graph-cross-hint" className="lc-muted text-xs leading-4">{t.graph.filters.crossEnvHint}</span>
       </section>
       <span className="flex-1" />
       <p className="lc-muted m-0 text-[12px] leading-[17px]">

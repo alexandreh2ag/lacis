@@ -19,6 +19,8 @@ export const graph: Messages['graph'] = {
     confidence: 'Confidence',
     confidences: { EXACT: 'exact', INFERRED: 'inferred', AMBIGUOUS: 'ambiguous' },
     externals: 'External targets',
+    crossEnv: 'All the links between envs',
+    crossEnvHint: 'Else a pill on the card counts them; hovering the card shows them.',
     isolate: 'Isolate the envs picked',
     isolateHint: 'Leaves out what a shared proxy, such as the production traefik, brings from other envs. A direct link between envs stays.',
     isolateOff: 'Pick an env to isolate it.',
@@ -80,6 +82,7 @@ export const graph: Messages['graph'] = {
     impactTitle: (level: number) => level === 1 ? 'Direct impact' : `Impact of level ${level}`,
     impactBadge: (level: number) => level === 1 ? 'direct' : `level ${level}`,
     targets: (n: number) => `${n} target${n !== 1 ? 's' : ''}`,
+    crossEnv: (n: number, env: string) => `${n} link${n > 1 ? 's' : ''} with ${env} · hover the card to see ${n > 1 ? 'them' : 'it'}`,
   },
   edge: {
     links: (n: number) => n > 1 ? `${n} merged links` : '1 link',

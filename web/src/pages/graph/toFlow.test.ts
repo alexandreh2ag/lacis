@@ -1,6 +1,6 @@
 import type { Layout } from './layout'
 import type { GEdge, GNode, GraphData } from './query'
-import { hash, toFlowEdges, toFlowNodes } from './toFlow'
+import { crossEnvs, hash, toFlowEdges, toFlowNodes } from './toFlow'
 import { shapeOf } from './useGraphLayout'
 import { planZones } from './zones'
 
@@ -56,4 +56,13 @@ test('shapeOf changes with the nodes and edges, not with their data', () => {
   const same = { ...graph, nodes: graph.nodes.map((n) => ({ ...n, status: 'STALE' as const, version: 'v2' })) }
   expect(shapeOf(same, zones)).toBe(shapeOf(graph, zones))
   expect(shapeOf({ ...graph, edges: graph.edges.slice(1) }, zones)).not.toBe(shapeOf(graph, zones))
+})
+
+test('crossEnvs counts the links of each node with each other env, towards its lane', () => {
+  const env: Record<string, string> = { a: 'staging', b: 'production', c: 'production', d: 'release', e: 'staging' }
+  const x = (from: string, to: string, crossEnv = true) => ({ from, to, crossEnv })
+  const cross = crossEnvs([x('a', 'b'), x('a', 'c'), x('a', 'd'), x('a', 'e', false), x('d', 'b')], (id) => env[id], ['production', 'release', 'staging'])
+  expect(cross.get('a')).toEqual([{ env: 'production', count: 2, up: true }, { env: 'release', count: 1, up: true }])
+  expect(cross.get('b')).toEqual([{ env: 'release', count: 1, up: false }, { env: 'staging', count: 1, up: false }])
+  expect(cross.has('e')).toBe(false)
 })

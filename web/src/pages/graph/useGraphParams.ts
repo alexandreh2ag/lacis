@@ -32,6 +32,9 @@ export function useGraphParams() {
       statuses: statuses.length ? statuses : (['ACTIVE', 'STALE'] as HostStatus[]),
       confidences: params.getAll('conf') as LinkConfidence[],
       externals: params.get('ext') !== '0',
+      // crossEnv draws every link between two envs; else a pill on the
+      // cards counts them, a hover drawing those of a card.
+      crossEnv: params.get('xenv') === 'all',
       // isolate only means something with envs picked.
       isolate: params.get('iso') === '1' && params.getAll('env').length > 0,
       set(changes: Record<string, string | string[] | null>) {

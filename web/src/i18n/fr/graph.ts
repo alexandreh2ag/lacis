@@ -17,6 +17,8 @@ export const graph = {
     confidence: 'Confiance',
     confidences: { EXACT: 'exact', INFERRED: 'déduit', AMBIGUOUS: 'ambigu' },
     externals: 'Cibles externes',
+    crossEnv: 'Tous les liens entre envs',
+    crossEnvHint: 'Sinon, une pastille sur la carte les compte ; le survol de la carte les montre.',
     isolate: 'Isoler les envs choisis',
     isolateHint: 'Retire ce qu\'un proxy partagé, comme le traefik de prod, amène des autres envs. Un lien direct entre envs reste.',
     isolateOff: 'Choisissez un env pour l\'isoler.',
@@ -78,6 +80,7 @@ export const graph = {
     impactTitle: (level: number) => level === 1 ? 'Impact direct' : `Impact de niveau ${level}`,
     impactBadge: (level: number) => level === 1 ? 'direct' : `niveau ${level}`,
     targets: (n: number) => `${n} cible${n > 1 ? 's' : ''}`,
+    crossEnv: (n: number, env: string) => `${n} lien${n > 1 ? 's' : ''} avec ${env} · survoler la carte pour ${n > 1 ? 'les' : 'le'} voir`,
   },
   edge: {
     links: (n: number) => n > 1 ? `${n} liens fusionnés` : '1 lien',

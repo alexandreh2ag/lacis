@@ -16,12 +16,23 @@ export interface CardData extends Record<string, unknown> {
   impact?: number
   // copy is the hostname a card of the view of the hosts offers to copy.
   copy?: string
+  // cross counts the links of the node with each other env, drawn only
+  // when the card is hovered.
+  cross?: CrossEnv[]
+}
+
+// CrossEnv is the number of links of a node with another env, whose lane
+// is above or below.
+export interface CrossEnv {
+  env: string
+  count: number
+  up: boolean
 }
 
 // NodeCard is a node of the graph as the design system draws it: always
 // 216 × 56, the name cut, the logos of what it folds.
 export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
-  const { node: n, selected, impact, copy } = data as CardData
+  const { node: n, selected, impact, copy, cross } = data as CardData
   const state = useNodeState(id)
   const t = useT()
   const kind = kindOf(n)
@@ -55,6 +66,15 @@ export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
           <span className="lc-node__techs">{foldedTechs(n).map((t) => <TechLogo key={t} tech={t} title={t} />)}</span>
         </span>
       </span>
+      {cross?.length ? (
+        <span className="lc-node__cross">
+          {cross.map((c) => (
+            <span key={c.env} className="lc-node__xenv" title={t.graph.card.crossEnv(c.count, c.env)}>
+              <span aria-hidden="true">{c.up ? '↑' : '↓'}</span> {c.env} {c.count}
+            </span>
+          ))}
+        </span>
+      ) : null}
       <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
     </div>
   )

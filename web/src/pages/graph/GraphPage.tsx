@@ -15,7 +15,7 @@ import type { Layout } from './layout'
 import { EdgeLayer, Markers } from './EdgeLayer'
 import { BoxNode, NodeCard, type BoxData } from './NodeCard'
 import { GraphViewDoc, type GNode } from './query'
-import { toFlowEdges, toFlowNodes } from './toFlow'
+import { crossEnvs, toFlowEdges, toFlowNodes } from './toFlow'
 import { fitOptions, useGraphLayout } from './useGraphLayout'
 import { useGraphParams } from './useGraphParams'
 import { MoreNode, ZoneNode, type ZoneData } from './Zone'
@@ -114,11 +114,22 @@ function Graph() {
     return () => window.removeEventListener('keydown', onKey)
   }, [p])
 
+  // cross counts the links of each card with the other envs, which are
+  // drawn only for the card hovered unless all are wanted.
+  const cross = useMemo(() => {
+    if (!view || p.crossEnv) return undefined
+    const envOf = new Map<string, string | null | undefined>(view.nodes.map((n) => [n.id, n.env]))
+    for (const z of zones.values()) {
+      for (const row of z.rows) for (const item of row.shown) envOf.set(item.id, item.env ?? envOf.get(z.id))
+    }
+    return crossEnvs(view.edges, (id) => envOf.get(id), envs)
+  }, [view, zones, envs, p.crossEnv])
+
   const nodes = useMemo(() => {
     if (!view || !placed) return []
-    return toFlowNodes(view, placed, zones, { ns, level: p.lens.level, impact: impact.impact, other: (n) => otherLens(ns, n), onClose: toggle })
+    return toFlowNodes(view, placed, zones, { ns, level: p.lens.level, impact: impact.impact, other: (n) => otherLens(ns, n), onClose: toggle, cross })
   // toggle follows p, whose open zone stands for it.
-  }, [view, placed, zones, impact.impact, ns, p.open, p.lens.level])
+  }, [view, placed, zones, impact.impact, ns, p.open, p.lens.level, cross])
 
   // The data of the nodes follows the page; what the user moved stays,
   // until a new layout.
@@ -211,7 +222,7 @@ function Graph() {
             onNodeMouseEnter={(_, n) => { if (n.type === 'card' || n.type === 'more') highlight.hoverNodeOn(n.id) }}
             onNodeMouseLeave={() => highlight.hoverNodeOn(null)}
           >
-            <EdgeLayer edges={edges} />
+            <EdgeLayer edges={edges} crossHidden={!p.crossEnv} />
             <Controls showInteractive={false} position="bottom-right" />
           </ReactFlow>
         </HighlightContext.Provider>

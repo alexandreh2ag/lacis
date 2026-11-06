@@ -66,3 +66,8 @@
 .lc-node--impact { border-color: var(--danger); }
 .lc-node__impact { position: absolute; top: -9px; left: 8px; padding: 0 6px; border-radius: var(--radius-sm); background: var(--danger);
   color: var(--surface-raised); font: 600 10px/16px var(--font-sans); }
+/* The links of a card with the other envs, drawn on hover only: a pill
+   per env, under the card, towards its lane. */
+.lc-node__cross { position: absolute; bottom: -9px; right: 8px; display: flex; gap: 4px; pointer-events: auto; }
+.lc-node__xenv { height: 18px; padding: 0 6px; border-radius: var(--radius-pill); border: 1px solid var(--edge-cross-env);
+  background: var(--surface-raised); color: var(--ink-muted); font: 500 10.5px/16px var(--font-sans); white-space: nowrap; }

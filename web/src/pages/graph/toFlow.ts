@@ -3,8 +3,8 @@ import { t } from '@/i18n'
 import { isStack, title } from './kinds'
 import type { LinkData, LinkEdge } from './EdgeLayer'
 import type { Layout } from './layout'
-import type { BoxData, CardData } from './NodeCard'
-import type { GNode, GraphData } from './query'
+import type { BoxData, CardData, CrossEnv } from './NodeCard'
+import type { GEdge, GNode, GraphData } from './query'
 import { pageOf, type MoreData, type ZoneData } from './Zone'
 import { cardPlace, type Zone } from './zones'
 
@@ -21,6 +21,9 @@ export interface FlowOptions {
   // other is the link of a zone to the same thing in the other lens.
   other: (n: GNode) => ZoneData['other']
   onClose: (id: string) => void
+  // cross counts the links of each node with the other envs, shown on
+  // its card when they are not drawn.
+  cross?: Map<string, CrossEnv[]>
 }
 
 // toFlowNodes are the nodes React Flow draws: the lanes and host boxes,
@@ -28,7 +31,7 @@ export interface FlowOptions {
 // comes from the highlight, so a hover does not build them again.
 export function toFlowNodes(view: GraphData, placed: Layout, zones: Map<string, Zone>, o: FlowOptions): Node[] {
   const card = (n: GNode): CardData => ({ node: n, selected: !!o.impact && n.id === o.impact.target, impact: o.impact?.levels.get(n.id),
-    copy: o.level === 'HOST' && n.kind === 'HOST' && !isStack(n) ? n.hostname ?? n.label : undefined })
+    copy: o.level === 'HOST' && n.kind === 'HOST' && !isStack(n) ? n.hostname ?? n.label : undefined, cross: o.cross?.get(n.id) })
   const out: Node[] = placed.boxes.map((b, i) => ({
     id: b.id, type: 'box', position: { x: b.x, y: b.y }, data: { label: b.label, meta: b.meta, kind: b.kind, order: i } satisfies BoxData,
     width: b.width, height: b.height, selectable: false, draggable: false, zIndex: -1,
@@ -76,6 +79,30 @@ export function toFlowEdges(view: GraphData, placed: Layout, nodes: Node[], byId
     id: e.id, source: e.from, target: e.to, type: 'link',
     data: { edge: e, color: color(e.from), fromLabel: label(e.from), toLabel: label(e.to), impact: !!impact?.edges.has(e.id) } satisfies LinkData,
   }))
+}
+
+// crossEnvs counts, for each node, its edges with each other env: the env
+// of a node is that of its lane, the lane of the env of the other end above
+// or below by the order of the envs.
+export function crossEnvs(edges: Pick<GEdge, 'from' | 'to' | 'crossEnv'>[], envOf: (id: string) => string | null | undefined, order: string[]): Map<string, CrossEnv[]> {
+  const out = new Map<string, CrossEnv[]>()
+  const add = (id: string, other: string) => {
+    const env = envOf(id)
+    const to = envOf(other)
+    if (!env || !to || env === to) return
+    const list = out.get(id) ?? []
+    const c = list.find((x) => x.env === to)
+    if (c) c.count++
+    else list.push({ env: to, count: 1, up: order.indexOf(to) < order.indexOf(env) })
+    out.set(id, list)
+  }
+  for (const e of edges) {
+    if (!e.crossEnv) continue
+    add(e.from, e.to)
+    add(e.to, e.from)
+  }
+  for (const list of out.values()) list.sort((a, b) => order.indexOf(a.env) - order.indexOf(b.env))
+  return out
 }
 
 export function hash(s: string): number {
