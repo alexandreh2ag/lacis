@@ -51,3 +51,17 @@ func TestSelect(t *testing.T) {
 		})
 	}
 }
+
+func TestFor(t *testing.T) {
+	matches := []Match{
+		{Domains: []string{"www.acme.example"}, Paths: []string{"/simu"}},
+		{Domains: []string{"shop.acme.example"}},
+		{Domains: []string{"www.acme.example"}, Paths: []string{"/quiz"}},
+	}
+	assert.Equal(t, []string{"/simu", "/quiz"}, For(matches, []string{"www.acme.example"}))
+	assert.Nil(t, For(matches, []string{"shop.acme.example"}), "another name of the link: any path")
+	assert.Nil(t, For(matches, []string{"other.acme.example"}), "no route of the name: any path")
+	assert.Nil(t, For(matches, nil), "a call by IP: any route")
+	assert.Nil(t, For(nil, []string{"www.acme.example"}))
+	assert.Equal(t, []string{"/api"}, For([]Match{{Paths: []string{"/api"}}}, []string{"www.acme.example"}), "a route of any name")
+}

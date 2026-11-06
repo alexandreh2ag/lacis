@@ -10,6 +10,7 @@ import (
 
 	"github.com/alexandreh2ag/lacis/common/snapshot"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/pathmatch"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -435,13 +436,39 @@ func TestResolve_VhostLocations(t *testing.T) {
 	for _, l := range Resolve(f.inv, Options{}, time.Now()) {
 		var d Detail
 		require.NoError(t, json.Unmarshal(l.Detail, &d))
-		paths[f.name(l.FromType, l.FromID)+" > "+f.name(l.ToType, *l.ToID)] = d.Paths
+		paths[f.name(l.FromType, l.FromID)+" > "+f.name(l.ToType, *l.ToID)] = pathmatch.For(d.Matches, nil)
 	}
 	assert.Equal(t, map[string][]string{
 		"nginx web > php-fpm web": nil,
 		"nginx web > node api":    {"/api/"},
 		"nginx old > node api":    nil,
 	}, paths)
+}
+
+func TestResolve_LocationOfVhostApp(t *testing.T) {
+	f := newFixture()
+	f.network("10.0.1.0/24")
+	web := f.host("web", "10.0.1.21")
+	site := f.app(web, "www.acme.example")
+	simu := f.app(web, "www.acme.example")
+	f.listen(web, model.EndpointOwnerApp, site, model.EndpointKindTCP, "127.0.0.1", 3000)
+	f.listen(web, model.EndpointOwnerApp, simu, model.EndpointKindTCP, "127.0.0.1", 3103)
+	vhost := snapshot.Vhost{ServerNames: []string{"www.acme.example"}, ConfigFile: "site.conf", Locations: []snapshot.Location{
+		{Upstreams: []string{"http://127.0.0.1:3000"}},
+		{Path: "/simu", Upstreams: []string{"http://127.0.0.1:3103"}},
+	}}
+	ws := f.webserver(web, "nginx", routing{Vhosts: []snapshot.Vhost{vhost}}, "www.acme.example")
+
+	paths := map[uuid.UUID][]string{}
+	for _, l := range Resolve(f.inv, Options{}, time.Now()) {
+		if l.FromID == ws {
+			var d Detail
+			require.NoError(t, json.Unmarshal(l.Detail, &d))
+			paths[*l.ToID] = pathmatch.For(d.Matches, nil)
+		}
+	}
+	assert.Equal(t, map[uuid.UUID][]string{site: nil, simu: {"/simu"}}, paths,
+		"both apps declare the name, the location passes /simu to one")
 }
 
 func TestPathsOfRule(t *testing.T) {

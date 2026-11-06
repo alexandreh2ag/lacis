@@ -52,10 +52,10 @@ type Graph struct {
 	// domains are the names each link routes, its target the name it calls.
 	domains map[*model.Link][]string
 	names   map[*model.Link]string
-	// paths are the paths each link routes, path the path of the URL it
-	// calls.
-	paths map[*model.Link][]string
-	path  map[*model.Link]string
+	// matches are the names and paths each link routes, path the path of
+	// the URL it calls.
+	matches map[*model.Link][]pathmatch.Match
+	path    map[*model.Link]string
 	// ports are the ports each link calls, listen those its routes are
 	// reached on.
 	ports  map[*model.Link]int
@@ -71,7 +71,7 @@ type Graph struct {
 // graph is used.
 func New(links []model.Link) *Graph {
 	g := &Graph{from: map[uuid.UUID][]*model.Link{}, to: map[uuid.UUID][]*model.Link{},
-		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, paths: map[*model.Link][]string{}, path: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
+		domains: map[*model.Link][]string{}, names: map[*model.Link]string{}, matches: map[*model.Link][]pathmatch.Match{}, path: map[*model.Link]string{}, ports: map[*model.Link]int{}, listen: map[*model.Link][]int{}, uses: map[uuid.UUID][]Path{}}
 	for i := range links {
 		l := &links[i]
 		g.from[l.FromID] = append(g.from[l.FromID], l)
@@ -79,12 +79,12 @@ func New(links []model.Link) *Graph {
 			g.to[*l.ToID] = append(g.to[*l.ToID], l)
 		}
 		var d struct {
-			Target  string   `json:"target"`
-			Port    int      `json:"port"`
-			Domains []string `json:"domains"`
-			Listen  []int    `json:"listen"`
-			Path    string   `json:"path"`
-			Paths   []string `json:"paths"`
+			Target  string            `json:"target"`
+			Port    int               `json:"port"`
+			Domains []string          `json:"domains"`
+			Listen  []int             `json:"listen"`
+			Path    string            `json:"path"`
+			Matches []pathmatch.Match `json:"matches"`
 		}
 		_ = json.Unmarshal(l.Detail, &d)
 		g.domains[l], g.names[l] = d.Domains, domainmatch.NameOf(d.Target)
@@ -92,8 +92,8 @@ func New(links []model.Link) *Graph {
 		if d.Path != "" {
 			g.path[l] = d.Path
 		}
-		if len(d.Paths) > 0 {
-			g.paths[l] = d.Paths
+		if len(d.Matches) > 0 {
+			g.matches[l] = d.Matches
 		}
 	}
 	return g
@@ -270,7 +270,7 @@ func (g *Graph) byPath(routes []route, urlPath string) []route {
 	}
 	paths := make([][]string, len(routes))
 	for i, r := range routes {
-		paths[i] = g.paths[r.link]
+		paths[i] = pathmatch.For(g.matches[r.link], r.names)
 	}
 	kept := pathmatch.Select(urlPath, paths)
 	out := make([]route, 0, len(kept))

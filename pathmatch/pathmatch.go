@@ -5,8 +5,11 @@ package pathmatch
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+
+	"github.com/alexandreh2ag/lacis/domainmatch"
 )
 
 const exactBonus = 1 << 20
@@ -85,4 +88,33 @@ func Select(path string, routes [][]string) []int {
 		return open
 	}
 	return all
+}
+
+// Match is what a route of a link serves: the names of its domains, none
+// for any, on its paths, none for any. A link merges the routes to its
+// end: each keeps its own paths, those of a name are not those of another.
+type Match struct {
+	Domains []string `json:"domains,omitempty"`
+	Paths   []string `json:"paths,omitempty"`
+}
+
+// For gives the paths a link serves the names called on, nil for any
+// path: those of its routes of these names, nil names standing for a call
+// by IP, which any route may serve.
+func For(matches []Match, names []string) []string {
+	var out []string
+	for _, m := range matches {
+		if len(m.Domains) > 0 && names != nil && len(domainmatch.Routed(names, m.Domains)) == 0 {
+			continue
+		}
+		if len(m.Paths) == 0 {
+			return nil
+		}
+		for _, p := range m.Paths {
+			if !slices.Contains(out, p) {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }

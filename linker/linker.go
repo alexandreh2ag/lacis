@@ -82,9 +82,10 @@ type Detail struct {
 	// traffic of a webserver; Domains the names they route.
 	Routes  []string `json:"routes,omitempty"`
 	Domains []string `json:"domains,omitempty"`
-	// Paths are the paths these routes serve, as nginx locations ("/api"
-	// a prefix, "=/health" exact, "~^/(a|b)" a regexp); none for any.
-	Paths []string `json:"paths,omitempty"`
+	// Matches are the names and paths each route serves, the paths
+	// written as nginx locations ("/api" a prefix, "=/health" exact,
+	// "~^/(a|b)" a regexp); none when every route serves any path.
+	Matches []pathmatch.Match `json:"matches,omitempty"`
 	// Listen are the ports these routes are reached on: the binds of an
 	// HAProxy frontend, the listen of an nginx vhost; none when unknown.
 	Listen []int `json:"listen,omitempty"`
@@ -117,6 +118,9 @@ func Resolve(inv *model.Inventory, opts Options, now time.Time) []model.Link {
 	out := make([]model.Link, 0, len(r.links))
 	for _, l := range r.links {
 		l.link.NamespaceID, l.link.ComputedAt = inv.Namespace.ID, now
+		if !slices.ContainsFunc(l.detail.Matches, func(m pathmatch.Match) bool { return len(m.Paths) > 0 }) {
+			l.detail.Matches = nil // every route serves any path: the domains say it all
+		}
 		l.link.Detail, _ = json.Marshal(l.detail)
 		out = append(out, l.link)
 	}
@@ -140,6 +144,18 @@ type target struct {
 type pending struct {
 	link   model.Link
 	detail Detail
+}
+
+// addMatches adds the routes of a link merged, once each. The vhost of an
+// app adds none: the locations passing it the name tell its paths.
+func (p *pending) addMatches(matches []pathmatch.Match) {
+	for _, m := range matches {
+		if !slices.ContainsFunc(p.detail.Matches, func(x pathmatch.Match) bool {
+			return slices.Equal(x.Domains, m.Domains) && slices.Equal(x.Paths, m.Paths)
+		}) {
+			p.detail.Matches = append(p.detail.Matches, m)
+		}
+	}
 }
 
 type resolver struct {
@@ -246,11 +262,7 @@ func (r *resolver) add(from node, to target, source string, detail Detail, merge
 	if p, ok := r.merged[key]; merge && ok {
 		p.detail.Routes = appendNew(p.detail.Routes, detail.Routes...)
 		p.detail.Domains = appendNew(p.detail.Domains, detail.Domains...)
-		if len(p.detail.Paths) == 0 || len(detail.Paths) == 0 {
-			p.detail.Paths = nil // a route of any path
-		} else {
-			p.detail.Paths = appendNew(p.detail.Paths, detail.Paths...)
-		}
+		p.addMatches(detail.Matches)
 		for _, port := range detail.Listen {
 			if !slices.Contains(p.detail.Listen, port) {
 				p.detail.Listen = append(p.detail.Listen, port)
@@ -382,13 +394,16 @@ func (r *resolver) proxies() {
 				}
 				for _, u := range loc.Upstreams {
 					servers, via := rt.upstreamServers(u)
-					r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{v.ConfigFile}, Domains: v.ServerNames, Listen: listenPorts(v.Listen), Paths: paths}, true)
+					r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{v.ConfigFile}, Domains: v.ServerNames, Listen: listenPorts(v.Listen),
+						Matches: []pathmatch.Match{{Domains: v.ServerNames, Paths: paths}}}, true)
 				}
 			}
 		}
 		for _, router := range rt.Routers {
 			servers := rt.serviceServers(router.Service, map[string]bool{})
-			r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{router.Name}, Domains: domainsOfRule(router.Rule), Paths: pathsOfRule(router.Rule)}, false)
+			domains := domainsOfRule(router.Rule)
+			r.proxy(w.HostID, from, source, servers, server{}, Detail{Routes: []string{router.Name}, Domains: domains,
+				Matches: []pathmatch.Match{{Domains: domains, Paths: pathsOfRule(router.Rule)}}}, false)
 		}
 		for _, f := range rt.Frontends {
 			for _, name := range appendNew(nil, append([]string{f.DefaultBackend}, f.Backends...)...) {
@@ -723,7 +738,7 @@ func (r *resolver) ends(webserverID uuid.UUID, name, path string) string {
 		var paths [][]string
 		for _, p := range r.outgoing(cur) {
 			if len(p.detail.Domains) == 0 || len(domainmatch.Routed([]string{name}, p.detail.Domains)) > 0 {
-				routes, paths = append(routes, p), append(paths, p.detail.Paths)
+				routes, paths = append(routes, p), append(paths, pathmatch.For(p.detail.Matches, []string{name}))
 			}
 		}
 		leaf := len(routes) == 0

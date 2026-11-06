@@ -11,6 +11,7 @@ import (
 	"github.com/alexandreh2ag/lacis/linker"
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/pathmatch"
 	"github.com/google/uuid"
 )
 
@@ -120,8 +121,8 @@ func (x *index) routes(paths []linkpath.Path) []graph.LinkRoute {
 				s.Details = append(s.Details, d.Key+" = "+d.Target+d.Path)
 			case i == 0:
 				s.Details = appendNew(s.Details, d.Key, d.Target+d.Path)
-			case len(ld.Paths) > 0:
-				s.Details = appendNew(s.Details, strings.Join(ld.Routes, ", ")+" ("+strings.Join(ld.Paths, ", ")+")")
+			case len(pathmatch.For(ld.Matches, nameList(name))) > 0:
+				s.Details = appendNew(s.Details, strings.Join(ld.Routes, ", ")+" ("+strings.Join(pathmatch.For(ld.Matches, nameList(name)), ", ")+")")
 			default:
 				s.Details = appendNew(s.Details, strings.Join(ld.Routes, ", "))
 			}
@@ -257,4 +258,13 @@ func appendNew(list []string, values ...string) []string {
 		}
 	}
 	return list
+}
+
+// nameList is the name called as the names of a route, nil for a call by
+// IP.
+func nameList(name string) []string {
+	if name == "" {
+		return nil
+	}
+	return []string{name}
 }

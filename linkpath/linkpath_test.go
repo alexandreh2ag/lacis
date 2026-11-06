@@ -142,8 +142,23 @@ func TestRoutes(t *testing.T) {
 			links: []model.Link{
 				exact("app-a", "ws-x", map[string]any{"target": "www.example", "path": "/simulateur-enr/aides"}),
 				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
-				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
-				exact("ws-x", "app-quiz", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/quiz"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "matches": []map[string]any{{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}}}),
+				exact("ws-x", "app-quiz", map[string]any{"domains": []string{"www.example"}, "matches": []map[string]any{{"domains": []string{"www.example"}, "paths": []string{"/quiz"}}}}),
+			},
+			from: "app-a",
+			want: []string{"app-a > ws-x > app-simu"},
+		},
+		{
+			name: "the paths of a merged link are those of the name called",
+			links: []model.Link{
+				exact("app-a", "ws-x", map[string]any{"target": "staging.example", "path": "/simu/x"}),
+				// A route of staging.example on /meuble and one of www.example on any
+				// path, merged into one link to the same front.
+				exact("ws-x", "ws-front", map[string]any{"domains": []string{"staging.example", "www.example"}, "matches": []map[string]any{
+					{"domains": []string{"staging.example"}, "paths": []string{"/meuble"}}, {"domains": []string{"www.example"}}}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"staging.example"}, "matches": []map[string]any{
+					{"domains": []string{"staging.example"}, "paths": []string{"/simu"}}}}),
+				exact("ws-x", "app-site", map[string]any{"domains": []string{"staging.example"}}),
 			},
 			from: "app-a",
 			want: []string{"app-a > ws-x > app-simu"},
@@ -153,7 +168,7 @@ func TestRoutes(t *testing.T) {
 			links: []model.Link{
 				exact("app-a", "ws-x", map[string]any{"target": "www.example", "path": "/contact"}),
 				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
-				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "matches": []map[string]any{{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}}}),
 			},
 			from: "app-a",
 			want: []string{"app-a > ws-x > app-site"},
@@ -163,7 +178,7 @@ func TestRoutes(t *testing.T) {
 			links: []model.Link{
 				exact("app-a", "ws-x", map[string]any{"target": "www.example"}),
 				exact("ws-x", "app-site", map[string]any{"domains": []string{"www.example"}}),
-				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}),
+				exact("ws-x", "app-simu", map[string]any{"domains": []string{"www.example"}, "matches": []map[string]any{{"domains": []string{"www.example"}, "paths": []string{"/simulateur-enr"}}}}),
 			},
 			from: "app-a",
 			want: []string{"app-a > ws-x > app-site", "app-a > ws-x > app-simu"},
