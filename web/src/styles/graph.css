@@ -1,5 +1,10 @@
 /* The graph on React Flow, drawn with the classes of the design system. */
-.lc-flow { background: var(--surface-sunken); }
+/* The dots of the background follow the viewport (GraphPage sets the
+   variables on each move): a gradient, drawn by the GPU. */
+.lc-flow { background-color: var(--surface-sunken);
+  background-image: radial-gradient(circle, var(--border-strong) 0.75px, transparent 1px);
+  background-size: var(--dots-gap, 16px) var(--dots-gap, 16px);
+  background-position: var(--dots-x, 0) var(--dots-y, 0); }
 .lc-flow .react-flow__node { cursor: pointer; }
 .lc-flow .react-flow__node-box { cursor: default; pointer-events: none; }
 .lc-flow .react-flow__edge-interaction { cursor: pointer; }

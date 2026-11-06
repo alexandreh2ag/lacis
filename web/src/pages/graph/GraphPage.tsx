@@ -1,5 +1,5 @@
 import { useQuery } from '@apollo/client'
-import { Background, BackgroundVariant, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Node, type NodeChange, applyNodeChanges } from '@xyflow/react'
+import { Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Node, type NodeChange, applyNodeChanges } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
@@ -50,6 +50,16 @@ export function GraphPage() {
 const MOVING_CLASS = 'lc-flow--moving'
 const FAR_CLASS = 'lc-flow--far'
 const FAR_ZOOM = 0.5
+
+// dots places the dotted background of the graph under its viewport: a CSS
+// gradient Firefox draws on the GPU, where the SVG pattern of React Flow
+// was drawn again and uploaded on every frame of a move.
+function dots(el: HTMLElement | null, v: { x: number; y: number; zoom: number }) {
+  if (!el) return
+  el.style.setProperty('--dots-x', `${v.x}px`)
+  el.style.setProperty('--dots-y', `${v.y}px`)
+  el.style.setProperty('--dots-gap', `${16 * v.zoom}px`)
+}
 
 function Graph() {
   const { ns = '' } = useParams()
@@ -162,8 +172,11 @@ function Graph() {
         <HighlightContext.Provider value={highlight}>
           <ReactFlow
             ref={setRoot}
+            onInit={(f) => dots(root.current, f.getViewport())}
+            onMove={(_, v) => dots(root.current, v)}
             onMoveStart={() => root.current?.classList.add(MOVING_CLASS)}
             onMoveEnd={(_, v) => {
+              dots(root.current, v)
               root.current?.classList.remove(MOVING_CLASS)
               root.current?.classList.toggle(FAR_CLASS, v.zoom < FAR_ZOOM)
             }}
@@ -202,7 +215,6 @@ function Graph() {
             onEdgeMouseEnter={(_, e) => highlight.hoverEdgeOn(edgeOf.get(e.id) ?? null)}
             onEdgeMouseLeave={() => highlight.hoverEdgeOn(null)}
           >
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="var(--border-strong)" />
             <Controls showInteractive={false} position="bottom-right" />
           </ReactFlow>
         </HighlightContext.Provider>
