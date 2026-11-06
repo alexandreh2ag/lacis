@@ -3,13 +3,13 @@ import { Link } from 'react-router'
 import { Copyable } from './Copy'
 import { TechLogo } from './Icon'
 import { FilterBar, type FilterField } from './FilterBar'
-import { crossing, ExpandAll, hostOf, nameOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
+import { crossing, envOf, ExpandAll, hostOf, nameOf, projectOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
   type End, type PathLink } from './LinkPath'
 import { Pager, SearchInput, SortHeader, useTable } from './Listing'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 
-export { hostOf, nameOf, techOf, type End } from './LinkPath'
+export { envOf, hostOf, nameOf, projectOf, techOf, type End } from './LinkPath'
 
 // UsedByRow is an app link to a component: who uses it, and which one.
 export interface UsedByRow {
@@ -43,9 +43,8 @@ export function mergeUsedBy(rows: UsedByRow[]): UsedByGroup[] {
   const out = new Map<string, UsedByGroup>()
   for (const r of rows) {
     const from = r.link.from
-    const host = hostOf(from)
-    const project = host?.project?.slug
-    const env = host?.environment?.slug
+    const project = projectOf(from)
+    const env = envOf(from)
     const id = [from.__typename, techOf(from), nameOf(from), project, env, r.target.tech, r.target.name].join('\u0000')
     const g = out.get(id) ?? { id, from, project, env, targets: [], keys: [], confidence: r.link.confidence, links: [] }
     if (!g.targets.some((x) => x.name === r.target.name && x.tech === r.target.tech)) g.targets.push({ name: r.target.name, tech: r.target.tech })

@@ -10,6 +10,7 @@ import (
 
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/alexandreh2ag/lacis/techversion"
 	"github.com/google/uuid"
 )
@@ -25,11 +26,15 @@ type index struct {
 	webservers map[uuid.UUID]*model.Webserver
 	// paths are the effective links, through the proxies.
 	paths *linkpath.Graph
+	// places are the projects and envs of the hosts, services and
+	// webservers: their labels and those of the apps they host or serve.
+	places *placement.Places
 }
 
 func newIndex(inv *model.Inventory) *index {
 	x := &index{inv: inv, hosts: map[uuid.UUID]*model.Host{}, projects: map[uuid.UUID]*model.Project{}, envs: map[uuid.UUID]*model.Environment{},
-		apps: map[uuid.UUID]*model.App{}, services: map[uuid.UUID]*model.Service{}, webservers: map[uuid.UUID]*model.Webserver{}}
+		apps: map[uuid.UUID]*model.App{}, services: map[uuid.UUID]*model.Service{}, webservers: map[uuid.UUID]*model.Webserver{},
+		places: placement.New(inv)}
 	for i := range inv.Hosts {
 		x.hosts[inv.Hosts[i].ID] = &inv.Hosts[i]
 	}
@@ -86,6 +91,16 @@ func (x *index) placeOf(hostID uuid.UUID, projectID, envID *uuid.UUID) (string, 
 		}
 	}
 	return x.project(projectID), x.env(envID)
+}
+
+// placed tells whether one of the places of a host, a service or a
+// webserver keeps, by the slugs of its project and env; one without place
+// has neither.
+func (x *index) placed(id uuid.UUID, keep func(project, env string) bool) bool {
+	if len(x.places.Of(id)) == 0 {
+		return keep("", "")
+	}
+	return x.places.Any(id, func(p placement.Place) bool { return keep(x.project(&p.Project), x.env(&p.Env)) })
 }
 
 // findHost finds a host by hostname, case-insensitive, or id.

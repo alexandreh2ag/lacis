@@ -842,3 +842,39 @@ func TestMutations_SplitNetwork(t *testing.T) {
 	r.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).AnyTimes()
 	assert.Contains(t, r.errors(t, `mutation { deleteNetwork(namespace:"acme", slug:"lan-b") }`), `"code":"FORBIDDEN"`)
 }
+
+func TestNamespace_HostedProjects(t *testing.T) {
+	f := newFixture(t, reader())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil)
+	inv := inventory(t)
+	// web-1 (shop, production) also runs admin of infra in staging, behind
+	// its nginx.
+	admin := model.App{Base: model.Base{ID: id(27)}, NamespaceID: acmeID, HostID: id(10), Name: "admin", Path: "/srv/admin", Role: "web",
+		ProjectID: ptr(id(2)), EnvironmentID: ptr(id(4))}
+	inv.Apps = append(inv.Apps, admin)
+	inv.Links = append(inv.Links, model.Link{Base: model.Base{ID: id(54)}, NamespaceID: acmeID, FromType: model.LinkNodeWebserver, FromID: id(22),
+		ToType: model.LinkNodeApp, ToID: ptr(id(27)), Source: model.LinkSourceWebserver, Confidence: model.LinkConfidenceInferred,
+		Detail: json.RawMessage(`{}`), ComputedAt: now})
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inv, nil)
+
+	got := f.post(t, `{ namespace(slug:"acme") {
+		infra: hosts(filter: {projects: ["infra"]}, sort: {by: HOSTNAME}) { items { hostname project { slug } places { project { slug } environment { slug } } } }
+		infraProd: hosts(filter: {projects: ["infra"], envs: ["production"]}) { items { hostname } }
+		infraStaging: hosts(filter: {projects: ["infra"], envs: ["staging"]}) { items { hostname } }
+		components(filter: {projects: ["infra"], envs: ["staging"]}) { items { ... on Webserver { type places { project { slug } } } } }
+		projects { slug usage { hosts } appCount envs { slug } dependsOn { slug } usesExternals }
+	} }`)
+	assert.JSONEq(t, `{"namespace":{
+		"infra":{"items":[
+			{"hostname":"db-1","project":{"slug":"infra"},"places":[{"project":{"slug":"infra"},"environment":{"slug":"production"}}]},
+			{"hostname":"web-1","project":{"slug":"shop"},"places":[{"project":{"slug":"shop"},"environment":{"slug":"production"}},{"project":{"slug":"infra"},"environment":{"slug":"staging"}}]}
+		]},
+		"infraProd":{"items":[{"hostname":"db-1"}]},
+		"infraStaging":{"items":[{"hostname":"web-1"}]},
+		"components":{"items":[{"type":"nginx","places":[{"project":{"slug":"shop"}},{"project":{"slug":"infra"}}]}]},
+		"projects":[
+			{"slug":"shop","usage":{"hosts":1},"appCount":1,"envs":[{"slug":"production"}],"dependsOn":[{"slug":"infra"}],"usesExternals":true},
+			{"slug":"infra","usage":{"hosts":2},"appCount":1,"envs":[{"slug":"production"},{"slug":"staging"}],"dependsOn":[],"usesExternals":false}
+		]
+	}}`, got)
+}

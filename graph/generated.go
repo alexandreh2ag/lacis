@@ -346,6 +346,7 @@ type ComplexityRoot struct {
 		Kernel         func(childComplexity int) int
 		LastSeenAt     func(childComplexity int) int
 		Os             func(childComplexity int) int
+		Places         func(childComplexity int) int
 		Project        func(childComplexity int) int
 		Resources      func(childComplexity int) int
 		Runtimes       func(childComplexity int) int
@@ -493,12 +494,21 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	Place struct {
+		Environment func(childComplexity int) int
+		Project     func(childComplexity int) int
+	}
+
 	Project struct {
-		Description func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Slug        func(childComplexity int) int
-		Usage       func(childComplexity int) int
+		AppCount      func(childComplexity int) int
+		DependsOn     func(childComplexity int) int
+		Description   func(childComplexity int) int
+		Envs          func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Slug          func(childComplexity int) int
+		Usage         func(childComplexity int) int
+		UsesExternals func(childComplexity int) int
 	}
 
 	Query struct {
@@ -570,6 +580,7 @@ type ComplexityRoot struct {
 		ID             func(childComplexity int) int
 		Instance       func(childComplexity int) int
 		PackageVersion func(childComplexity int) int
+		Places         func(childComplexity int) int
 		Type           func(childComplexity int) int
 		UsedBy         func(childComplexity int) int
 		Version        func(childComplexity int) int
@@ -629,6 +640,7 @@ type ComplexityRoot struct {
 		Host        func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Links       func(childComplexity int) int
+		Places      func(childComplexity int) int
 		Routing     func(childComplexity int) int
 		Type        func(childComplexity int) int
 		UsedBy      func(childComplexity int) int
@@ -679,6 +691,7 @@ type EnvironmentResolver interface {
 type HostResolver interface {
 	Project(ctx context.Context, obj *model.Host) (*model.Project, error)
 	Environment(ctx context.Context, obj *model.Host) (*model.Environment, error)
+	Places(ctx context.Context, obj *model.Host) ([]Place, error)
 	Status(ctx context.Context, obj *model.Host) (HostStatus, error)
 	Os(ctx context.Context, obj *model.Host) (*Os, error)
 
@@ -763,6 +776,10 @@ type NetworkResolver interface {
 }
 type ProjectResolver interface {
 	Usage(ctx context.Context, obj *model.Project) (*CatalogUsage, error)
+	Envs(ctx context.Context, obj *model.Project) ([]model.Environment, error)
+	DependsOn(ctx context.Context, obj *model.Project) ([]model.Project, error)
+	UsesExternals(ctx context.Context, obj *model.Project) (bool, error)
+	AppCount(ctx context.Context, obj *model.Project) (int, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
@@ -784,6 +801,7 @@ type QueryResolver interface {
 }
 type ServiceResolver interface {
 	Host(ctx context.Context, obj *model.Service) (*model.Host, error)
+	Places(ctx context.Context, obj *model.Service) ([]Place, error)
 
 	Dependents(ctx context.Context, obj *model.Service) ([]model.Link, error)
 	UsedBy(ctx context.Context, obj *model.Service) ([]linkpath.Group, error)
@@ -801,6 +819,7 @@ type UserResolver interface {
 }
 type WebserverResolver interface {
 	Host(ctx context.Context, obj *model.Webserver) (*model.Host, error)
+	Places(ctx context.Context, obj *model.Webserver) ([]Place, error)
 	Domains(ctx context.Context, obj *model.Webserver) ([]string, error)
 
 	Dependents(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
@@ -1971,6 +1990,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Host.Os(childComplexity), true
+	case "Host.places":
+		if e.complexity.Host.Places == nil {
+			break
+		}
+
+		return e.complexity.Host.Places(childComplexity), true
 	case "Host.project":
 		if e.complexity.Host.Project == nil {
 			break
@@ -2833,12 +2858,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.OS.Version(childComplexity), true
 
+	case "Place.environment":
+		if e.complexity.Place.Environment == nil {
+			break
+		}
+
+		return e.complexity.Place.Environment(childComplexity), true
+	case "Place.project":
+		if e.complexity.Place.Project == nil {
+			break
+		}
+
+		return e.complexity.Place.Project(childComplexity), true
+
+	case "Project.appCount":
+		if e.complexity.Project.AppCount == nil {
+			break
+		}
+
+		return e.complexity.Project.AppCount(childComplexity), true
+	case "Project.dependsOn":
+		if e.complexity.Project.DependsOn == nil {
+			break
+		}
+
+		return e.complexity.Project.DependsOn(childComplexity), true
 	case "Project.description":
 		if e.complexity.Project.Description == nil {
 			break
 		}
 
 		return e.complexity.Project.Description(childComplexity), true
+	case "Project.envs":
+		if e.complexity.Project.Envs == nil {
+			break
+		}
+
+		return e.complexity.Project.Envs(childComplexity), true
 	case "Project.id":
 		if e.complexity.Project.ID == nil {
 			break
@@ -2863,6 +2919,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Project.Usage(childComplexity), true
+	case "Project.usesExternals":
+		if e.complexity.Project.UsesExternals == nil {
+			break
+		}
+
+		return e.complexity.Project.UsesExternals(childComplexity), true
 
 	case "Query.access":
 		if e.complexity.Query.Access == nil {
@@ -3185,6 +3247,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.PackageVersion(childComplexity), true
+	case "Service.places":
+		if e.complexity.Service.Places == nil {
+			break
+		}
+
+		return e.complexity.Service.Places(childComplexity), true
 	case "Service.type":
 		if e.complexity.Service.Type == nil {
 			break
@@ -3420,6 +3488,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Webserver.Links(childComplexity), true
+	case "Webserver.places":
+		if e.complexity.Webserver.Places == nil {
+			break
+		}
+
+		return e.complexity.Webserver.Places(childComplexity), true
 	case "Webserver.routing":
 		if e.complexity.Webserver.Routing == nil {
 			break
@@ -5276,6 +5350,14 @@ func (ec *executionContext) fieldContext_App_project(_ context.Context, field gr
 				return ec.fieldContext_Project_description(ctx, field)
 			case "usage":
 				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -5593,6 +5675,8 @@ func (ec *executionContext) fieldContext_App_host(_ context.Context, field graph
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -9743,6 +9827,8 @@ func (ec *executionContext) fieldContext_GraphNode_hosts(_ context.Context, fiel
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -9967,6 +10053,14 @@ func (ec *executionContext) fieldContext_Host_project(_ context.Context, field g
 				return ec.fieldContext_Project_description(ctx, field)
 			case "usage":
 				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -10010,6 +10104,41 @@ func (ec *executionContext) fieldContext_Host_environment(_ context.Context, fie
 				return ec.fieldContext_Environment_usage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Host_places(ctx context.Context, field graphql.CollectedField, obj *model.Host) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Host_places,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Host().Places(ctx, obj)
+		},
+		nil,
+		ec.marshalNPlace2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlaceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Host_places(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Host",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "project":
+				return ec.fieldContext_Place_project(ctx, field)
+			case "environment":
+				return ec.fieldContext_Place_environment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Place", field.Name)
 		},
 	}
 	return fc, nil
@@ -10461,6 +10590,8 @@ func (ec *executionContext) fieldContext_Host_services(_ context.Context, field 
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
 				return ec.fieldContext_Service_host(ctx, field)
+			case "places":
+				return ec.fieldContext_Service_places(ctx, field)
 			case "firstSeenAt":
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
@@ -10506,6 +10637,8 @@ func (ec *executionContext) fieldContext_Host_webservers(_ context.Context, fiel
 				return ec.fieldContext_Webserver_version(ctx, field)
 			case "host":
 				return ec.fieldContext_Webserver_host(ctx, field)
+			case "places":
+				return ec.fieldContext_Webserver_places(ctx, field)
 			case "domains":
 				return ec.fieldContext_Webserver_domains(ctx, field)
 			case "routing":
@@ -10842,6 +10975,8 @@ func (ec *executionContext) fieldContext_HostList_items(_ context.Context, field
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -11417,6 +11552,14 @@ func (ec *executionContext) fieldContext_Mutation_updateProject(ctx context.Cont
 				return ec.fieldContext_Project_description(ctx, field)
 			case "usage":
 				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -13594,6 +13737,14 @@ func (ec *executionContext) fieldContext_Namespace_projects(_ context.Context, f
 				return ec.fieldContext_Project_description(ctx, field)
 			case "usage":
 				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
 		},
@@ -13769,6 +13920,8 @@ func (ec *executionContext) fieldContext_Namespace_host(ctx context.Context, fie
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -14084,6 +14237,8 @@ func (ec *executionContext) fieldContext_Namespace_service(ctx context.Context, 
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
 				return ec.fieldContext_Service_host(ctx, field)
+			case "places":
+				return ec.fieldContext_Service_places(ctx, field)
 			case "firstSeenAt":
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
@@ -14188,6 +14343,8 @@ func (ec *executionContext) fieldContext_Namespace_webserver(ctx context.Context
 				return ec.fieldContext_Webserver_version(ctx, field)
 			case "host":
 				return ec.fieldContext_Webserver_host(ctx, field)
+			case "places":
+				return ec.fieldContext_Webserver_places(ctx, field)
 			case "domains":
 				return ec.fieldContext_Webserver_domains(ctx, field)
 			case "routing":
@@ -15088,6 +15245,8 @@ func (ec *executionContext) fieldContext_Network_hosts(_ context.Context, field 
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -15359,6 +15518,96 @@ func (ec *executionContext) fieldContext_OS_pretty(_ context.Context, field grap
 	return fc, nil
 }
 
+func (ec *executionContext) _Place_project(ctx context.Context, field graphql.CollectedField, obj *Place) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Place_project,
+		func(ctx context.Context) (any, error) {
+			return obj.Project, nil
+		},
+		nil,
+		ec.marshalOProject2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐProject,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Place_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Place",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Project_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Project_slug(ctx, field)
+			case "name":
+				return ec.fieldContext_Project_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Place_environment(ctx context.Context, field graphql.CollectedField, obj *Place) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Place_environment,
+		func(ctx context.Context) (any, error) {
+			return obj.Environment, nil
+		},
+		nil,
+		ec.marshalOEnvironment2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐEnvironment,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Place_environment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Place",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Environment_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Environment_slug(ctx, field)
+			case "name":
+				return ec.fieldContext_Environment_name(ctx, field)
+			case "sortOrder":
+				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Project_id(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15505,6 +15754,154 @@ func (ec *executionContext) fieldContext_Project_usage(_ context.Context, field 
 				return ec.fieldContext_CatalogUsage_apps(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CatalogUsage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_envs(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_envs,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Project().Envs(ctx, obj)
+		},
+		nil,
+		ec.marshalNEnvironment2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐEnvironmentᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_envs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Environment_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Environment_slug(ctx, field)
+			case "name":
+				return ec.fieldContext_Environment_name(ctx, field)
+			case "sortOrder":
+				return ec.fieldContext_Environment_sortOrder(ctx, field)
+			case "usage":
+				return ec.fieldContext_Environment_usage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Environment", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_dependsOn(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_dependsOn,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Project().DependsOn(ctx, obj)
+		},
+		nil,
+		ec.marshalNProject2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐProjectᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_dependsOn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Project_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Project_slug(ctx, field)
+			case "name":
+				return ec.fieldContext_Project_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Project_description(ctx, field)
+			case "usage":
+				return ec.fieldContext_Project_usage(ctx, field)
+			case "envs":
+				return ec.fieldContext_Project_envs(ctx, field)
+			case "dependsOn":
+				return ec.fieldContext_Project_dependsOn(ctx, field)
+			case "usesExternals":
+				return ec.fieldContext_Project_usesExternals(ctx, field)
+			case "appCount":
+				return ec.fieldContext_Project_appCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_usesExternals(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_usesExternals,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Project().UsesExternals(ctx, obj)
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_usesExternals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_appCount(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_appCount,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Project().AppCount(ctx, obj)
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_appCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -17635,6 +18032,8 @@ func (ec *executionContext) fieldContext_Service_host(_ context.Context, field g
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -17669,6 +18068,41 @@ func (ec *executionContext) fieldContext_Service_host(_ context.Context, field g
 				return ec.fieldContext_Host_history(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Host", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Service_places(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_places,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Service().Places(ctx, obj)
+		},
+		nil,
+		ec.marshalNPlace2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlaceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_places(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "project":
+				return ec.fieldContext_Place_project(ctx, field)
+			case "environment":
+				return ec.fieldContext_Place_environment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Place", field.Name)
 		},
 	}
 	return fc, nil
@@ -17841,6 +18275,8 @@ func (ec *executionContext) fieldContext_ServiceList_items(_ context.Context, fi
 				return ec.fieldContext_Service_details(ctx, field)
 			case "host":
 				return ec.fieldContext_Service_host(ctx, field)
+			case "places":
+				return ec.fieldContext_Service_places(ctx, field)
 			case "firstSeenAt":
 				return ec.fieldContext_Service_firstSeenAt(ctx, field)
 			case "dependents":
@@ -18807,6 +19243,8 @@ func (ec *executionContext) fieldContext_Webserver_host(_ context.Context, field
 				return ec.fieldContext_Host_project(ctx, field)
 			case "environment":
 				return ec.fieldContext_Host_environment(ctx, field)
+			case "places":
+				return ec.fieldContext_Host_places(ctx, field)
 			case "status":
 				return ec.fieldContext_Host_status(ctx, field)
 			case "os":
@@ -18841,6 +19279,41 @@ func (ec *executionContext) fieldContext_Webserver_host(_ context.Context, field
 				return ec.fieldContext_Host_history(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Host", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Webserver_places(ctx context.Context, field graphql.CollectedField, obj *model.Webserver) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Webserver_places,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Webserver().Places(ctx, obj)
+		},
+		nil,
+		ec.marshalNPlace2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlaceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Webserver_places(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Webserver",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "project":
+				return ec.fieldContext_Place_project(ctx, field)
+			case "environment":
+				return ec.fieldContext_Place_environment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Place", field.Name)
 		},
 	}
 	return fc, nil
@@ -24142,6 +24615,42 @@ func (ec *executionContext) _Host(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "places":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Host_places(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "status":
 			field := field
 
@@ -26467,6 +26976,44 @@ func (ec *executionContext) _OS(ctx context.Context, sel ast.SelectionSet, obj *
 	return out
 }
 
+var placeImplementors = []string{"Place"}
+
+func (ec *executionContext) _Place(ctx context.Context, sel ast.SelectionSet, obj *Place) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, placeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Place")
+		case "project":
+			out.Values[i] = ec._Place_project(ctx, field, obj)
+		case "environment":
+			out.Values[i] = ec._Place_environment(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var projectImplementors = []string{"Project"}
 
 func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, obj *model.Project) graphql.Marshaler {
@@ -26505,6 +27052,150 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 					}
 				}()
 				res = ec._Project_usage(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "envs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_envs(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "dependsOn":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_dependsOn(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "usesExternals":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_usesExternals(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "appCount":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_appCount(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -27308,6 +27999,42 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "places":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_places(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "firstSeenAt":
 			out.Values[i] = ec._Service_firstSeenAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -27921,6 +28648,42 @@ func (ec *executionContext) _Webserver(ctx context.Context, sel ast.SelectionSet
 					}
 				}()
 				res = ec._Webserver_host(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "places":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Webserver_places(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -30296,6 +31059,54 @@ func (ec *executionContext) unmarshalNPermissionResource2githubᚗcomᚋalexandr
 
 func (ec *executionContext) marshalNPermissionResource2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionResource(ctx context.Context, sel ast.SelectionSet, v PermissionResource) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNPlace2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlace(ctx context.Context, sel ast.SelectionSet, v Place) graphql.Marshaler {
+	return ec._Place(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPlace2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlaceᚄ(ctx context.Context, sel ast.SelectionSet, v []Place) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPlace2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPlace(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNProfileInput2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐProfileInput(ctx context.Context, v any) (ProfileInput, error) {

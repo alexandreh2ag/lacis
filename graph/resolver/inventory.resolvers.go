@@ -207,6 +207,15 @@ func (r *hostResolver) Environment(ctx context.Context, obj *model.Host) (*model
 	return x.envs[*obj.EnvironmentID], nil
 }
 
+// Places is the resolver for the places field.
+func (r *hostResolver) Places(ctx context.Context, obj *model.Host) ([]graph.Place, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.placesOf(obj.ID), nil
+}
+
 // Status is the resolver for the status field.
 func (r *hostResolver) Status(ctx context.Context, obj *model.Host) (graph.HostStatus, error) {
 	x, err := r.index(ctx, obj.NamespaceID)
@@ -349,6 +358,15 @@ func (r *serviceResolver) Host(ctx context.Context, obj *model.Service) (*model.
 	return r.host(ctx, obj.NamespaceID, obj.HostID)
 }
 
+// Places is the resolver for the places field.
+func (r *serviceResolver) Places(ctx context.Context, obj *model.Service) ([]graph.Place, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.placesOf(obj.ID), nil
+}
+
 // Dependents is the resolver for the dependents field.
 func (r *serviceResolver) Dependents(ctx context.Context, obj *model.Service) ([]model.Link, error) {
 	x, err := r.index(ctx, obj.NamespaceID)
@@ -366,6 +384,15 @@ func (r *serviceResolver) UsedBy(ctx context.Context, obj *model.Service) ([]lin
 // Host is the resolver for the host field.
 func (r *webserverResolver) Host(ctx context.Context, obj *model.Webserver) (*model.Host, error) {
 	return r.host(ctx, obj.NamespaceID, obj.HostID)
+}
+
+// Places is the resolver for the places field.
+func (r *webserverResolver) Places(ctx context.Context, obj *model.Webserver) ([]graph.Place, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	return x.placesOf(obj.ID), nil
 }
 
 // Domains is the resolver for the domains field.

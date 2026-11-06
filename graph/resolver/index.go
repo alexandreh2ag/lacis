@@ -11,6 +11,7 @@ import (
 	"github.com/alexandreh2ag/lacis/linker"
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +44,9 @@ type index struct {
 	paths *linkpath.Graph
 	// hostsIn are the hosts of each network.
 	hostsIn map[uuid.UUID][]*model.Host
+	// places are the projects and envs of the hosts, services and
+	// webservers: their labels and those of the apps they host or serve.
+	places *placement.Places
 	// usage counts the hosts and the apps of each project and env.
 	usage map[uuid.UUID]*graph.CatalogUsage
 }
@@ -56,7 +60,7 @@ func newIndex(inv *model.Inventory) *index {
 		webserversOf: map[uuid.UUID][]model.Webserver{}, appsOf: map[uuid.UUID][]model.App{},
 		dependencies: map[uuid.UUID][]model.AppDependency{}, domains: map[uuid.UUID][]string{},
 		linksFrom: map[uuid.UUID][]model.Link{}, linksTo: map[uuid.UUID][]model.Link{}, deployments: map[string][]model.App{},
-		nets: linker.NewNetworks(inv), hostsIn: map[uuid.UUID][]*model.Host{}, usage: map[uuid.UUID]*graph.CatalogUsage{}}
+		nets: linker.NewNetworks(inv), places: placement.New(inv), hostsIn: map[uuid.UUID][]*model.Host{}, usage: map[uuid.UUID]*graph.CatalogUsage{}}
 	for i := range inv.Projects {
 		x.projects[inv.Projects[i].ID] = &inv.Projects[i]
 	}
@@ -71,9 +75,14 @@ func newIndex(inv *model.Inventory) *index {
 	}
 	for i, h := range inv.Hosts {
 		x.hosts[h.ID] = &inv.Hosts[i]
-		for _, id := range []*uuid.UUID{h.ProjectID, h.EnvironmentID} {
-			if id != nil {
-				x.usageOf(*id).Hosts++
+		// A host counts once in each project and env it hosts.
+		var counted []uuid.UUID
+		for _, p := range x.places.Of(h.ID) {
+			for _, id := range []uuid.UUID{p.Project, p.Env} {
+				if id != uuid.Nil && !slices.Contains(counted, id) {
+					counted = append(counted, id)
+					x.usageOf(id).Hosts++
+				}
 			}
 		}
 	}

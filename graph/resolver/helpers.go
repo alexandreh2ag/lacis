@@ -13,6 +13,7 @@ import (
 	"github.com/alexandreh2ag/lacis/linker"
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/alexandreh2ag/lacis/service"
 	"github.com/google/uuid"
 )
@@ -27,6 +28,24 @@ func (x *index) inScope(projectID, envID *uuid.UUID, projects, envs []string) bo
 		return false
 	}
 	return true
+}
+
+// placed tells whether one of the places of a host, a service or a
+// webserver is in the projects and the envs; no project nor env keeps all.
+func (x *index) placed(id uuid.UUID, projects, envs []string) bool {
+	if len(projects) == 0 && len(envs) == 0 {
+		return true
+	}
+	return x.places.Any(id, func(p placement.Place) bool { return x.inScope(&p.Project, &p.Env, projects, envs) })
+}
+
+// placesOf are the places of a host, a service or a webserver.
+func (x *index) placesOf(id uuid.UUID) []graph.Place {
+	out := []graph.Place{}
+	for _, p := range x.places.Of(id) {
+		out = append(out, graph.Place{Project: x.projects[p.Project], Environment: x.envs[p.Env]})
+	}
+	return out
 }
 
 // matches tells whether one of the fields holds the search, whatever the

@@ -13,6 +13,7 @@ import (
 	"github.com/alexandreh2ag/lacis/graph"
 	"github.com/alexandreh2ag/lacis/graph/union"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/alexandreh2ag/lacis/service"
 	"github.com/google/uuid"
 )
@@ -125,7 +126,7 @@ func (r *namespaceResolver) Hosts(ctx context.Context, obj *model.Namespace, fil
 	now := r.Clock.Now()
 	var hosts []model.Host
 	for _, h := range x.inv.Hosts {
-		if x.inScope(h.ProjectID, h.EnvironmentID, f.Projects, f.Envs) &&
+		if x.placed(h.ID, f.Projects, f.Envs) &&
 			(len(f.Status) == 0 || slices.Contains(f.Status, status(&x.inv.Namespace, &h, now))) &&
 			matches(f.Search, x.hostText(&h)...) {
 			hosts = append(hosts, h)
@@ -204,7 +205,7 @@ func (r *namespaceResolver) Services(ctx context.Context, obj *model.Namespace, 
 	for _, s := range x.inv.Services {
 		h := x.hosts[s.HostID]
 		if (len(f.Types) == 0 || slices.Contains(f.Types, s.Type)) &&
-			x.inScope(h.ProjectID, h.EnvironmentID, f.Projects, f.Envs) && matches(f.Search, s.Type, s.Instance, deref(s.Version), h.Hostname) {
+			x.placed(s.ID, f.Projects, f.Envs) && matches(f.Search, s.Type, s.Instance, deref(s.Version), h.Hostname) {
 			services = append(services, s)
 		}
 	}
@@ -232,22 +233,22 @@ func (r *namespaceResolver) Components(ctx context.Context, obj *model.Namespace
 	if filter != nil {
 		f = *filter
 	}
-	kept := func(kind graph.ComponentKind, typ, version string, hostID uuid.UUID, search ...string) bool {
+	kept := func(kind graph.ComponentKind, typ, version string, id, hostID uuid.UUID, search ...string) bool {
 		h := x.hosts[hostID]
 		return (len(f.Kinds) == 0 || slices.Contains(f.Kinds, kind)) && (len(f.Types) == 0 || slices.Contains(f.Types, typ)) &&
-			x.inScope(h.ProjectID, h.EnvironmentID, f.Projects, f.Envs) && matches(f.Search, append(search, typ, version, h.Hostname)...) &&
+			x.placed(id, f.Projects, f.Envs) && matches(f.Search, append(search, typ, version, h.Hostname)...) &&
 			satisfies(typ, version, f.Version)
 	}
 	var components []union.Component
 	for i := range x.inv.Services {
 		s := &x.inv.Services[i]
-		if kept(graph.ComponentKindService, s.Type, deref(s.Version), s.HostID, s.Instance) {
+		if kept(graph.ComponentKindService, s.Type, deref(s.Version), s.ID, s.HostID, s.Instance) {
 			components = append(components, s)
 		}
 	}
 	for i := range x.inv.Webservers {
 		w := &x.inv.Webservers[i]
-		if kept(graph.ComponentKindWebserver, w.Type, deref(w.Version), w.HostID, x.domains[w.ID]...) {
+		if kept(graph.ComponentKindWebserver, w.Type, deref(w.Version), w.ID, w.HostID, x.domains[w.ID]...) {
 			components = append(components, w)
 		}
 	}
@@ -335,6 +336,56 @@ func (r *projectResolver) Usage(ctx context.Context, obj *model.Project) (*graph
 		return nil, err
 	}
 	return x.usageFor(obj.ID), nil
+}
+
+// Envs is the resolver for the envs field.
+func (r *projectResolver) Envs(ctx context.Context, obj *model.Project) ([]model.Environment, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := []model.Environment{}
+	for _, e := range x.projectEnvs(obj.ID) {
+		out = append(out, *e)
+	}
+	return out, nil
+}
+
+// DependsOn is the resolver for the dependsOn field.
+func (r *projectResolver) DependsOn(ctx context.Context, obj *model.Project) ([]model.Project, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return nil, err
+	}
+	deps, _ := x.projectUses(obj.ID)
+	out := []model.Project{}
+	for _, p := range deps {
+		out = append(out, *p)
+	}
+	return out, nil
+}
+
+// UsesExternals is the resolver for the usesExternals field.
+func (r *projectResolver) UsesExternals(ctx context.Context, obj *model.Project) (bool, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return false, err
+	}
+	_, externals := x.projectUses(obj.ID)
+	return externals, nil
+}
+
+// AppCount is the resolver for the appCount field.
+func (r *projectResolver) AppCount(ctx context.Context, obj *model.Project) (int, error) {
+	x, err := r.index(ctx, obj.NamespaceID)
+	if err != nil {
+		return 0, err
+	}
+	seen := map[string]bool{}
+	for _, a := range x.appsOfProject(obj.ID) {
+		seen[a.Name+"\x00"+placement.Of(a, x.hostPlace(a.HostID)).Env.String()] = true
+	}
+	return len(seen), nil
 }
 
 // Environment returns graph.EnvironmentResolver implementation.

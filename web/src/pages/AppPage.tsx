@@ -8,7 +8,7 @@ import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
-import { crossing, ExpandAll, hostOf, nameOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
+import { crossing, envOf, ExpandAll, nameOf, projectOf, PathBadges, PathDetail, PathToggle, techOf, useExpanded, Via,
   type End, type PathLink } from '@/components/LinkPath'
 import { EndName, mergeUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
@@ -31,20 +31,10 @@ const AppPageDoc = graphql(`
         project { slug name }
         environment { slug }
         host { id hostname status lastSeenAt }
+        deployments { id path host { id hostname status } code { version commit branch deployedAt } }
         dependencies { key scheme port path target unparsed }
         uses { ...AppLink }
         usedBy { ...AppLink }
-      }
-    }
-  }
-`)
-
-const SiblingsDoc = graphql(`
-  query AppSiblings($ns: String!, $project: String!, $env: String!, $name: String!) {
-    namespace(slug: $ns) {
-      id
-      apps(filter: { projects: [$project], envs: [$env], search: $name }, page: { limit: 100 }) {
-        items { id name host { id hostname status } code { version commit branch deployedAt } }
       }
     }
   }
@@ -87,9 +77,8 @@ interface Use {
 export function usesOf(links: PathLink[]): Use[] {
   const out = new Map<string, Use>()
   for (const l of links) {
-    const host = hostOf(l.to)
-    const project = host?.project?.slug
-    const env = host?.environment?.slug
+    const project = projectOf(l.to)
+    const env = envOf(l.to)
     const id = [l.to.__typename, techOf(l.to), nameOf(l.to), project, env].join('\u0000')
     const u = out.get(id) ?? { id, to: l.to, project, env, keys: [], resolved: [], confidence: l.confidence, deadEnd: false, links: [] }
     if (l.key && !u.keys.includes(l.key)) u.keys.push(l.key)
@@ -112,6 +101,7 @@ export function AppPage() {
   const launchers = useMemo(() => launchersOf(a?.launchers), [a?.launchers])
   const tabs = [
     { id: 'general', label: ts.general },
+    { id: 'hosts', label: ta.tabs.hosts, count: a?.deployments.length },
     { id: 'uses', label: ta.tabs.uses, count: a ? usesOf(a.uses).length : undefined },
     { id: 'used-by', label: ts.usedBy, count: a ? usedByOf(a).length : undefined },
     { id: 'config', label: ta.tabs.config, count: a?.dependencies.length },
@@ -129,18 +119,19 @@ export function AppPage() {
     <Page
       title={<span className="lc-copyable gap-1.5"><span>{a.name}</span><CopyButton value={a.name} /></span>}
       meta={<>
-        <StatusBadge status={a.host.status} />
         <span>
           {ta.meta}{a.project ? <>{ta.ofProject}<Link to={`/${ns}/projects/${a.project.slug}`}>{a.project.slug}</Link></> : ''}
-          {a.environment ? ` · ${a.environment.slug}` : ''}{ta.on}<Link className="lc-mono" to={`/${ns}/hosts/${a.host.id}`}>{a.host.hostname}</Link>
+          {a.environment ? ` · ${a.environment.slug}` : ''}
         </span>
-        {a.code?.version ? <span className="lc-badge lc-badge--plain lc-mono">{a.code.version}</span> : null}
+        {diverges(a) ? <span className="lc-badge lc-badge--stale">{ta.differentVersions}</span>
+          : a.code?.version ? <span className="lc-badge lc-badge--plain lc-mono">{a.code.version}</span> : null}
         <span className="flex-1" />
         <Link className="lc-btn no-underline" to={graph}>{ts.seeInGraph}</Link>
       </>}
     >
       <Tabs label={ta.content} tabs={tabs} current={tab} onChange={setTab}>
-        {tab === 'general' ? <General ns={ns} app={a} /> : null}
+        {tab === 'general' ? <General app={a} /> : null}
+        {tab === 'hosts' ? <Hosts ns={ns} app={a} /> : null}
         {tab === 'uses' ? <Uses ns={ns} app={a} /> : null}
         {tab === 'used-by' ? <UsedByTab ns={ns} app={a} /> : null}
         {tab === 'config' ? <Config app={a} /> : null}
@@ -151,7 +142,6 @@ export function AppPage() {
   )
 }
 
-// General tells what is deployed, and where else the same app runs.
 // Repository is the address of a repository, a link to its page when it
 // has one.
 function Repository({ repository }: { repository: string }) {
@@ -166,7 +156,8 @@ function Pipeline({ url, id }: { url: string; id?: string | null }) {
   return href ? <a href={href} target="_blank" rel="noreferrer">{id ?? url}</a> : <>{id ? `${id} · ${url}` : url}</>
 }
 
-function General({ ns, app: a }: { ns: string; app: App }) {
+// General tells the code and the app of the deployment shown.
+function General({ app: a }: { app: App }) {
   const c = a.code
   const t = useT()
   const ta = t.pages.app
@@ -176,7 +167,7 @@ function General({ ns, app: a }: { ns: string; app: App }) {
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="lc-panel lc-panel--card">
           <div className="lc-panel__section">
-            <span className="lc-label">{ta.deployedCode}</span>
+            <span className="lc-label">{a.deployments.length > 1 ? ta.deployedOn(a.host.hostname) : ta.deployedCode}</span>
             {c ? (
               <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
                 {c.version ? <><dt>{ts.version}</dt><dd><Copyable value={c.version} /></dd></> : null}
@@ -206,38 +197,38 @@ function General({ ns, app: a }: { ns: string; app: App }) {
           </div>
         </section>
       </div>
-      {a.project && a.environment ? <Siblings ns={ns} app={a} /> : null}
     </div>
   )
 }
 
-// Siblings are the deployments of the app in its project and env.
-function Siblings({ ns, app: a }: { ns: string; app: App }) {
-  const { data } = useQuery(SiblingsDoc, { variables: { ns, project: a.project!.slug, env: a.environment!.slug, name: a.name } })
-  const all = (data?.namespace?.apps.items ?? []).filter((x) => x.name === a.name)
+// diverges tells the deployments of an app running different code.
+function diverges(a: App): boolean {
+  return new Set(a.deployments.map((x) => `${x.code?.version ?? ''}/${x.code?.commit ?? ''}`)).size > 1
+}
+
+// Hosts are the hosts the app is deployed on in its project and env: one
+// row per deployment, the one shown highlighted.
+function Hosts({ ns, app: a }: { ns: string; app: App }) {
   const t = useT()
+  const ta = t.pages.app
   const ts = t.pages.shared
-  if (all.length < 2) return null
-  const versions = new Set(all.map((x) => `${x.code?.version ?? ''}/${x.code?.commit ?? ''}`))
+  if (a.deployments.length === 0) return <p className="lc-muted">{ta.noHost}</p>
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <h2 className="title m-0">{t.pages.app.deploymentsIn(a.environment!.slug)}</h2>
-        {versions.size > 1 ? <span className="lc-badge lc-badge--stale">{t.pages.app.differentVersions}</span> : null}
-      </div>
-      <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
-        <thead><tr><th>{ts.host}</th><th>{ts.version}</th><th>{ts.commit}</th><th>{ts.deployed}</th><th>{ts.status}</th></tr></thead>
-        <tbody>{all.map((x) => (
-          <tr key={x.id} style={x.id === a.id ? { background: 'var(--brand-tint)' } : undefined}>
-            <td>{x.id === a.id ? <span className="lc-mono">{x.host.hostname}</span> : <Link className="lc-mono" to={`/${ns}/apps/${x.id}`}>{x.host.hostname}</Link>}</td>
-            <td className="lc-mono">{x.code?.version ?? x.code?.branch}</td>
-            <td>{x.code?.commit ? <Copyable value={x.code.commit} shown={x.code.commit.slice(0, 7)} /> : null}</td>
-            <td className="text-ink-muted">{ago(x.code?.deployedAt)}</td>
-            <td><StatusBadge status={x.host.status} /></td>
-          </tr>
-        ))}</tbody>
-      </table></div>
-    </section>
+    <div className="overflow-x-auto rounded-lg border border-border"><table className="lc-table">
+      <thead><tr><th>{ts.host}</th><th>{ts.path}</th><th>{ts.version}</th><th>{ts.commit}</th><th>{ts.deployed}</th><th>{ts.status}</th></tr></thead>
+      <tbody>{a.deployments.map((x) => (
+        <tr key={x.id} style={x.id === a.id ? { background: 'var(--brand-tint)' } : undefined}>
+          <td><span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${x.host.id}`}>{x.host.hostname}</Link><CopyButton value={x.host.hostname} /></span></td>
+          <td>{x.id === a.id
+            ? <span className="lc-mono">{x.path} <span className="lc-badge lc-badge--plain">{ta.viewing}</span></span>
+            : <Link className="lc-mono" to={`/${ns}/apps/${x.id}?tab=general`}>{x.path}</Link>}</td>
+          <td className="lc-mono">{x.code?.version ?? x.code?.branch}</td>
+          <td>{x.code?.commit ? <Copyable value={x.code.commit} shown={x.code.commit.slice(0, 7)} /> : null}</td>
+          <td className="text-ink-muted">{ago(x.code?.deployedAt)}</td>
+          <td><StatusBadge status={x.host.status} /></td>
+        </tr>
+      ))}</tbody>
+    </table></div>
   )
 }
 
@@ -368,7 +359,7 @@ function UsedByTab({ ns, app: a }: { ns: string; app: App }) {
   const ta = t.pages.app
   // The app calling itself, from any of its hosts, is badged.
   const isSelf = (g: UsedByGroup) => g.from.__typename === 'App' && g.from.name === a.name
-    && g.project === (a.project?.slug ?? hostOf(g.from)?.project?.slug) && g.env === (a.environment?.slug ?? hostOf(g.from)?.environment?.slug)
+    && g.project === (a.project?.slug ?? projectOf(g.from)) && g.env === (a.environment?.slug ?? envOf(g.from))
   return (
     <div className="flex flex-col gap-6">
       <UsedBySection title={ta.directLinks}><UsedBy ns={ns} rows={rows} isSelf={isSelf} /></UsedBySection>

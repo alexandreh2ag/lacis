@@ -58,6 +58,14 @@ type Project {
   description: String
   "What still names the project: it is deleted only once nothing does."
   usage: CatalogUsage!
+  "The envs of its apps and of its hosts, by their labels or by the apps they run."
+  envs: [Environment!]!
+  "The other projects its apps use, through the proxies."
+  dependsOn: [Project!]!
+  "Whether its apps use a target out of the inventory."
+  usesExternals: Boolean!
+  "Its apps once per name and env, whatever the hosts they are deployed on."
+  appCount: Int!
 }
 
 type Environment {

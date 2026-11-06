@@ -18,10 +18,7 @@ const HomeDoc = graphql(`
       counts { hosts apps services links externalLinks }
       environments { id slug sortOrder }
       hosts(page: { limit: 500 }) { items { id status } }
-      graph(level: PROJECT, filter: { status: [ACTIVE, STALE, INACTIVE] }) {
-        nodes { id kind label project env count apps techs role }
-        edges { from to }
-      }
+      projects { ...ProjectRowFields }
       history(page: { limit: 5 }) { items { id occurredAt hostname entityType kind before after } }
     }
   }
@@ -143,7 +140,7 @@ export function Home() {
   const t = useT()
   const th = t.pages.home
   const n = data?.namespace
-  const rows = useMemo(() => (n ? projectRows(n.graph) : []), [n])
+  const rows = useMemo(() => (n ? projectRows(n.projects) : []), [n])
   if (error) return <Page title={ns}><p role="alert">{th.failed(error.message)}</p></Page>
   if (data && !n) return <Page title={th.notFound}><Link to="/">{th.seeNamespaces}</Link></Page>
   if (!n) return <Page title={ns}><span className="lc-muted">{t.pages.shared.loading}</span></Page>

@@ -352,6 +352,12 @@ type PageInput struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
+// A project and an env; either may be unknown.
+type Place struct {
+	Project     *model.Project     `json:"project,omitempty"`
+	Environment *model.Environment `json:"environment,omitempty"`
+}
+
 type ProfileInput struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`

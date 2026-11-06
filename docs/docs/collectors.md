@@ -245,6 +245,9 @@ By priority:
 `project` is the version file's, else the label's. The env is never derived from a
 branch, nor from `APP_ENV`/`NODE_ENV`.
 
+The host still belongs to the project and env of the app when they differ from its
+labels: it lists among the hosts of that project, in that env.
+
 ## `envfiles`
 
 Reads the configuration of each app, in the order its framework loads it, and

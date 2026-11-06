@@ -9,6 +9,7 @@ import (
 
 	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
+	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/google/uuid"
 )
 
@@ -82,14 +83,18 @@ func (x *index) findProject(ref string) *model.Project {
 func (x *index) projectOut(p *model.Project, now time.Time) ProjectOut {
 	out := ProjectOut{Namespace: x.inv.Namespace.Slug, Slug: p.Slug, Name: p.Name, Description: deref(p.Description)}
 	envs := map[string]bool{}
+	// The hosts of the project: by their labels, or because they run its
+	// apps, once per env.
 	for _, h := range x.inv.Hosts {
-		if h.ProjectID == nil || *h.ProjectID != p.ID {
-			continue
+		for _, place := range x.places.Of(h.ID) {
+			if place.Project != p.ID {
+				continue
+			}
+			e := x.env(&place.Env)
+			envs[e] = true
+			out.Hosts = append(out.Hosts, ProjectHost{ID: h.ID.String(), Hostname: h.Hostname, Env: e, OS: osName(h.OS),
+				Status: hostStatus(&x.inv.Namespace, &h, now), LastSeenAt: h.LastSeenAt})
 		}
-		e := x.env(h.EnvironmentID)
-		envs[e] = true
-		out.Hosts = append(out.Hosts, ProjectHost{ID: h.ID.String(), Hostname: h.Hostname, Env: e, OS: osName(h.OS),
-			Status: hostStatus(&x.inv.Namespace, &h, now), LastSeenAt: h.LastSeenAt})
 	}
 	slices.SortFunc(out.Hosts, func(a, b ProjectHost) int {
 		return cmp.Or(cmp.Compare(a.Env, b.Env), cmp.Compare(a.Hostname, b.Hostname))
@@ -185,7 +190,7 @@ func (x *index) mergedApps(keep func(project, env string) bool) []AppItem {
 func (x *index) servicesOfProject(projectID uuid.UUID) []uuid.UUID {
 	var out []uuid.UUID
 	for _, s := range x.inv.Services {
-		if h := x.hosts[s.HostID]; h != nil && h.ProjectID != nil && *h.ProjectID == projectID {
+		if x.places.Any(s.ID, func(p placement.Place) bool { return p.Project == projectID }) {
 			out = append(out, s.ID)
 		}
 	}
@@ -195,7 +200,7 @@ func (x *index) servicesOfProject(projectID uuid.UUID) []uuid.UUID {
 func (x *index) webserversOfProject(projectID uuid.UUID) []uuid.UUID {
 	var out []uuid.UUID
 	for _, w := range x.inv.Webservers {
-		if h := x.hosts[w.HostID]; h != nil && h.ProjectID != nil && *h.ProjectID == projectID {
+		if x.places.Any(w.ID, func(p placement.Place) bool { return p.Project == projectID }) {
 			out = append(out, w.ID)
 		}
 	}

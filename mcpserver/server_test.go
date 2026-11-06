@@ -335,6 +335,42 @@ func TestServer_GetProject_UsedBy(t *testing.T) {
 		Key: "SHOP_URL", Confidence: "exact", Via: []string{"nginx@web-1"}}, out.UsedBy[0])
 }
 
+func TestServer_HostedProjects(t *testing.T) {
+	f := newFixture(t)
+	inv := inventory()
+	// web-1 (shop, production) also runs blog in staging, behind its nginx.
+	blog := model.Project{Base: model.Base{ID: uuid.New()}, Slug: "blog", Name: "Blog"}
+	post := model.App{Base: model.Base{ID: uuid.New()}, HostID: web1.ID, Name: "posts", Path: "/srv/blog", ProjectID: &blog.ID, EnvironmentID: &staging.ID}
+	inv.Projects, inv.Apps = append(inv.Projects, blog), append(inv.Apps, post)
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeWebserver, FromID: nginx.ID, ToType: model.LinkNodeApp, ToID: &post.ID,
+		Source: model.LinkSourceWebserver, Confidence: model.LinkConfidenceExact})
+	f.ns.EXPECT().Inventory(gomock.Any(), acme.ID).Return(inv, nil).AnyTimes()
+
+	var out mcpserver.ProjectOut
+	require.Empty(t, f.call(t, "get_project", map[string]any{"project": "blog", "namespace": "acme"}, &out))
+	require.Len(t, out.Hosts, 1)
+	assert.Equal(t, "web-1", out.Hosts[0].Hostname)
+	assert.Equal(t, "staging", out.Hosts[0].Env, "the env of its app, not that of its labels")
+
+	var projects mcpserver.ListProjectsOutput
+	require.Empty(t, f.call(t, "list_projects", map[string]any{"project": "blog", "namespace": "acme"}, &projects))
+	require.Len(t, projects.Projects, 1)
+	assert.Equal(t, 1, projects.Projects[0].Hosts)
+
+	var hosts mcpserver.ListHostsOutput
+	require.Empty(t, f.call(t, "list_hosts", map[string]any{"project": "blog", "namespace": "acme"}, &hosts))
+	require.Len(t, hosts.Hosts, 1)
+	assert.Equal(t, "shop", hosts.Hosts[0].Project, "its labels")
+	require.Empty(t, f.call(t, "list_hosts", map[string]any{"project": "blog", "env": "production", "namespace": "acme"}, &hosts))
+	assert.Empty(t, hosts.Hosts)
+
+	var components mcpserver.ListComponentsOutput
+	require.Empty(t, f.call(t, "list_webservers", map[string]any{"project": "blog", "namespace": "acme"}, &components))
+	require.Len(t, components.Components, 1, "nginx serves posts")
+	require.Empty(t, f.call(t, "list_services", map[string]any{"project": "blog", "namespace": "acme"}, &components))
+	assert.Empty(t, components.Components, "mysql is of another host")
+}
+
 func TestServer_Lists(t *testing.T) {
 	f := newFixture(t)
 	f.inventories()

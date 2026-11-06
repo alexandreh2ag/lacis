@@ -13,11 +13,16 @@ const ProjectsDoc = graphql(`
     namespace(slug: $ns) {
       id
       environments { id slug sortOrder }
-      graph(level: PROJECT, filter: { status: [ACTIVE, STALE, INACTIVE] }) {
-        nodes { id kind label project env count apps }
-        edges { from to }
-      }
+      projects { ...ProjectRowFields }
     }
+  }
+  fragment ProjectRowFields on Project {
+    id slug
+    usage { hosts }
+    appCount
+    envs { slug }
+    dependsOn { slug }
+    usesExternals
   }
 `)
 
@@ -29,34 +34,26 @@ export interface ProjectRow {
   deps: string[]
 }
 
-interface ProjectGraph {
-  nodes: { id: string; kind: string; label: string; project?: string | null; env?: string | null; count: number; apps: number }[]
-  edges: { from: string; to: string }[]
+interface CatalogProject {
+  slug: string
+  usage: { hosts: number }
+  appCount: number
+  envs: { slug: string }[]
+  dependsOn: { slug: string }[]
+  usesExternals: boolean
 }
 
-// projectRows sums the project nodes of the graph by project: their envs,
-// hosts and apps, and the projects they depend on.
-export function projectRows(graph: ProjectGraph): ProjectRow[] {
-  const by = new Map<string, ProjectRow>()
-  for (const node of graph.nodes) {
-    if (node.kind !== 'PROJECT') continue
-    const slug = node.project || node.label
-    const r = by.get(slug) ?? { slug, envs: [], hosts: 0, apps: 0, deps: [] }
-    if (node.env) r.envs.push(node.env)
-    r.hosts += node.count
-    r.apps += node.apps
-    by.set(slug, r)
-  }
-  const nodes = new Map(graph.nodes.map((x) => [x.id, x]))
-  for (const e of graph.edges) {
-    const from = nodes.get(e.from)
-    const to = nodes.get(e.to)
-    if (!from || !to || from.kind !== 'PROJECT') continue
-    const r = by.get(from.project || from.label)
-    const name = to.kind === 'PROJECT' ? to.label : text().pages.projects.externals
-    if (r && name !== r.slug && !r.deps.includes(name)) r.deps.push(name)
-  }
-  return [...by.values()]
+// projectRows are the projects of the catalog with their envs, hosts and
+// apps, and what they depend on: a project is listed even when its apps run
+// on the hosts of another one, or when nothing names it yet.
+export function projectRows(projects: CatalogProject[]): ProjectRow[] {
+  return projects.map((p) => ({
+    slug: p.slug,
+    envs: p.envs.map((e) => e.slug),
+    hosts: p.usage.hosts,
+    apps: p.appCount,
+    deps: [...p.dependsOn.map((d) => d.slug), ...(p.usesExternals ? [text().pages.projects.externals] : [])],
+  }))
 }
 
 // ProjectsTable lists the projects of a namespace, its search, filters,
@@ -115,7 +112,7 @@ export function Projects() {
   const { ns = '' } = useParams()
   const { data, error } = useQuery(ProjectsDoc, { variables: { ns } })
   const n = data?.namespace
-  const rows = useMemo(() => (n ? projectRows(n.graph) : []), [n])
+  const rows = useMemo(() => (n ? projectRows(n.projects) : []), [n])
   const t = useT()
   return (
     <Page title={t.pages.projects.title}>

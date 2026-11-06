@@ -80,9 +80,15 @@ func (s *server) listProjects(ctx context.Context, req *mcp.CallToolRequest, in 
 				item.Envs = appendNew(item.Envs, a.Env)
 			}
 			for _, h := range x.inv.Hosts {
-				if h.ProjectID != nil && *h.ProjectID == p.ID && in.keeps(x, p.Slug, x.env(h.EnvironmentID)) {
+				counted := false
+				for _, place := range x.places.Of(h.ID) {
+					if env := x.env(&place.Env); place.Project == p.ID && in.keeps(x, p.Slug, env) {
+						item.Envs = appendNew(item.Envs, env)
+						counted = true
+					}
+				}
+				if counted {
 					item.Hosts++
-					item.Envs = appendNew(item.Envs, x.env(h.EnvironmentID))
 				}
 			}
 			slices.Sort(item.Envs)
@@ -173,8 +179,9 @@ func (s *server) listComponents(ctx context.Context, req *mcp.CallToolRequest, i
 				items = append(items, item)
 			}
 		}
+		keeps := func(project, env string) bool { return in.keeps(x, project, env) }
 		for _, c := range items {
-			if in.keeps(x, c.Project, c.Env) && in.contains(append([]string{c.Type, c.Instance, c.Host}, c.Domains...)...) {
+			if x.placed(uuid.MustParse(c.ID), keeps) && in.contains(append([]string{c.Type, c.Instance, c.Host}, c.Domains...)...) {
 				out.Components = append(out.Components, c)
 			}
 		}
@@ -218,7 +225,7 @@ func (s *server) listHosts(ctx context.Context, req *mcp.CallToolRequest, in Lis
 		for i := range x.inv.Hosts {
 			h := &x.inv.Hosts[i]
 			project, env := x.project(h.ProjectID), x.env(h.EnvironmentID)
-			if !in.keeps(x, project, env) || !in.contains(h.Hostname) {
+			if !x.placed(h.ID, func(project, env string) bool { return in.keeps(x, project, env) }) || !in.contains(h.Hostname) {
 				continue
 			}
 			out.Hosts = append(out.Hosts, HostItem{Namespace: x.inv.Namespace.Slug, ID: h.ID.String(), Hostname: h.Hostname, Project: project, Env: env,

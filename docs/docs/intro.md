@@ -78,7 +78,10 @@ flowchart LR
   `acme`). Every agent declares its namespace with the `namespace` label.
 - A **project** (`shop`, `crm`…) and an **env** (`production`, `staging`…) come
   from the `project` and `env` labels of the host. An app can override them in its
-  version file (`.app.lacis.json`).
+  version file (`.app.lacis.json`). A host then belongs to its labels' project and
+  env **and** to those of every app it runs: it hosts several projects. So do its
+  services and webservers, for the apps of their host that use them or that they
+  serve (nginx, php-fpm behind it).
 - A **network** groups the IPs of a namespace by CIDR; public IPs share one
   `public` network.
 

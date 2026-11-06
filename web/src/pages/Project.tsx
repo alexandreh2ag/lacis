@@ -8,7 +8,7 @@ import { chipsField, FilterBar } from '@/components/FilterBar'
 import { Pager, SearchInput, SortHeader, StatusBadge, useTable } from '@/components/Listing'
 import { Tabs, useTab } from '@/components/Tabs'
 import { crossing, ExpandAll, PathBadges, PathDetail, PathToggle, useExpanded, Via, type PathLink } from '@/components/LinkPath'
-import { hostOf, nameOf, splitUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
+import { nameOf, projectOf, splitUsedBy, UsedBy, usedByRows, UsedBySection, type UsedByGroup } from '@/components/UsedBy'
 import { graphql } from '@/graphql'
 import type { ProjectPageQuery } from '@/graphql/graphql'
 import { t as text, useT } from '@/i18n'
@@ -41,13 +41,15 @@ const ProjectPageDoc = graphql(`
       }
       hosts(filter: { projects: [$project] }, page: { limit: 500 }) {
         items {
-          id hostname status environment { slug } ips { address defaultRoute } os { pretty } apps { id }
-          services { id type instance version usedBy { ...AppLink } }
-          webservers { id type version usedBy { ...AppLink } }
+          id hostname status ips { address defaultRoute } os { pretty } apps { id }
+          places { ...ProjectPlace }
+          services { id type instance version places { ...ProjectPlace } usedBy { ...AppLink } }
+          webservers { id type version places { ...ProjectPlace } usedBy { ...AppLink } }
         }
       }
     }
   }
+  fragment ProjectPlace on Place { project { slug } environment { slug } }
 `)
 
 type NS = NonNullable<ProjectPageQuery['namespace']>
@@ -91,7 +93,7 @@ function dependencies(apps: MergedApp[]): Dep[] {
           break
         case 'Host': d = { target: t.hostname, hostId: t.id, project: t.project?.slug, kind: 'host' }; detail = 'host'; break
         case 'Webserver': d = { target: t.type, project: t.host.project?.slug, kind: 'proxy', tech: t.type }; detail = t.type; break
-        case 'App': d = { target: t.name, appId: t.id, project: t.host.project?.slug, kind: 'app' }; detail = 'app'; break
+        case 'App': d = { target: t.name, appId: t.id, project: projectOf(t), kind: 'app' }; detail = 'app'; break
         default: d = { target: t.target, kind: 'external' }; detail = t.reason ?? text().pages.project.external
       }
       const env = a.environment?.slug ?? ''
@@ -108,6 +110,18 @@ function dependencies(apps: MergedApp[]): Dep[] {
     }
   }
   return [...out.values()]
+}
+
+// envsIn are the envs where a host, a service or a webserver holds the
+// project: the env of its labels, or those of the apps of the project it
+// runs or serves, which may name another project or env than their host.
+function envsIn(places: { project?: { slug: string } | null; environment?: { slug: string } | null }[], project: string): string[] {
+  const out: string[] = []
+  for (const p of places) {
+    const env = p.environment?.slug ?? ''
+    if (p.project?.slug === project && !out.includes(env)) out.push(env)
+  }
+  return out
 }
 
 // DeployedApp is an app of an env, whatever the hosts it is deployed on:
@@ -150,18 +164,19 @@ export function ProjectPage() {
   const project = n?.projects.find((p) => p.slug === slug)
   const inEnv = (e?: string | null) => !env.length || env.includes(e ?? '')
   const apps = useMemo(() => (n?.apps.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
-  const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => inEnv(h.environment?.slug)), [n, env])
+  const placed = (places: Parameters<typeof envsIn>[0]) => envsIn(places, slug).some((e) => inEnv(e))
+  const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => placed(h.places)), [n, env, slug])
   const merged = useMemo(() => (n?.merged.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
   const deps = useMemo(() => dependencies(merged), [merged])
   // Who uses the project, through the proxies: its apps, the services of
   // its hosts, and their webservers where a route ends at them.
   const { others: usedBy, self: usedBySelf } = useMemo(() => splitUsedBy([
     ...hosts.flatMap((h) => [
-      ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
-      ...h.webservers.flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type, host: h })),
+      ...h.services.filter((s) => placed(s.places)).flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
+      ...h.webservers.filter((w) => placed(w.places)).flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type, host: h })),
     ]),
     ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
-  ], (r) => hostOf(r.link.from)?.project?.slug === slug), [hosts, merged, slug])
+  ], (r) => projectOf(r.link.from) === slug), [hosts, merged, slug])
   // An app deployed in several versions in one env diverges.
   const diverging = useMemo(() => {
     const versions = new Map<string, Set<string>>()
@@ -176,7 +191,7 @@ export function ProjectPage() {
   const appTable = useTable(deployed, (a) => [a.name, ...a.versions, ...a.vhosts],
     (a, by) => by === 'env' ? a.env : by === 'version' ? a.versions.join() : a.name, 'name')
   const hostTable = useTable(hosts, (h) => [h.hostname, ...h.ips.map((i) => i.address)],
-    (h, by) => by === 'env' ? h.environment?.slug ?? '' : by === 'apps' ? h.apps.length : by === 'status' ? h.status : h.hostname, 'hostname')
+    (h, by) => by === 'env' ? envsIn(h.places, slug).join(', ') : by === 'apps' ? h.apps.length : by === 'status' ? h.status : h.hostname, 'hostname')
   const [kinds, setKinds] = useState<string[]>([])
   const depRows = useMemo(() => deps.filter((d) => !kinds.length || kinds.includes(d.kind)), [deps, kinds])
   const depTable = useTable(depRows, (d) => [d.target, d.project ?? '', ...d.details, ...d.keys, ...d.by],
@@ -199,7 +214,7 @@ export function ProjectPage() {
   if (!n) return <Page title={slug}><span className="lc-muted">{ts.loading}</span></Page>
   if (!project) return <Page title={tp.notFound}><Link to={`/${ns}`}>{tp.back}</Link></Page>
 
-  const envs = [...n.environments].sort((a, b) => a.sortOrder - b.sortOrder).filter((e) => n.hosts.items.some((h) => h.environment?.slug === e.slug))
+  const envs = [...n.environments].sort((a, b) => a.sortOrder - b.sortOrder).filter((e) => n.hosts.items.some((h) => envsIn(h.places, slug).includes(e.slug)))
   // The env filters every tab: each tab's bar carries it.
   const envField = chipsField({ label: ts.environment, short: ts.env, options: envs.map((e) => ({ value: e.slug, label: e.slug })), selected: env, onChange: setEnv })
   const count = (k: string) => deps.filter((d) => d.kind === k).length
@@ -258,7 +273,7 @@ export function ProjectPage() {
               <tbody>{hostTable.shown.map((h) => (
                 <tr key={h.id}>
                   <td><span className="lc-copyable"><Link className="lc-mono" to={`/${ns}/hosts/${h.id}`}>{h.hostname}</Link><CopyButton value={h.hostname} /></span></td>
-                  <td>{h.environment?.slug}</td>
+                  <td>{envsIn(h.places, slug).join(', ')}</td>
                   <td><Ips ips={[...h.ips].sort((a, b) => Number(b.defaultRoute) - Number(a.defaultRoute))} /></td>
                   <td className="text-ink-muted">{h.os?.pretty?.replace(/ \(.*\)/, '')}</td>
                   <td className="lc-mono text-[12px] text-ink-muted">{[...h.webservers, ...h.services].map((s) => `${s.type} ${s.version ?? ''}`.trim()).join(', ')}</td>
@@ -371,7 +386,7 @@ function General({ ns, project, envs, apps, hosts, deps, usedBy, diverging }: {
           <span className="lc-label">{tp.summary}</span>
           <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
             <dt>{tp.hosts}</dt>
-            <dd>{hosts.length}{envs.length ? ` · ${envs.map((e) => tp.inEnv(hosts.filter((h) => h.environment?.slug === e.slug).length, e.slug)).join(' · ')}` : ''}</dd>
+            <dd>{hosts.length}{envs.length ? ` · ${envs.map((e) => tp.inEnv(hosts.filter((h) => envsIn(h.places, project.slug).includes(e.slug)).length, e.slug)).join(' · ')}` : ''}</dd>
             <dt>{tp.apps}</dt><dd>{new Set(apps.map((a) => a.name)).size} · {ts.deployments(apps.length)}</dd>
             {diverging.size ? (
               <><dt>{tp.divergingVersions}</dt><dd className="text-status-stale">{[...diverging].map((k) => tp.appInEnv(...(k.split('@') as [string, string]))).join(', ')}</dd></>

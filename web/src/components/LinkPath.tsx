@@ -11,7 +11,7 @@ export const AppLinkFragment = graphql(`
   fragment UsedByHost on Host { id hostname project { slug } environment { slug } }
   fragment LinkEndRef on LinkEnd {
     __typename
-    ... on App { id name framework host { ...UsedByHost } }
+    ... on App { id name framework project { slug } environment { slug } host { ...UsedByHost } }
     ... on Service { id type instance version host { ...UsedByHost } }
     ... on Webserver { id type host { ...UsedByHost } }
     ... on Host { ...UsedByHost }
@@ -43,7 +43,8 @@ export interface HostRef {
 
 // End is the end of a link, as the pages query it.
 export type End =
-  | { __typename: 'App'; id: string; name: string; framework?: string | null; host: HostRef }
+  | { __typename: 'App'; id: string; name: string; framework?: string | null; project?: { slug: string } | null
+    environment?: { slug: string } | null; host: HostRef }
   | { __typename: 'Service'; id: string; type: string; instance: string; version?: string | null; host: HostRef }
   | { __typename: 'Webserver'; id: string; type: string; host: HostRef }
   | ({ __typename: 'Host' } & HostRef)
@@ -66,6 +67,19 @@ export interface PathLink {
 export function hostOf(e: End): HostRef | null {
   if (e.__typename === 'External') return null
   return e.__typename === 'Host' ? e : e.host
+}
+
+// projectOf is the project of an end: an app's own, which may differ from
+// that of its host, else that of its host.
+export function projectOf(e: End): string | undefined {
+  if (e.__typename === 'App' && e.project) return e.project.slug
+  return hostOf(e)?.project?.slug
+}
+
+// envOf is the env of an end: an app's own, else that of its host.
+export function envOf(e: End): string | undefined {
+  if (e.__typename === 'App' && e.environment) return e.environment.slug
+  return hostOf(e)?.environment?.slug
 }
 
 export function nameOf(e: End): string {
