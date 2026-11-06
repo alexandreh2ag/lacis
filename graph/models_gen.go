@@ -196,6 +196,10 @@ type GraphFilter struct {
 	// With envs selected, leave out the links a webserver of these envs has with another env: a proxy
 	// shared by several envs no longer brings the others. A direct link between envs stays.
 	Isolate *bool `json:"isolate,omitempty"`
+	// Draw the links to the webservers as they are: an app calling a domain behind a proxy links to the
+	// proxy. By default, such a link goes to what the routes lead the domain to, as the links of an app
+	// are listed; the routes of the proxies stay drawn.
+	FullLinks *bool `json:"fullLinks,omitempty"`
 	// Project, host or stack nodes to draw with their content, at the levels of the projects and the
 	// hosts: their apps, services, webservers and runtimes, those of the same kind and name merged, in
 	// the group of the same id.

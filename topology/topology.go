@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/alexandreh2ag/lacis/linker"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/alexandreh2ag/lacis/placement"
 	"github.com/google/uuid"
@@ -101,6 +102,11 @@ type Filter struct {
 	// these envs has with a node of another env: a proxy shared by several
 	// envs no longer brings the others. A direct link between envs stays.
 	Isolate bool
+	// FullLinks draws the links to the webservers as they are: an app
+	// calling a domain behind a proxy links to the proxy. By default, such
+	// a link goes to what the routes lead the domain to, as the links of an
+	// app are listed; the routes of the proxies stay drawn.
+	FullLinks bool
 	// Hidden leaves a host and its content out, such as an inactive host.
 	Hidden func(*model.Host) bool `json:"-"`
 	// Expand names project, host or stack nodes, at the levels of the
@@ -607,18 +613,57 @@ func (b *builder) present(l *link) bool {
 }
 
 // visibleLinks are the links between nodes of the builder the filter
-// keeps.
+// keeps; a link to a webserver gives way to its effective links, unless
+// the filter wants the full links.
 func (b *builder) visibleLinks() []*link {
+	var paths *linkpath.Graph
+	if !b.f.FullLinks {
+		paths = linkpath.New(b.inv.Links)
+	}
 	var out []*link
 	for i := range b.links {
 		l := &b.links[i]
-		if !b.present(l) || (b.f.NoExternals && l.toKind == KindExternal) ||
-			(len(b.f.Confidences) > 0 && !slices.Contains(b.f.Confidences, l.confidence)) || b.isolated(l) {
+		if paths != nil && l.fromKind != KindWebserver && l.toKind == KindWebserver {
+			out = append(out, b.effective(paths, i)...)
 			continue
 		}
-		out = append(out, l)
+		if b.keeps(l) {
+			out = append(out, l)
+		}
 	}
 	return out
+}
+
+// effective are the links the i-th link, to a webserver, stands for: one
+// to each end the routes of the name called lead to, of the weakest
+// confidence crossed. A path stopping at a webserver, its routes leading
+// nowhere known, keeps the link itself.
+func (b *builder) effective(paths *linkpath.Graph, i int) []*link {
+	l := &b.links[i]
+	var out []*link
+	kept := false
+	for _, p := range paths.From(&b.inv.Links[i]) {
+		if p.DeadEnd || len(p.Links) == 1 {
+			if !kept && b.keeps(l) {
+				out = append(out, l)
+			}
+			kept = true
+			continue
+		}
+		last := p.Last()
+		d := &link{from: l.from, to: b.id(NodeKind(last.ToType), deref(last.ToID), last.ExternalTarget), fromKind: l.fromKind,
+			toKind: NodeKind(last.ToType), source: l.source, confidence: Confidence(p.Confidence()), detail: l.detail}
+		if b.keeps(d) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// keeps tells a link between nodes of the builder the filter keeps.
+func (b *builder) keeps(l *link) bool {
+	return b.present(l) && (!b.f.NoExternals || l.toKind != KindExternal) &&
+		(len(b.f.Confidences) == 0 || slices.Contains(b.f.Confidences, l.confidence)) && !b.isolated(l)
 }
 
 // isolated tells a link the filter isolates: a webserver of a selected env

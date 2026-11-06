@@ -21287,8 +21287,11 @@ func (ec *executionContext) unmarshalInputGraphFilter(ctx context.Context, obj a
 	if _, present := asMap["isolate"]; !present {
 		asMap["isolate"] = false
 	}
+	if _, present := asMap["fullLinks"]; !present {
+		asMap["fullLinks"] = false
+	}
 
-	fieldsInOrder := [...]string{"projects", "envs", "hosts", "status", "confidences", "externals", "isolate", "expand"}
+	fieldsInOrder := [...]string{"projects", "envs", "hosts", "status", "confidences", "externals", "isolate", "fullLinks", "expand"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -21344,6 +21347,13 @@ func (ec *executionContext) unmarshalInputGraphFilter(ctx context.Context, obj a
 				return it, err
 			}
 			it.Isolate = data
+		case "fullLinks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fullLinks"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FullLinks = data
 		case "expand":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expand"))
 			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)

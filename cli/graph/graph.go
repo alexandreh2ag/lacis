@@ -24,6 +24,7 @@ const (
 	FlagOutput    = "output"
 	FlagLabels    = "labels"
 	FlagLayout    = "layout"
+	FlagFullLinks = "full-links"
 )
 
 // NewService builds the service used by "graph export", and the function
@@ -68,6 +69,7 @@ func GetExportCmd(ctx *context.Context) *cobra.Command {
 	cmd.Flags().StringSlice(FlagHost, nil, "keep these hosts (hostnames, repeatable); a host named leaves its stack")
 	cmd.Flags().StringP(FlagOutput, "o", "", "file to write, stdout by default")
 	cmd.Flags().Bool(FlagLabels, false, "write on each edge its keys or domains")
+	cmd.Flags().Bool(FlagFullLinks, false, "draw the links to the proxies as they are, instead of the links to what their routes lead to")
 	cmd.Flags().String(FlagLayout, string(topology.LayoutDagre), "layout engine of mermaid: "+join(topology.Layouts)+"; elk suits the large graphs")
 	_ = cmd.MarkFlagRequired(FlagNamespace)
 	return cmd
@@ -92,6 +94,7 @@ func GetExportRunFn(ctx *context.Context) func(*cobra.Command, []string) error {
 		output, _ := cmd.Flags().GetString(FlagOutput)
 		labels, _ := cmd.Flags().GetBool(FlagLabels)
 		layout, _ := cmd.Flags().GetString(FlagLayout)
+		fullLinks, _ := cmd.Flags().GetBool(FlagFullLinks)
 		if !slices.Contains(topology.Formats, topology.Format(format)) {
 			return fmt.Errorf("unknown format %q, expected one of: %s", format, join(topology.Formats))
 		}
@@ -107,7 +110,7 @@ func GetExportRunFn(ctx *context.Context) func(*cobra.Command, []string) error {
 			return err
 		}
 		defer release()
-		g, err := svc.Graph(cmd.Context(), namespace, topology.Filter{Level: topology.Level(level), Projects: projects, Envs: envs, Hosts: hosts})
+		g, err := svc.Graph(cmd.Context(), namespace, topology.Filter{Level: topology.Level(level), Projects: projects, Envs: envs, Hosts: hosts, FullLinks: fullLinks})
 		if err != nil {
 			return err
 		}

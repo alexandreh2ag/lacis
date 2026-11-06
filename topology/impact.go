@@ -55,13 +55,25 @@ type step struct {
 // depend on the production backends of that traefik. Through proxies, the
 // webservers are crossed without taking a level, and left out of the
 // levels: an app behind a traefik then an nginx is a direct neighbour.
+//
+// The walk takes the full links, even when the graph draws the effective
+// ones: an app calling a backend through a proxy depends on the proxy. An
+// effective link drawn is then lit when both its ends are.
 func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction, throughProxies bool) (*Impact, error) {
-	b, err := prepare(inv, f)
+	full := f
+	full.FullLinks = true
+	b, err := prepare(inv, full)
 	if err != nil {
 		return nil, err
 	}
+	graph := b.draw()
+	if !f.FullLinks {
+		if graph, err = Build(inv, f); err != nil {
+			return nil, err
+		}
+	}
 	drawn := map[string]bool{}
-	for _, n := range b.draw().Nodes {
+	for _, n := range graph.Nodes {
 		drawn[n.ID] = true
 	}
 	links := b.walked()
@@ -139,8 +151,21 @@ func BuildImpact(inv *model.Inventory, f Filter, node string, dir Direction, thr
 		}
 		frontier = further
 	}
+	lit := func(id string) bool { _, ok := out.Levels[id]; return ok || id == node }
+	for _, e := range graph.Edges {
+		if !f.FullLinks && lit(e.From) && lit(e.To) {
+			edges[e.From+"→"+e.To] = true
+		}
+	}
+	drawnEdges := make(map[string]bool, len(graph.Edges))
+	for _, e := range graph.Edges {
+		drawnEdges[e.From+"→"+e.To] = true
+	}
 	for e := range edges {
-		out.Edges = append(out.Edges, e)
+		// The full links walked through a proxy are not drawn as such.
+		if f.FullLinks || drawnEdges[e] {
+			out.Edges = append(out.Edges, e)
+		}
 	}
 	slices.Sort(out.Edges)
 	return out, nil

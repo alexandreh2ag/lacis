@@ -57,8 +57,17 @@ func TestBuildImpact_Dependents(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		hostNode(id, "rp") + "→" + hostNode(id, "webProd"),
 		hostNode(id, "webProd") + "→" + hostNode(id, "db"),
+		hostNode(id, "workerProd") + "→" + hostNode(id, "webProd"),
+	}, got.Edges, "the graph draws the effective link of the worker, to the site behind traefik")
+
+	full, err := BuildImpact(inv, Filter{Level: LevelHost, FullLinks: true}, hostNode(id, "db"), Dependents, false)
+	require.NoError(t, err)
+	assert.Equal(t, got.Levels, full.Levels, "the walk is the same, whatever the links drawn")
+	assert.ElementsMatch(t, []string{
+		hostNode(id, "rp") + "→" + hostNode(id, "webProd"),
+		hostNode(id, "webProd") + "→" + hostNode(id, "db"),
 		hostNode(id, "workerProd") + "→" + hostNode(id, "rp"),
-	}, got.Edges)
+	}, full.Edges)
 }
 
 func TestBuildImpact_Needs(t *testing.T) {
@@ -106,7 +115,7 @@ func TestBuildImpact_AppLevel(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		node("app", "site") + "→" + node("service", "mariadb"),
 		node("webserver", "traefik") + "→" + node("app", "site"),
-		node("app", "jobProd") + "→" + node("webserver", "traefik"),
+		node("app", "jobProd") + "→" + node("app", "site"),
 	}, got.Edges)
 
 	got, err = BuildImpact(inv, f, node("app", "jobProd"), Needs, false)
@@ -116,7 +125,7 @@ func TestBuildImpact_AppLevel(t *testing.T) {
 	got, err = BuildImpact(inv, f, node("service", "mariadb"), Dependents, true)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{node("app", "site"): 1, node("app", "jobProd"): 2}, got.Levels, "through proxies, traefik takes no level")
-	assert.Contains(t, got.Edges, node("app", "jobProd")+"→"+node("webserver", "traefik"))
+	assert.Contains(t, got.Edges, node("app", "jobProd")+"→"+node("app", "site"))
 
 	got, err = BuildImpact(inv, f, node("app", "jobProd"), Needs, true)
 	require.NoError(t, err)
@@ -134,4 +143,43 @@ func TestBuildImpact_AppLevel(t *testing.T) {
 
 	_, err = BuildImpact(inv, Filter{Level: "rack"}, node("app", "blog"), Dependents, false)
 	assert.Error(t, err)
+}
+
+func TestBuild_EffectiveLinks(t *testing.T) {
+	inv, id := proxied(t)
+	// lost calls a name traefik routes nowhere.
+	lost := uuid.New()
+	inv.Apps = append(inv.Apps, model.App{Base: model.Base{ID: lost}, HostID: id["workerProd"], Name: "lost"})
+	d, err := json.Marshal(linker.Detail{Key: "OLD_URL", Target: "https://old.example"})
+	require.NoError(t, err)
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeApp, FromID: lost, ToType: model.LinkNodeWebserver, ToID: ptr(id["traefik"]),
+		Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceInferred, Detail: d})
+	node := func(kind, k string) string { return kind + ":" + id[k].String() }
+	edges := func(g *Graph) []string {
+		var out []string
+		for _, e := range g.Edges {
+			out = append(out, e.From+"→"+e.To)
+		}
+		return out
+	}
+
+	g, err := Build(inv, Filter{Level: LevelService})
+	require.NoError(t, err)
+	got := edges(g)
+	assert.Contains(t, got, node("app", "jobProd")+"→"+node("app", "site"), "the worker links to the site traefik routes its name to")
+	assert.Contains(t, got, node("app", "jobStg")+"→"+node("app", "siteStg"))
+	assert.NotContains(t, got, node("app", "jobProd")+"→"+node("webserver", "traefik"))
+	assert.Contains(t, got, node("webserver", "traefik")+"→"+node("webserver", "nginxProd"), "the routes of the proxy stay drawn")
+	assert.Contains(t, got, "app:"+lost.String()+"→"+node("webserver", "traefik"), "a name routed nowhere keeps its link to the proxy")
+	for _, e := range g.Edges {
+		if e.From == node("app", "jobProd") {
+			assert.Equal(t, []string{"SITE_URL"}, e.Labels, "the effective link keeps the key of the app")
+		}
+	}
+
+	g, err = Build(inv, Filter{Level: LevelService, FullLinks: true})
+	require.NoError(t, err)
+	got = edges(g)
+	assert.Contains(t, got, node("app", "jobProd")+"→"+node("webserver", "traefik"))
+	assert.NotContains(t, got, node("app", "jobProd")+"→"+node("app", "site"))
 }

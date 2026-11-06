@@ -32,7 +32,8 @@ func (r *Resolver) topologyFilter(x *index, level graph.GraphLevel, filter *grap
 	}
 	now := r.Clock.Now()
 	tf := topology.Filter{Level: graphLevels[level], Projects: f.Projects, Envs: f.Envs, Hosts: f.Hosts,
-		NoExternals: f.Externals != nil && !*f.Externals, Isolate: f.Isolate != nil && *f.Isolate, Expand: f.Expand,
+		NoExternals: f.Externals != nil && !*f.Externals, Isolate: f.Isolate != nil && *f.Isolate, FullLinks: f.FullLinks != nil && *f.FullLinks,
+		Expand: f.Expand,
 		Hidden: func(h *model.Host) bool {
 			return !slices.Contains(statuses, status(&x.inv.Namespace, h, now))
 		}}
