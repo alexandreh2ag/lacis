@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { memo, useSyncExternalStore } from 'react'
 import { customIconOf, hasLogo, iconsVersion, initials, logoOf, subscribeIcons } from '@/lib/logos'
 
 export type Kind = 'app' | 'service' | 'proxy' | 'host' | 'project' | 'external'
@@ -12,18 +12,19 @@ const kinds: Record<Kind, React.ReactNode> = {
   external: <><circle cx="8" cy="8" r="6" /><path d="M2 8h12M8 2c1.8 1.8 2.6 3.8 2.6 6S9.8 12.2 8 14M8 2C6.2 3.8 5.4 5.8 5.4 8s.8 4.2 2.6 6" /></>,
 }
 
-export function KindIcon({ kind }: { kind: Kind }) {
+export const KindIcon = memo(function KindIcon({ kind }: { kind: Kind }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {kinds[kind]}
     </svg>
   )
-}
+})
 
 // TechLogo draws the logo of a technology: the one uploaded in the
 // administration, else the embedded one, else its initials. builtin
-// leaves the uploaded one out.
-export function TechLogo({ tech, title, builtin }: { tech: string; title?: string; builtin?: boolean }) {
+// leaves the uploaded one out. Its long path renders again only when the
+// technology or the icons change: the cards of the graph hold many.
+export const TechLogo = memo(function TechLogo({ tech, title, builtin }: { tech: string; title?: string; builtin?: boolean }) {
   useSyncExternalStore(subscribeIcons, iconsVersion)
   const url = builtin ? undefined : customIconOf(tech)
   if (url) {
@@ -39,13 +40,13 @@ export function TechLogo({ tech, title, builtin }: { tech: string; title?: strin
       <path d={logo.path} />
     </svg>
   )
-}
+})
 
 // Glyph is the logo of the main technology, else the icon of the kind.
-export function Glyph({ kind, tech }: { kind: Kind; tech?: string | null }) {
+export const Glyph = memo(function Glyph({ kind, tech }: { kind: Kind; tech?: string | null }) {
   useSyncExternalStore(subscribeIcons, iconsVersion)
   return tech && hasLogo(tech) ? <TechLogo tech={tech} /> : <KindIcon kind={kind} />
-}
+})
 
 export function Chevron({ dir }: { dir: 'left' | 'right' | 'down' | 'up' }) {
   const d = { left: 'M10 3.5 5.5 8l4.5 4.5', right: 'M6 3.5 10.5 8 6 12.5', down: 'M3.5 6 8 10.5 12.5 6', up: 'M3.5 10 8 5.5l4.5 4.5' }[dir]

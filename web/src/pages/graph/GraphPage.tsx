@@ -154,7 +154,6 @@ function Graph() {
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
-            onlyRenderVisibleElements
             nodesConnectable={false}
             selectionKeyCode={['Control', 'Meta']}
             multiSelectionKeyCode={['Control', 'Meta']}
