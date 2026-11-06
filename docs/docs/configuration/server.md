@@ -228,7 +228,7 @@ Logos uploaded for technologies (`PUT icons/{tech}`): PNG, JPEG, WebP or SVG
 
 | Key                  | Type         | Default     | Description |
 | -------------------- | ------------ | ----------- | ----------- |
-| `linking.cdns`       | list         | `[]`        | CDNs in front of your sites, by name, their IP ranges built into Lacis: `cloudflare`. A name resolving into them is linked only through a route, and the link names the CDN. An unknown name is refused at startup. See [Linking](../linking.md#cdn). |
+| `linking.cdns`       | list         | `[]`        | CDNs in front of your sites, by name, their IP ranges built into Lacis: `cloudflare`, `cloudfront`. A name resolving into them is linked only through a route, and the link names the CDN. An unknown name is refused at startup. See [Linking](../linking.md#cdn). |
 | `linking.cdn_ranges` | list of CIDR | `[]`        | IP ranges of a CDN Lacis does not know by name, e.g. `198.51.100.0/24`, linked as `linking.cdns`. |
 | `linking.http_ports` | list of int  | `[80, 443]` | Ports HTTP is served on; add `8000`, `8080`, `8443`… when needed. A name called without scheme on one of them may be routed by a webserver, and such a port of a host nobody is known to listen on leads to its webserver. At least one port, 1 to 65535. |
 

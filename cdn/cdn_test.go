@@ -9,7 +9,7 @@ import (
 )
 
 func TestKnown(t *testing.T) {
-	assert.Equal(t, []string{"cloudflare"}, Names())
+	assert.Equal(t, []string{"cloudflare", "cloudfront"}, Names())
 	for _, name := range Names() {
 		c, ok := Known(name)
 		require.True(t, ok)
@@ -20,6 +20,17 @@ func TestKnown(t *testing.T) {
 	}
 	_, ok := Known("akamai")
 	assert.False(t, ok)
+}
+
+func TestContains_CloudFront(t *testing.T) {
+	c, ok := Known("cloudfront")
+	assert.True(t, ok)
+	for ip, want := range map[string]bool{
+		"18.164.52.116": true, "18.244.28.129": true, "2600:9000:2450:3a00:1d:38ff:6dc0:93a1": true,
+		"104.16.1.1": false, "52.95.155.20": false,
+	} {
+		assert.Equal(t, want, c.Contains(netip.MustParseAddr(ip)), ip)
+	}
 }
 
 func TestContains(t *testing.T) {

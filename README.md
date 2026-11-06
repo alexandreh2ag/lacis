@@ -246,7 +246,7 @@ icons:                                # logos uploaded for technologies (traefik
   min_side: 16                        # each side of a raster logo, in pixels
   max_side: 512
 linking:
-  cdns: []                            # CDNs known by name, ranges built in: cloudflare. A name resolving into them
+  cdns: []                            # CDNs known by name, ranges built in: cloudflare, cloudfront. A name resolving into them
                                       #   links only through a route, and the link names the CDN
   cdn_ranges: []                      # IP ranges of another CDN, e.g. 198.51.100.0/24, linked the same way
   http_ports: [80, 443]               # ports HTTP is served on, e.g. add 8000, 8080, 8443: a name called without

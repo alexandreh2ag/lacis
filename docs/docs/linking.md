@@ -161,7 +161,7 @@ know, list its ranges in `linking.cdn_ranges`:
 
 ```yaml
 linking:
-  cdns: [cloudflare]             # known: cloudflare
+  cdns: [cloudflare]             # known: cloudflare, cloudfront
   cdn_ranges: [198.51.100.0/24]  # another CDN
 ```
 
