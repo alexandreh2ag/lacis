@@ -321,11 +321,20 @@ func apacheVhost(section directive) snapshot.Vhost {
 	for _, addr := range section.Args {
 		v.Listen = appendUnique(v.Listen, netaddr.Listen(addr, "80"))
 	}
-	var visit func(directives []directive)
-	visit = func(directives []directive) {
+	var visit func(directives []directive, path string)
+	visit = func(directives []directive, path string) {
 		for _, d := range directives {
 			if d.Block != nil {
-				visit(d.Block)
+				inner := path
+				switch strings.ToLower(d.Name) {
+				case "location":
+					inner = apachePrefix(d.Args)
+				case "locationmatch":
+					if len(d.Args) > 0 {
+						inner = "~" + d.Args[0]
+					}
+				}
+				visit(d.Block, inner)
 				continue
 			}
 			switch strings.ToLower(d.Name) {
@@ -344,17 +353,43 @@ func apacheVhost(section directive) snapshot.Vhost {
 				}
 			case "proxypass", "proxypassmatch":
 				if target := proxyPassTarget(d.Args); target != "" {
+					at := path
+					if first := d.Args[0]; first != target {
+						// ProxyPass /api url, ProxyPassMatch ^/api/(.*) url
+						at = apachePrefix([]string{first})
+						if strings.ToLower(d.Name) == "proxypassmatch" {
+							at = "~" + first
+						}
+					}
 					v.Upstreams = appendUnique(v.Upstreams, apacheTarget(target))
+					v.AddLocation(passedPath(at, isFastCGI(target)), apacheTarget(target))
 				}
 			case "sethandler":
 				if len(d.Args) > 0 && strings.HasPrefix(d.Args[0], "proxy:") {
-					v.Upstreams = appendUnique(v.Upstreams, apacheTarget(strings.TrimPrefix(d.Args[0], "proxy:")))
+					target := strings.TrimPrefix(d.Args[0], "proxy:")
+					v.Upstreams = appendUnique(v.Upstreams, apacheTarget(target))
+					v.AddLocation(passedPath(path, isFastCGI(target)), apacheTarget(target))
 				}
 			}
 		}
 	}
-	visit(section.Block)
+	visit(section.Block, "")
 	return v
+}
+
+// apachePrefix is the path of a <Location> or a ProxyPass: / serves any
+// path.
+func apachePrefix(args []string) string {
+	if len(args) == 0 || args[0] == "/" {
+		return ""
+	}
+	return args[0]
+}
+
+// isFastCGI tells whether a proxy target is a FastCGI backend, such as
+// PHP-FPM: "fcgi://127.0.0.1:9000/…", "unix:/run/php.sock|fcgi://localhost".
+func isFastCGI(target string) bool {
+	return strings.Contains(target, "fcgi://")
 }
 
 // proxyPassTarget returns the target of "ProxyPass [path] url [key=value…]":

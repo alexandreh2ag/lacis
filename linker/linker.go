@@ -370,10 +370,20 @@ func (r *resolver) proxies() {
 			source = model.LinkSourceTraefik
 		}
 		for _, v := range rt.Vhosts {
-			route := v.ConfigFile
-			for _, u := range v.Upstreams {
-				servers, via := rt.upstreamServers(u)
-				r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{route}, Domains: v.ServerNames, Listen: listenPorts(v.Listen)}, true)
+			locations := v.Locations
+			if len(locations) == 0 {
+				// An older agent: the paths are unknown.
+				locations = []snapshot.Location{{Upstreams: v.Upstreams}}
+			}
+			for _, loc := range locations {
+				var paths []string
+				if loc.Path != "" {
+					paths = []string{loc.Path}
+				}
+				for _, u := range loc.Upstreams {
+					servers, via := rt.upstreamServers(u)
+					r.proxy(w.HostID, from, source, servers, via, Detail{Routes: []string{v.ConfigFile}, Domains: v.ServerNames, Listen: listenPorts(v.Listen), Paths: paths}, true)
+				}
 			}
 		}
 		for _, router := range rt.Routers {

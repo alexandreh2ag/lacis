@@ -416,6 +416,34 @@ func TestResolve_RoutePath(t *testing.T) {
 	}
 }
 
+func TestResolve_VhostLocations(t *testing.T) {
+	f := newFixture()
+	f.network("10.0.1.0/24")
+	web := f.host("web", "10.0.1.21")
+	f.service(web, "php-fpm", model.EndpointKindTCP, "127.0.0.1", 9000)
+	f.service(f.host("api", "10.0.1.22"), "node", model.EndpointKindTCP, "0.0.0.0", 3000)
+	vhost := snapshot.Vhost{ServerNames: []string{"www.acme.example"}, ConfigFile: "site.conf", Locations: []snapshot.Location{
+		{Upstreams: []string{"127.0.0.1:9000"}},
+		{Path: "/api/", Upstreams: []string{"http://10.0.1.22:3000"}},
+	}}
+	f.webserver(web, "nginx", routing{Vhosts: []snapshot.Vhost{vhost}}, "www.acme.example")
+	// An older agent sends no locations: any path.
+	old := snapshot.Vhost{ServerNames: []string{"old.acme.example"}, ConfigFile: "old.conf", Upstreams: []string{"http://10.0.1.22:3000"}}
+	f.webserver(f.host("old", "10.0.1.30"), "nginx", routing{Vhosts: []snapshot.Vhost{old}}, "old.acme.example")
+
+	paths := map[string][]string{}
+	for _, l := range Resolve(f.inv, Options{}, time.Now()) {
+		var d Detail
+		require.NoError(t, json.Unmarshal(l.Detail, &d))
+		paths[f.name(l.FromType, l.FromID)+" > "+f.name(l.ToType, *l.ToID)] = d.Paths
+	}
+	assert.Equal(t, map[string][]string{
+		"nginx web > php-fpm web": nil,
+		"nginx web > node api":    {"/api/"},
+		"nginx old > node api":    nil,
+	}, paths)
+}
+
 func TestPathsOfRule(t *testing.T) {
 	tests := []struct {
 		rule string

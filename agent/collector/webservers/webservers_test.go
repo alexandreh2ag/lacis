@@ -94,20 +94,51 @@ func TestCollect_Nginx(t *testing.T) {
 				Listen:      []string{"0.0.0.0:443", "[::]:443"},
 				Root:        "/var/www/client/current/public",
 				Upstreams:   []string{"unix:/run/php/php8.2-fpm.sock"},
+				Locations:   []snapshot.Location{{Upstreams: []string{"unix:/run/php/php8.2-fpm.sock"}}},
 				ConfigFile:  "/etc/nginx/sites-enabled/client.conf",
 			},
 			{ServerNames: []string{"staging.client.example.com"}, Listen: []string{"0.0.0.0:80"}, ConfigFile: "/etc/nginx/sites-enabled/client.conf"},
-			{Listen: []string{"0.0.0.0:8081"}, Upstreams: []string{"127.0.0.1:3031"}, ConfigFile: "/etc/nginx/sites-enabled/default"},
+			{Listen: []string{"0.0.0.0:8081"}, Upstreams: []string{"127.0.0.1:3031"},
+				Locations: []snapshot.Location{{Upstreams: []string{"127.0.0.1:3031"}}}, ConfigFile: "/etc/nginx/sites-enabled/default"},
 			{
 				ServerNames: []string{"front.client.example.com"},
 				Listen:      []string{"127.0.0.1:8080"},
 				Root:        "/var/www/front/current/dist",
 				Upstreams:   []string{"http://127.0.0.1:8000", "http://front_nodes", "unix:/run/front.sock", "http://${backend}$request_uri", "http://127.0.0.1:3010"},
-				ConfigFile:  "/etc/nginx/sites-enabled/front",
+				Locations: []snapshot.Location{
+					{Path: "/api/", Upstreams: []string{"http://127.0.0.1:8000"}},
+					{Upstreams: []string{"http://front_nodes"}},
+					{Path: "/ws", Upstreams: []string{"unix:/run/front.sock"}},
+					{Path: "/dyn", Upstreams: []string{"http://${backend}$request_uri"}},
+					{Path: "/simu", Upstreams: []string{"http://127.0.0.1:3010"}},
+				},
+				ConfigFile: "/etc/nginx/sites-enabled/front",
 			},
 		},
 		Upstreams: []snapshot.Upstream{{Name: "front_nodes", Servers: []string{"10.0.1.31:3000", "10.0.1.32:3000"}}},
 	}}, out.Webservers)
+}
+
+func TestLocationPath(t *testing.T) {
+	tests := map[string][]string{
+		"/api/":          {"/api/"},
+		"":               {"/"},
+		"=/health":       {"=", "/health"},
+		"~^/index\\.php": {"~", `^/index\.php`},
+		"~(?i)\\.jpg$":   {"~*", `\.jpg$`},
+		"/static":        {"^~", "/static"},
+		"=/glued":        {"=/glued"},
+	}
+	for want, args := range tests {
+		assert.Equal(t, want, locationPath(args), "%v", args)
+	}
+	assert.Equal(t, "", locationPath([]string{"@app"}), "a named location serves any path")
+}
+
+func TestPassedPath(t *testing.T) {
+	assert.Equal(t, "", passedPath(`~\.php$`, true), "FastCGI under a regexp: any path")
+	assert.Equal(t, "/legacy/", passedPath("/legacy/", true), "FastCGI under a prefix keeps it")
+	assert.Equal(t, `~^/(a|b)`, passedPath(`~^/(a|b)`, false))
 }
 
 func TestNginxMainConfig(t *testing.T) {

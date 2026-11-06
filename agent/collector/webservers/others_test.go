@@ -70,7 +70,13 @@ func TestCollect_Apache(t *testing.T) {
 				Listen:      []string{"0.0.0.0:443", "[::]:443"},
 				Root:        "/var/www/client/current/public",
 				Upstreams:   []string{"unix:/run/php/php8.2-fpm.sock", "http://127.0.0.1:3000", "127.0.0.1:9000", "unix:/run/ws.sock"},
-				ConfigFile:  "/etc/apache2/sites-enabled/client.conf",
+				Locations: []snapshot.Location{
+					// PHP-FPM runs the app, whatever the path, even under a regexp.
+					{Upstreams: []string{"unix:/run/php/php8.2-fpm.sock", "127.0.0.1:9000"}},
+					{Path: "/api", Upstreams: []string{"http://127.0.0.1:3000"}},
+					{Path: "/ws", Upstreams: []string{"unix:/run/ws.sock"}},
+				},
+				ConfigFile: "/etc/apache2/sites-enabled/client.conf",
 			},
 		},
 	}}, out.Webservers)

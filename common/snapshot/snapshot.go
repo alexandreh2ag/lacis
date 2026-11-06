@@ -7,6 +7,7 @@
 package snapshot
 
 import (
+	"slices"
 	"time"
 
 	"github.com/alexandreh2ag/lacis/common/labels"
@@ -218,8 +219,34 @@ type Vhost struct {
 	Listen      []string `json:"listen,omitempty"`
 	Root        string   `json:"root,omitempty"`
 	// Upstreams are the fastcgi_pass, proxy_pass or ProxyPassMatch targets.
-	Upstreams  []string `json:"upstreams,omitempty"`
-	ConfigFile string   `json:"config_file,omitempty"`
+	Upstreams []string `json:"upstreams,omitempty"`
+	// Locations are the same targets by the path they are passed: those of
+	// an older agent are unknown.
+	Locations  []Location `json:"locations,omitempty"`
+	ConfigFile string     `json:"config_file,omitempty"`
+}
+
+// Location is a path of a vhost passed to backends: an nginx location, an
+// Apache ProxyPass or <Location>.
+type Location struct {
+	// Path is written as an nginx location: "/api" a prefix, "=/health" an
+	// exact path, "~^/(a|b)" a regexp; empty for any path, as a FastCGI
+	// backend running the app of the vhost.
+	Path      string   `json:"path,omitempty"`
+	Upstreams []string `json:"upstreams"`
+}
+
+// AddLocation adds an upstream passed on a path, once.
+func (v *Vhost) AddLocation(path, upstream string) {
+	for i := range v.Locations {
+		if v.Locations[i].Path == path {
+			if !slices.Contains(v.Locations[i].Upstreams, upstream) {
+				v.Locations[i].Upstreams = append(v.Locations[i].Upstreams, upstream)
+			}
+			return
+		}
+	}
+	v.Locations = append(v.Locations, Location{Path: path, Upstreams: []string{upstream}})
 }
 
 type Upstream struct {

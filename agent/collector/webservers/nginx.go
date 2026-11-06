@@ -139,15 +139,70 @@ func nginxVhost(server directive) snapshot.Vhost {
 		v.Listen = []string{"0.0.0.0:80"}
 	}
 	vars := setVariables(server.Block)
-	walk(server.Block, func(d directive) {
-		switch {
-		case slices.Contains(passDirectives, d.Name) && len(d.Args) > 0:
-			v.Upstreams = appendUnique(v.Upstreams, passTarget(d.Name, expand(d.Args[0], vars)))
-		case d.Name == "root" && v.Root == "" && len(d.Args) == 1:
-			v.Root = d.Args[0] // only in a location
+	var visit func(directives []directive, path string, inLocation bool)
+	visit = func(directives []directive, path string, inLocation bool) {
+		for _, d := range directives {
+			switch {
+			case d.Name == "location" && d.Block != nil:
+				visit(d.Block, locationPath(d.Args), true)
+			case d.Name == "if" && d.Block != nil:
+				visit(d.Block, path, inLocation)
+			case slices.Contains(passDirectives, d.Name) && len(d.Args) > 0:
+				target := passTarget(d.Name, expand(d.Args[0], vars))
+				v.Upstreams = appendUnique(v.Upstreams, target)
+				fpm := d.Name != "proxy_pass" && d.Name != "grpc_pass"
+				v.AddLocation(passedPath(path, fpm), target)
+			case d.Name == "root" && v.Root == "" && len(d.Args) == 1 && inLocation:
+				v.Root = d.Args[0] // only in a location
+			}
 		}
-	})
+	}
+	visit(server.Block, "", false)
 	return v
+}
+
+// passedPath is the path a backend is passed: a FastCGI backend under a
+// regexp (~ \.php$) runs the app of the vhost whatever the path called,
+// try_files rewriting it.
+func passedPath(path string, fpm bool) string {
+	if fpm && strings.HasPrefix(path, "~") {
+		return ""
+	}
+	return path
+}
+
+// locationPath writes the arguments of an nginx location as a path
+// matcher: "/api", "=/health", "~^/(a|b)", "~(?i)\.jpg$" for ~*; a named
+// location (@app) and / serve any path.
+func locationPath(args []string) string {
+	modifier, uri := "", ""
+	switch len(args) {
+	case 1:
+		uri = args[0]
+		for _, m := range []string{"^~", "~*", "~", "="} {
+			if rest, ok := strings.CutPrefix(uri, m); ok {
+				modifier, uri = m, rest
+				break
+			}
+		}
+	case 2:
+		modifier, uri = args[0], args[1]
+	default:
+		return ""
+	}
+	switch {
+	case strings.HasPrefix(uri, "@"):
+		return ""
+	case modifier == "=":
+		return "=" + uri
+	case modifier == "~":
+		return "~" + uri
+	case modifier == "~*":
+		return "~(?i)" + uri
+	case uri == "/":
+		return ""
+	}
+	return uri
 }
 
 // setVariables returns the variables set by "set $name value" in a server

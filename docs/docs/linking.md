@@ -132,9 +132,12 @@ Through a webserver:
   link routes); without any, the routes of no name (a default vhost, an HAProxy
   backend);
 - of these, the routes of the path of the URL called are taken: the exact path
-  (Traefik `Path()`), else the longest prefix or regexp (`PathPrefix()`,
-  `PathRegexp()`, a v2 path with variables), else the routes of any path; a call
-  without path, or one no route serves, takes them all;
+  (Traefik `Path()`, nginx `location =`), else the longest prefix or regexp
+  (`PathPrefix()`, `PathRegexp()`, a v2 path with variables, an nginx `location`,
+  Apache `ProxyPass /api`, `<Location>`, `<LocationMatch>`), else the routes of any
+  path; a call without path, or one no route serves, takes them all. A FastCGI
+  backend under a regexp (`location ~ \.php$`) runs the app of the vhost: it serves
+  any path. The routes of an agent not sending its locations yet serve any path;
 - a call by IP takes the routes of no name, or the routes of names when they all
   lead to the same place: anything else would be a guess;
 - when the routes reach an app, those reaching a service (the PHP-FPM running that

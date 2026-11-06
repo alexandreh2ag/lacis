@@ -144,8 +144,8 @@ domains and ports) and a source (its roots, FastCGI and proxy targets).
 
 | Type    | Read from |
 | ------- | --------- |
-| nginx   | Its files: the `-c` of the master (relative to its `-p` prefix), else `conf/nginx.conf` of its prefix, else `/etc/nginx/nginx.conf`, with their includes. Server blocks (names, listen, root, `fastcgi_pass`/`proxy_pass`/`uwsgi_pass`/`scgi_pass`/`grpc_pass` targets) and upstream blocks. |
-| Apache  | Its configuration files (`/etc/apache2/apache2.conf`, `/etc/httpd/conf/httpd.conf`, or `-f`/`-d` of the process) with their includes, `Define` and `-D` variables substituted, negative conditional sections left out: virtual hosts, `DocumentRoot`, `ProxyPass` and FastCGI targets. |
+| nginx   | Its files: the `-c` of the master (relative to its `-p` prefix), else `conf/nginx.conf` of its prefix, else `/etc/nginx/nginx.conf`, with their includes. Server blocks (names, listen, root, `fastcgi_pass`/`proxy_pass`/`uwsgi_pass`/`scgi_pass`/`grpc_pass` targets, by the `location` passing them) and upstream blocks. |
+| Apache  | Its configuration files (`/etc/apache2/apache2.conf`, `/etc/httpd/conf/httpd.conf`, or `-f`/`-d` of the process) with their includes, `Define` and `-D` variables substituted, negative conditional sections left out: virtual hosts, `DocumentRoot`, `ProxyPass` and FastCGI targets, by the path passing them (`ProxyPass /api`, `<Location>`, `<LocationMatch>`). |
 | HAProxy | `/etc/haproxy/haproxy.cfg`, or each `-f` of the process: frontends (binds, backends) and backends (servers). |
 | Traefik | Its API (`collectors.traefik.api_url`, basic auth and TLS options available): routers (rule, entrypoints, TLS), services (servers) and entrypoints (the addresses it listens on). Works for a Traefik running in a container. |
 
