@@ -16,6 +16,11 @@
 .lc-flow--lit .lc-node:not(.lc-node--related):not(.lc-node--hovered),
 .lc-flow--lit .lc-edge:not(.lc-edge--lit),
 .lc-flow--lit .lc-edge__weight:not(.lc-edge--lit) { opacity: 0.15; }
+/* While the graph pans or zooms its edges hide, back at the end of the
+   move: Firefox draws every curve again on each frame. */
+.lc-flow--moving .react-flow__edges, .lc-flow--moving .react-flow__edgelabel-renderer { visibility: hidden; }
+/* Zoomed out, the arrows and dashes are too small to tell apart. */
+.lc-flow--far .lc-edge { marker-end: none; stroke-dasharray: none !important; }
 
 .lc-box { width: 100%; height: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .lc-box--host { background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }

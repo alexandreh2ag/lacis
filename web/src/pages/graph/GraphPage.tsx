@@ -1,7 +1,7 @@
 import { useQuery } from '@apollo/client'
 import { Background, BackgroundVariant, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Node, type NodeChange, applyNodeChanges } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { refresh } from '@/config'
 import { t as text, useT } from '@/i18n'
@@ -44,6 +44,13 @@ export function GraphPage() {
   )
 }
 
+// While the graph moves, its edges hide: Firefox draws the hundreds of
+// curves again on every frame of a pan or a zoom. Zoomed out, they lose
+// their arrows and dashes, too small to tell apart.
+const MOVING_CLASS = 'lc-flow--moving'
+const FAR_CLASS = 'lc-flow--far'
+const FAR_ZOOM = 0.5
+
 function Graph() {
   const { ns = '' } = useParams()
   const p = useGraphParams()
@@ -63,6 +70,13 @@ function Graph() {
   const laidOut = useRef<Layout | null>(null)
   // highlight holds the hover and the impact, read by the cards and edges.
   const [highlight] = useState(() => new Highlight())
+  // root is the element of the graph: the highlight marks it, and so do the
+  // moves and the zoom, the CSS lightening the edges then.
+  const root = useRef<HTMLDivElement | null>(null)
+  const setRoot = useCallback((el: HTMLDivElement | null) => {
+    root.current = el
+    highlight.setRoot(el)
+  }, [highlight])
 
   const zones = useMemo(() => (graph ? planZones(graph) : new Map<string, Zone>()), [graph])
   const view = useMemo(() => (graph ? zoned(graph, zones) : null), [graph, zones])
@@ -147,7 +161,12 @@ function Graph() {
         ) : null}
         <HighlightContext.Provider value={highlight}>
           <ReactFlow
-            ref={highlight.setRoot}
+            ref={setRoot}
+            onMoveStart={() => root.current?.classList.add(MOVING_CLASS)}
+            onMoveEnd={(_, v) => {
+              root.current?.classList.remove(MOVING_CLASS)
+              root.current?.classList.toggle(FAR_CLASS, v.zoom < FAR_ZOOM)
+            }}
             className="lc-flow"
             nodes={shown}
             edges={edges}

@@ -15,8 +15,8 @@ export interface LinkData extends Record<string, unknown> {
 }
 
 // LacisEdge is a link: the color of its source, the dash of its
-// confidence, a red halo between two envs, its weight when it merges
-// several links, and a tooltip when hovered.
+// confidence, its weight when it merges several links, and a tooltip when
+// hovered, which tells a link between two envs.
 export const LacisEdge = memo(function LacisEdge(props: EdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props
   const { edge: e, color, fromLabel, toLabel, impact } = data as LinkData
@@ -32,7 +32,6 @@ export const LacisEdge = memo(function LacisEdge(props: EdgeProps) {
   const stroke = impact ? 'var(--danger)' : `var(--link-${color})`
   return (
     <>
-      {e.crossEnv ? <path className={'lc-edge' + lit} d={path} fill="none" stroke="var(--edge-cross-env)" strokeOpacity={0.3} strokeWidth={width + 6} strokeLinecap="round" /> : null}
       <BaseEdge id={id} className={'lc-edge' + lit} path={path} markerEnd={`url(#lc-arrow-${impact ? 'danger' : color})`} interactionWidth={14}
         style={{ stroke, strokeWidth: width, strokeDasharray: dash, strokeLinecap: 'round' }} />
       <EdgeLabelRenderer>

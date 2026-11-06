@@ -102,7 +102,6 @@ body { margin: 0; background: var(--surface); color: var(--ink); font-family: va
 .lc-edge svg { width: 56px; height: 14px; overflow: visible; }
 .lc-edge line { stroke: var(--c, var(--edge)); stroke-width: 1.5; stroke-linecap: round; }
 .lc-edge polygon { fill: var(--c, var(--edge)); }
-.lc-edge .halo { stroke: var(--edge-cross-env); stroke-opacity: 0.3; stroke-width: 7.5; }
 .lc-edge--inferred line:not(.halo) { stroke-dasharray: 6 4; }
 .lc-edge--ambiguous line:not(.halo) { stroke-dasharray: 1 4; stroke-width: 2; }
 .lc-edge--heavy line:not(.halo) { stroke-width: 4; }

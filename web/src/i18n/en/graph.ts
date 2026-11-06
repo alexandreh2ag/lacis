@@ -61,7 +61,6 @@ export const graph: Messages['graph'] = {
     exact: 'Exact',
     inferred: 'Inferred',
     ambiguous: 'Ambiguous',
-    crossEnv: 'Across envs',
   },
   impact: {
     title: 'Impact',

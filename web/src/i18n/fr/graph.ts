@@ -59,7 +59,6 @@ export const graph = {
     exact: 'Exact',
     inferred: 'Déduit',
     ambiguous: 'Ambigu',
-    crossEnv: 'Entre envs',
   },
   impact: {
     title: 'Impact',

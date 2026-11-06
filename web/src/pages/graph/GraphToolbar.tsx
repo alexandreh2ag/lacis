@@ -60,10 +60,9 @@ export function GraphToolbar({ ns, p, opened, impact, onClose, onFit, onRelayout
 export function Legend() {
   const t = useT()
   const l = t.graph.legend
-  const line = (label: string, dash?: string, halo?: boolean) => (
+  const line = (label: string, dash?: string) => (
     <span className="lc-edge text-xs">
       <svg viewBox="0 0 56 14" aria-hidden="true" style={{ width: 36 }}>
-        {halo ? <line className="halo" x1="0" y1="7" x2="48" y2="7" /> : null}
         <line x1="0" y1="7" x2="48" y2="7" style={{ strokeDasharray: dash }} /><polygon points="48,3 56,7 48,11" />
       </svg>{label}
     </span>
@@ -81,7 +80,7 @@ export function Legend() {
         <span className="inline-flex gap-0.5">{Array.from({ length: 8 }, (_, i) => <span key={i} className="h-1 w-3.5 rounded-sm" style={{ background: `var(--link-${i + 1})` }} />)}</span>
         {l.color}
       </span>
-      {line(l.exact)}{line(l.inferred, '6 4')}{line(l.ambiguous, '1 4')}{line(l.crossEnv, undefined, true)}
+      {line(l.exact)}{line(l.inferred, '6 4')}{line(l.ambiguous, '1 4')}
     </div>
   )
 }
