@@ -19,41 +19,11 @@ import (
 // The hosts stay in the steps of the routes, as an information.
 
 // sep joins the parts of an identity and of the id of an app link.
-const sep = "\x1f"
+const sep = linkpath.Sep
 
-// identity names an end of a link whatever its host: an app, a service or
-// a webserver by its project, env and name; a host, or an end of a host
-// without project or env, by its id; an external target by itself.
+// identity names an end of a link whatever its host.
 func (x *index) identity(kind string, id *uuid.UUID, external *string) string {
-	if id == nil {
-		return strings.Join([]string{model.LinkNodeExternal, deref(external)}, sep)
-	}
-	place := func(hostID uuid.UUID, projectID, envID *uuid.UUID, name string) string {
-		if projectID == nil && envID == nil {
-			if h := x.hosts[hostID]; h != nil {
-				projectID, envID = h.ProjectID, h.EnvironmentID
-			}
-		}
-		if projectID == nil || envID == nil {
-			return strings.Join([]string{kind, id.String()}, sep)
-		}
-		return strings.Join([]string{kind, projectID.String(), envID.String(), name}, sep)
-	}
-	switch kind {
-	case model.LinkNodeApp:
-		if a := x.apps[*id]; a != nil {
-			return place(a.HostID, a.ProjectID, a.EnvironmentID, a.Name)
-		}
-	case model.LinkNodeService:
-		if s := x.services[*id]; s != nil {
-			return place(s.HostID, nil, nil, s.Type+" "+s.Instance)
-		}
-	case model.LinkNodeWebserver:
-		if w := x.webservers[*id]; w != nil {
-			return place(w.HostID, nil, nil, w.Type)
-		}
-	}
-	return strings.Join([]string{kind, id.String()}, sep)
+	return x.ids.Of(kind, id, external)
 }
 
 // groups merges effective links into app links: one per consumer,

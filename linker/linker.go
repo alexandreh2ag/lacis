@@ -20,6 +20,7 @@ import (
 	"github.com/alexandreh2ag/lacis/cdn"
 	"github.com/alexandreh2ag/lacis/common/snapshot"
 	"github.com/alexandreh2ag/lacis/domainmatch"
+	"github.com/alexandreh2ag/lacis/linkpath"
 	"github.com/alexandreh2ag/lacis/model"
 	"github.com/google/uuid"
 )
@@ -105,6 +106,7 @@ func Resolve(inv *model.Inventory, opts Options, now time.Time) []model.Link {
 	// leads to the one in front, known by its routes to the others.
 	r.vhosts()
 	r.proxies()
+	r.indexRoutes()
 	r.dependencies()
 	out := make([]model.Link, 0, len(r.links))
 	for _, l := range r.links {
@@ -160,6 +162,13 @@ type resolver struct {
 	httpPorts      map[int]bool
 	links          []*pending
 	merged         map[string]*pending
+	// routed indexes the links from each webserver once their routes are
+	// known; endsOf keeps where a webserver leads a name.
+	routed map[uuid.UUID][]*pending
+	endsOf map[string]string
+	// ids name the ends whatever their hosts: the deployments of an app
+	// served by each replica are one end.
+	ids *linkpath.Identities
 }
 
 func newResolver(inv *model.Inventory, opts Options) *resolver {
@@ -168,7 +177,7 @@ func newResolver(inv *model.Inventory, opts Options) *resolver {
 		hostNetworks: map[uuid.UUID]map[uuid.UUID]uuid.UUID{}, endpoints: map[uuid.UUID][]model.Endpoint{},
 		domains: domainmatch.NewIndex[uuid.UUID](), webservers: map[uuid.UUID][]*model.Webserver{},
 		webserverHosts: map[uuid.UUID]uuid.UUID{}, listening: map[uuid.UUID]bool{}, httpPorts: map[int]bool{},
-		merged: map[string]*pending{}}
+		merged: map[string]*pending{}, ids: linkpath.NewIdentities(inv)}
 	ports := opts.HTTPPorts
 	if len(ports) == 0 {
 		ports = DefaultHTTPPorts
@@ -250,6 +259,17 @@ func (r *resolver) add(from node, to target, source string, detail Detail, merge
 	r.links = append(r.links, p)
 	if merge {
 		r.merged[key] = p
+	}
+}
+
+// indexRoutes indexes the links from the webservers, once they are all
+// known.
+func (r *resolver) indexRoutes() {
+	r.routed, r.endsOf = map[uuid.UUID][]*pending{}, map[string]string{}
+	for _, p := range r.links {
+		if p.link.FromType == model.LinkNodeWebserver {
+			r.routed[p.link.FromID] = append(r.routed[p.link.FromID], p)
+		}
 	}
 }
 
@@ -599,9 +619,13 @@ func appendTarget(list []target, t target) []target {
 	return append(list, t)
 }
 
-// route returns the webservers routing a name. When the name resolves to
-// a host of the inventory, only its webservers are kept: the reverse proxy
-// in front, not the backends behind that also know the name.
+// route returns the webservers routing a name. The configuration of a
+// webserver tells it receives the name: when the name resolves to a host of
+// the inventory, its webservers are kept, with their replicas, the
+// webservers routing the name to the same ends; else, behind a CDN or not
+// resolved, all of them. Only the webservers in front are kept, not the
+// backends behind that also know the name. Webservers leading the name to
+// different ends are ambiguous.
 func (r *resolver) route(name string, resolved []netip.Addr) []target {
 	var all []uuid.UUID
 	for _, id := range r.domains.Lookup(name) {
@@ -620,23 +644,98 @@ func (r *resolver) route(name string, resolved []netip.Addr) []target {
 			}
 		}
 	}
-	candidates, confidence, behind := reached, model.LinkConfidenceExact, ""
+	front := r.inFront(all, name)
+	candidates, confidence, behind := r.inFront(reached, name), model.LinkConfidenceExact, ""
 	if len(reached) == 0 {
-		// Resolved elsewhere, such as a CDN in front, or not resolved.
-		candidates, confidence = all, model.LinkConfidenceInferred
+		candidates = front
 		for _, ip := range resolved {
 			if name := r.inCDN(ip); name != "" {
 				behind = name
 			}
 		}
+		if behind == "" {
+			// Resolved outside the inventory, or not resolved: the
+			// request may never reach the webservers.
+			confidence = model.LinkConfidenceInferred
+		}
 	}
-	candidates = r.inFront(candidates, name)
-	if len(candidates) > 1 {
-		confidence = model.LinkConfidenceAmbiguous
+	ends := map[uuid.UUID]string{}
+	for _, id := range front {
+		ends[id] = r.ends(id, name)
+	}
+	if len(reached) > 0 {
+		for _, id := range front {
+			if !slices.Contains(candidates, id) && slices.ContainsFunc(candidates, func(c uuid.UUID) bool { return ends[c] == ends[id] }) {
+				candidates = append(candidates, id)
+			}
+		}
+	}
+	for _, id := range candidates {
+		if ends[id] != ends[candidates[0]] {
+			confidence = model.LinkConfidenceAmbiguous
+		}
 	}
 	out := make([]target, 0, len(candidates))
 	for _, id := range candidates {
 		out = append(out, target{node: node{Type: model.LinkNodeWebserver, ID: id}, rule: RuleRoute, confidence: confidence, cdn: behind})
+	}
+	return out
+}
+
+// ends tells where a webserver leads a name, through the webservers it
+// routes it to: the same ends make replicas, such as two nginx each serving
+// their deployment of an app. A webserver routing the name nowhere known is
+// its own end.
+func (r *resolver) ends(webserverID uuid.UUID, name string) string {
+	key := webserverID.String() + "\x00" + name
+	if e, ok := r.endsOf[key]; ok && r.routed != nil {
+		return e
+	}
+	var out []string
+	seen := map[uuid.UUID]bool{webserverID: true}
+	queue := []uuid.UUID{webserverID}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		leaf := true
+		for _, p := range r.outgoing(cur) {
+			l := p.link
+			if len(p.detail.Domains) > 0 && len(domainmatch.Routed([]string{name}, p.detail.Domains)) == 0 {
+				continue
+			}
+			leaf = false
+			if l.ToType == model.LinkNodeWebserver && l.ToID != nil {
+				if !seen[*l.ToID] {
+					seen[*l.ToID] = true
+					queue = append(queue, *l.ToID)
+				}
+				continue
+			}
+			out = appendNew(out, r.ids.Of(l.ToType, l.ToID, l.ExternalTarget))
+		}
+		if leaf {
+			out = appendNew(out, r.ids.Of(model.LinkNodeWebserver, &cur, nil))
+		}
+	}
+	slices.Sort(out)
+	e := strings.Join(out, "\x00")
+	if r.routed != nil {
+		r.endsOf[key] = e
+	}
+	return e
+}
+
+// outgoing gives the links from a webserver: from the index once the routes
+// of the webservers are known, else from the links found so far.
+func (r *resolver) outgoing(webserverID uuid.UUID) []*pending {
+	if r.routed != nil {
+		return r.routed[webserverID]
+	}
+	var out []*pending
+	for _, p := range r.links {
+		if p.link.FromType == model.LinkNodeWebserver && p.link.FromID == webserverID {
+			out = append(out, p)
+		}
 	}
 	return out
 }
@@ -668,9 +767,9 @@ func (r *resolver) routesTo(front, back uuid.UUID, name string) bool {
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-		for _, p := range r.links {
+		for _, p := range r.outgoing(cur) {
 			l := p.link
-			if l.FromType != model.LinkNodeWebserver || l.FromID != cur || l.ToType != model.LinkNodeWebserver || l.ToID == nil {
+			if l.ToType != model.LinkNodeWebserver || l.ToID == nil {
 				continue
 			}
 			if len(p.detail.Domains) > 0 && len(domainmatch.Routed([]string{name}, p.detail.Domains)) == 0 {

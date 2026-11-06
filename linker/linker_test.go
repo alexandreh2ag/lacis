@@ -2,6 +2,7 @@ package linker
 
 import (
 	"encoding/json"
+	"fmt"
 	cdnpkg "github.com/alexandreh2ag/lacis/cdn"
 	"net/netip"
 	"testing"
@@ -214,8 +215,10 @@ func TestResolve_Dependencies(t *testing.T) {
 			want: []edge{{From: "app web", To: "elasticsearch db", Source: env, Confidence: exact, Rule: RuleHostname}}},
 		{name: "route: the proxy the name resolves to, not the backend", port: 443, target: name("api.acme.example", "dns", "203.0.113.10"),
 			want: []edge{{From: "app web", To: "traefik rp", Source: env, Confidence: exact, Rule: RuleRoute}}},
-		{name: "route behind a CDN: inferred", port: 443, target: name("www.acme.example", "dns", "104.16.1.1"),
-			want: []edge{{From: "app web", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceInferred, Rule: RuleRoute, CDN: cdnpkg.Custom}}},
+		{name: "route behind a CDN: the webserver declaring the name", port: 443, target: name("www.acme.example", "dns", "104.16.1.1"),
+			want: []edge{{From: "app web", To: "traefik rp", Source: env, Confidence: exact, Rule: RuleRoute, CDN: cdnpkg.Custom}}},
+		{name: "route resolved outside the inventory: inferred", port: 443, target: name("www.acme.example", "dns", "198.51.100.7"),
+			want: []edge{{From: "app web", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceInferred, Rule: RuleRoute}}},
 		{name: "route served by two webservers, resolved elsewhere: ambiguous", port: 443, target: name("api.acme.example", "failed"),
 			want: []edge{
 				{From: "app web", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute},
@@ -277,7 +280,7 @@ func TestResolve_NamedCDN(t *testing.T) {
 
 	opts := Options{CDN: []cdnpkg.CDN{{Name: cdnpkg.Custom, Ranges: []netip.Prefix{netip.MustParsePrefix("198.51.100.0/24")}}, cloudflare}}
 	assert.ElementsMatch(t, []edge{
-		{From: "app web", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceInferred, Rule: RuleRoute, CDN: "cloudflare"},
+		{From: "app web", To: "traefik rp", Source: env, Confidence: exact, Rule: RuleRoute, CDN: "cloudflare"},
 		{From: "app web", To: "external media.acme.example", Source: env, Confidence: exact, Rule: RuleExternal, Reason: ReasonCDN, CDN: "cloudflare"},
 	}, f.resolveWith(t, opts))
 }
@@ -309,6 +312,96 @@ func TestResolve_RouteBehindCDN(t *testing.T) {
 		{From: "app api", To: "traefik rp", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
 		{From: "app api", To: "nginx other", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
 	}, routed, "the nginx the traefik routes the name to is behind it, not the nginx of another host")
+}
+
+func TestResolve_RouteReplicas(t *testing.T) {
+	cloudflare, _ := cdnpkg.Known("cloudflare")
+	tests := []struct {
+		name   string
+		target *snapshot.Target
+		want   []edge
+	}{
+		{name: "behind a CDN: every replica, exact", target: name("cms.acme.example", "dns", "104.16.1.1"),
+			want: []edge{
+				{From: "app api", To: "traefik rp1", Source: env, Confidence: exact, Rule: RuleRoute, CDN: "cloudflare"},
+				{From: "app api", To: "traefik rp2", Source: env, Confidence: exact, Rule: RuleRoute, CDN: "cloudflare"},
+			}},
+		{name: "resolved to one replica: the group", target: name("cms.acme.example", "dns", "10.0.1.11"),
+			want: []edge{
+				{From: "app api", To: "traefik rp1", Source: env, Confidence: exact, Rule: RuleRoute},
+				{From: "app api", To: "traefik rp2", Source: env, Confidence: exact, Rule: RuleRoute},
+			}},
+		{name: "routed elsewhere by a leftover: ambiguous", target: name("www.acme.example", "dns", "104.16.1.1"),
+			want: []edge{
+				{From: "app api", To: "traefik rp1", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
+				{From: "app api", To: "traefik rp2", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
+				{From: "app api", To: "nginx old", Source: env, Confidence: model.LinkConfidenceAmbiguous, Rule: RuleRoute, CDN: "cloudflare"},
+			}},
+		{name: "resolved to the leftover: only it", target: name("www.acme.example", "dns", "10.0.1.30"),
+			want: []edge{{From: "app api", To: "nginx old", Source: env, Confidence: exact, Rule: RuleRoute}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture()
+			f.network("10.0.1.0/24")
+			cms := f.host("cms", "10.0.1.21")
+			f.service(cms, "php-fpm", model.EndpointKindTCP, "0.0.0.0", 9000)
+			site := f.host("site", "10.0.1.22")
+			f.service(site, "node", model.EndpointKindTCP, "0.0.0.0", 3000)
+			for i, ip := range []string{"10.0.1.11", "10.0.1.12"} {
+				// The same routes on each replica.
+				f.webserver(f.host(fmt.Sprintf("rp%d", i+1), ip), "traefik", routing{
+					Routers: []snapshot.Router{
+						{Name: "cms@file", Rule: "Host(`cms.acme.example`)", Service: "cms@file"},
+						{Name: "www@file", Rule: "Host(`www.acme.example`)", Service: "www@file"},
+					},
+					Services: []snapshot.ProxyService{
+						{Name: "cms@file", Servers: []string{"http://10.0.1.21:9000"}},
+						{Name: "www@file", Servers: []string{"http://10.0.1.22:3000"}},
+					},
+				}, "cms.acme.example", "www.acme.example")
+			}
+			old := f.host("old", "10.0.1.30")
+			f.webserver(old, "nginx", routing{}, "www.acme.example")
+			api := f.host("api", "10.0.1.40")
+			f.dep(f.app(api), "URL", "https", 443, tt.target)
+
+			var got []edge
+			for _, e := range f.resolveWith(t, Options{CDN: []cdnpkg.CDN{cloudflare}}) {
+				if e.From == "app api" {
+					got = append(got, e)
+				}
+			}
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolve_RouteDeployments(t *testing.T) {
+	cloudflare, _ := cdnpkg.Known("cloudflare")
+	f := newFixture()
+	f.network("10.0.1.0/24")
+	project, environment := uuid.New(), uuid.New()
+	for _, h := range []struct{ name, ip, app string }{{"web1", "10.0.1.21", "website"}, {"web2", "10.0.1.22", "website"}, {"web3", "10.0.1.23", "other"}} {
+		host := f.host(h.name, h.ip)
+		f.webserver(host, "nginx", routing{Vhosts: []snapshot.Vhost{{ServerNames: []string{"www.acme.example"}}}}, "www.acme.example")
+		f.app(host, "www.acme.example")
+		a := &f.inv.Apps[len(f.inv.Apps)-1]
+		a.Name, a.ProjectID, a.EnvironmentID = h.app, &project, &environment
+	}
+	api := f.host("api", "10.0.1.40")
+	f.dep(f.app(api), "URL", "https", 443, name("www.acme.example", "dns", "10.0.1.21"))
+
+	var got []edge
+	for _, e := range f.resolveWith(t, Options{CDN: []cdnpkg.CDN{cloudflare}}) {
+		if e.From == "app api" {
+			got = append(got, e)
+		}
+	}
+	assert.ElementsMatch(t, []edge{
+		{From: "app api", To: "nginx web1", Source: env, Confidence: exact, Rule: RuleRoute},
+		{From: "app api", To: "nginx web2", Source: env, Confidence: exact, Rule: RuleRoute},
+	}, got, "the nginx serving another deployment of the app is a replica, not the one serving another app")
 }
 
 func TestResolve_Webservers(t *testing.T) {

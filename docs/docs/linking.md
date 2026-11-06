@@ -79,19 +79,24 @@ dot:
 | `.example.com`    | `example.com` and any name under it |
 | `~regex`          | names matching the regex (nginx regex server names, Traefik `HostRegexp`) |
 
-When the name resolves to a host of the inventory, only the webservers of that host
-are kept: the proxy in front, not the backends behind that know the name too.
-Otherwise (a CDN in front, a name the DNS cannot resolve), a webserver another one
-routes the name to is left out the same way: the nginx behind a Traefik. A
-name the routes do not know is resolved through the IPs the agent resolved it to.
+A webserver whose configuration names the domain receives its requests. When the
+name resolves to a host of the inventory, the webservers of that host are kept, with
+their **replicas**: the webservers routing the name to the same ends, such as the
+Traefik instances of a cluster, or two nginx each serving their deployment of an app
+(an app is its name in its project and env). Otherwise (a CDN in front, a name the
+DNS cannot resolve), all the webservers routing the name are kept. Only those in
+front are: a webserver another one routes the name to is left out, the nginx behind
+a Traefik. Webservers routing the name to different ends, such as a server left over
+from a migration, are `ambiguous`. A name the routes do not know is resolved through
+the IPs the agent resolved it to.
 
 ### Confidence
 
 | Confidence  | Meaning |
 | ----------- | ------- |
-| `exact`     | one target, proven by an address listened on or a route on the host reached |
-| `inferred`  | deduced: a route whose name resolves elsewhere (a CDN) or not at all, or a host with nobody listening on the port |
-| `ambiguous` | several candidates: an IP held by several hosts, a name routed by several webservers |
+| `exact`     | one target, proven by an address listened on, or a route on the host reached or behind a CDN of `linking.cdns` (with its replicas) |
+| `inferred`  | deduced: a route whose name resolves outside the inventory and its CDNs, or not at all, or a host with nobody listening on the port |
+| `ambiguous` | several candidates: an IP held by several hosts, a name the webservers route to different ends |
 
 The front draws the confidence as the dash pattern of the edge.
 

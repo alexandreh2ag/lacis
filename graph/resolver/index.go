@@ -42,6 +42,8 @@ type index struct {
 	deployments map[string][]model.App
 	// paths are the effective links, through the proxies.
 	paths *linkpath.Graph
+	// ids name the ends of the links whatever their hosts.
+	ids *linkpath.Identities
 	// hostsIn are the hosts of each network.
 	hostsIn map[uuid.UUID][]*model.Host
 	// places are the projects and envs of the hosts, services and
@@ -129,6 +131,7 @@ func newIndex(inv *model.Inventory) *index {
 		}
 	}
 	x.paths = linkpath.New(inv.Links)
+	x.ids = linkpath.NewIdentities(inv)
 	for _, l := range inv.Links {
 		x.linksFrom[l.FromID] = append(x.linksFrom[l.FromID], l)
 		if l.ToID != nil {
