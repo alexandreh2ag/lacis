@@ -1,7 +1,7 @@
-import type { Edge, Node } from '@xyflow/react'
+import type { Node } from '@xyflow/react'
 import { t } from '@/i18n'
 import { isStack, title } from './kinds'
-import type { LinkData } from './LacisEdge'
+import type { LinkData, LinkEdge } from './EdgeLayer'
 import type { Layout } from './layout'
 import type { BoxData, CardData } from './NodeCard'
 import type { GNode, GraphData } from './query'
@@ -65,7 +65,7 @@ export function toFlowNodes(view: GraphData, placed: Layout, zones: Map<string, 
 // toFlowEdges are the edges between two nodes drawn, each of the color of
 // its source; a source the layout did not place, inside a zone, takes the
 // color of its zone.
-export function toFlowEdges(view: GraphData, placed: Layout, nodes: Node[], byId: Map<string, GNode>, impact: FlowImpact | null): Edge[] {
+export function toFlowEdges(view: GraphData, placed: Layout, nodes: Node[], byId: Map<string, GNode>, impact: FlowImpact | null): LinkEdge[] {
   const parentOf = new Map(nodes.map((n) => [n.id, n.parentId]))
   const label = (id: string) => {
     const n = byId.get(id)

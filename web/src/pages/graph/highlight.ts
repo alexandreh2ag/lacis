@@ -97,6 +97,11 @@ export class Highlight {
     return !this.impact && id === this.hoverNode ? 'hovered' : 'related'
   }
 
+  // hoveredEdge is the id of the edge under the pointer, for its tooltip.
+  hoveredEdge(): string | null {
+    return this.hoverEdge?.id ?? null
+  }
+
   // edge is 'hovered' for the edge under the pointer, which shows its
   // tooltip, impact or not.
   edge(id: string): State {

@@ -2,12 +2,16 @@
 /* The dots of the background follow the viewport (GraphPage sets the
    variables on each move): a gradient, drawn by the GPU. */
 .lc-flow { background-color: var(--surface-sunken);
-  background-image: radial-gradient(circle, var(--border-strong) 0.75px, transparent 1px);
+  background-image: radial-gradient(circle, var(--border-strong) var(--dots-r, 0.5px), transparent calc(var(--dots-r, 0.5px) + 0.5px));
   background-size: var(--dots-gap, 16px) var(--dots-gap, 16px);
   background-position: var(--dots-x, 0) var(--dots-y, 0); }
 .lc-flow .react-flow__node { cursor: pointer; }
 .lc-flow .react-flow__node-box { cursor: default; pointer-events: none; }
-.lc-flow .react-flow__edge-interaction { cursor: pointer; }
+/* The edges, all in one SVG under the cards and over the lanes (z -1, after
+   the lanes in the page): see EdgeLayer. */
+.lc-edges-layer { position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none; }
+.lc-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.lc-edge-hit { pointer-events: stroke; cursor: pointer; }
 .lc-flow .react-flow__controls { box-shadow: var(--shadow-panel); border-radius: var(--radius-md); overflow: hidden; }
 .lc-flow .react-flow__controls-button { background: var(--surface-raised); border-color: var(--border); fill: var(--ink); }
 .lc-flow .react-flow__controls-button:hover { background: var(--surface-hover); }
@@ -23,7 +27,7 @@
 .lc-flow--lit .lc-edge__weight:not(.lc-edge--lit) { opacity: 0.15; }
 /* While the graph pans or zooms its edges hide, back at the end of the
    move: Firefox draws every curve again on each frame. */
-.lc-flow--moving .react-flow__edges, .lc-flow--moving .react-flow__edgelabel-renderer { visibility: hidden; }
+.lc-flow--moving .lc-edges-layer { visibility: hidden; }
 /* Zoomed out, the arrows and dashes are too small to tell apart. */
 .lc-flow--far .lc-edge { marker-end: none; stroke-dasharray: none !important; }
 

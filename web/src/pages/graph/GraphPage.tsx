@@ -12,7 +12,7 @@ import { ImpactPanel, useImpact } from './Impact'
 import { canOpen, title } from './kinds'
 import { laneMinimum, separateLanes } from './lanes'
 import type { Layout } from './layout'
-import { LacisEdge, Markers } from './LacisEdge'
+import { EdgeLayer, Markers } from './EdgeLayer'
 import { BoxNode, NodeCard, type BoxData } from './NodeCard'
 import { GraphViewDoc, type GNode } from './query'
 import { toFlowEdges, toFlowNodes } from './toFlow'
@@ -22,7 +22,6 @@ import { MoreNode, ZoneNode, type ZoneData } from './Zone'
 import { planZones, zoned, zoneOfItem, type Zone } from './zones'
 
 const nodeTypes = { card: NodeCard, box: BoxNode, zone: ZoneNode, more: MoreNode }
-const edgeTypes = { link: LacisEdge }
 
 // otherLens is the link of a zone to the same thing in the other lens.
 function otherLens(ns: string, n: GNode): ZoneData['other'] {
@@ -59,6 +58,8 @@ function dots(el: HTMLElement | null, v: { x: number; y: number; zoom: number })
   el.style.setProperty('--dots-x', `${v.x}px`)
   el.style.setProperty('--dots-y', `${v.y}px`)
   el.style.setProperty('--dots-gap', `${16 * v.zoom}px`)
+  // A dot of 1 at the zoom of 1, as React Flow drew it.
+  el.style.setProperty('--dots-r', `${0.5 * v.zoom}px`)
 }
 
 function Graph() {
@@ -145,7 +146,6 @@ function Graph() {
   }), [flowNodes])
 
   const edges = useMemo(() => (view && placed ? toFlowEdges(view, placed, nodes, byId, impact.impact) : []), [view, placed, nodes, byId, impact.impact])
-  const edgeOf = useMemo(() => new Map((view?.edges ?? []).map((e) => [e.id, e])), [view])
 
   const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : id.startsWith('more:') ? t.graph.otherItems : id)
   const opened = p.open ? { id: p.open, label: byId.get(p.open) ? title(byId.get(p.open)!) : p.open } : null
@@ -182,9 +182,7 @@ function Graph() {
             }}
             className="lc-flow"
             nodes={shown}
-            edges={edges}
             nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             nodesConnectable={false}
             selectionKeyCode={['Control', 'Meta']}
@@ -212,9 +210,8 @@ function Graph() {
             onPaneClick={() => { if (p.open && !impact.on) close() }}
             onNodeMouseEnter={(_, n) => { if (n.type === 'card' || n.type === 'more') highlight.hoverNodeOn(n.id) }}
             onNodeMouseLeave={() => highlight.hoverNodeOn(null)}
-            onEdgeMouseEnter={(_, e) => highlight.hoverEdgeOn(edgeOf.get(e.id) ?? null)}
-            onEdgeMouseLeave={() => highlight.hoverEdgeOn(null)}
           >
+            <EdgeLayer edges={edges} />
             <Controls showInteractive={false} position="bottom-right" />
           </ReactFlow>
         </HighlightContext.Provider>
