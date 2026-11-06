@@ -2,7 +2,7 @@ import type { Node } from '@xyflow/react'
 import { t } from '@/i18n'
 import { isStack, title } from './kinds'
 import type { LinkData, LinkEdge } from './EdgeLayer'
-import type { Layout } from './layout'
+import { LINK_COLORS, type Layout } from './layout'
 import type { BoxData, CardData, CrossEnv } from './NodeCard'
 import type { GEdge, GNode, GraphData } from './query'
 import { pageOf, type MoreData, type ZoneData } from './Zone'
@@ -74,7 +74,7 @@ export function toFlowEdges(view: GraphData, placed: Layout, nodes: Node[], byId
     const n = byId.get(id)
     return n ? title(n) : t().graph.others
   }
-  const color = (id: string) => placed.colors.get(id) ?? placed.colors.get(parentOf.get(id) ?? '') ?? (hash(id) % 8) + 1
+  const color = (id: string) => placed.colors.get(id) ?? placed.colors.get(parentOf.get(id) ?? '') ?? (hash(id) % LINK_COLORS) + 1
   return view.edges.filter((e) => parentOf.has(e.from) && parentOf.has(e.to)).map((e) => ({
     id: e.id, source: e.from, target: e.to, type: 'link',
     data: { edge: e, color: color(e.from), fromLabel: label(e.from), toLabel: label(e.to), impact: !!impact?.edges.has(e.id),

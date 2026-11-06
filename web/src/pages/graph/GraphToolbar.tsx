@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { useT } from '@/i18n'
 import type { ImpactDirection } from './Impact'
+import { LINK_COLORS } from './layout'
 import { lenses, type GraphParams } from './useGraphParams'
 
 // GraphToolbar sits above the graph: where the graph is, the zone
@@ -77,7 +78,7 @@ export function Legend() {
       {dot('--kind-app', l.app)}{dot('--kind-service', l.service)}{dot('--kind-proxy', l.proxy)}{dot('--kind-host', l.host)}{dot('--kind-external', l.external, true)}
       <span className="h-[18px] w-px bg-border" />
       <span className="inline-flex items-center gap-1.5 text-xs">
-        <span className="inline-flex gap-0.5">{Array.from({ length: 8 }, (_, i) => <span key={i} className="h-1 w-3.5 rounded-sm" style={{ background: `var(--link-${i + 1})` }} />)}</span>
+        <span className="inline-flex gap-0.5">{Array.from({ length: LINK_COLORS }, (_, i) => <span key={i} className="h-1 w-2 rounded-sm" style={{ background: `var(--link-${i + 1})` }} />)}</span>
         {l.color}
       </span>
       {line(l.exact)}{line(l.inferred, '6 4')}{line(l.ambiguous, '1 4')}

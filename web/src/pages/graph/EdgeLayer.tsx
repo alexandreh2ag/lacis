@@ -3,7 +3,7 @@ import { memo, useContext, useMemo, useSyncExternalStore } from 'react'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 import { HighlightContext, useEdgeState } from './highlight'
-import { NODE_H, NODE_W, type Point } from './layout'
+import { LINK_COLORS, NODE_H, NODE_W, type Point } from './layout'
 import type { GEdge } from './query'
 
 export interface LinkData extends Record<string, unknown> {
@@ -164,7 +164,7 @@ export function Markers() {
   return (
     <svg width="0" height="0" aria-hidden="true" style={{ position: 'absolute' }}>
       <defs>
-        {Array.from({ length: 8 }, (_, i) => i + 1).map((c) => (
+        {Array.from({ length: LINK_COLORS }, (_, i) => i + 1).map((c) => (
           <marker key={c} id={`lc-arrow-${c}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" fill={`var(--link-${c})`} />
           </marker>

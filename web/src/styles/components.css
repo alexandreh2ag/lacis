@@ -85,7 +85,7 @@ body { margin: 0; background: var(--surface); color: var(--ink); font-family: va
 .lc-canvas { position: relative; background-color: var(--surface-sunken);
   background-image: radial-gradient(var(--border-strong) 0.8px, transparent 0.9px); background-size: 16px 16px; }
 
-/* Link: an edge drawn on the graph, its color given by its source (link-1…8) */
+/* Link: an edge drawn on the graph, its color given by its source (link-1…14) */
 .lc-link { position: absolute; overflow: visible; fill: none; pointer-events: none; stroke: var(--c, var(--edge)); stroke-linecap: round;
   stroke-linejoin: round; transition: opacity 120ms; }
 .lc-link .v { stroke-width: calc(var(--sw, 1.5px) + var(--hi, 0) * 1.5px); }

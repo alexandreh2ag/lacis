@@ -41,7 +41,7 @@ export interface Layout {
   // too. A route holds while its two ends stay where they were placed.
   at: Map<string, Point>
   routes: Map<string, Point[]>
-  // colors give each source node a color of link-1…8 in turn, top to
+  // colors give each source node a color of link-1…14 in turn, top to
   // bottom then left to right, so that neighbouring edges differ.
   colors: Map<string, number>
 }
@@ -200,11 +200,14 @@ function routesOf(n: ElkNode, x: number, y: number, into: Map<string, Point[]>) 
   }
 }
 
-// colors give each source node a color of link-1…8 in turn.
+// LINK_COLORS is the number of colors of the edges, link-1 to link-14.
+export const LINK_COLORS = 14
+
+// colors give each source node a color of link-1…14 in turn.
 function colors(graph: GraphData, absolute: Map<string, { x: number; y: number }>): Map<string, number> {
   const sources = [...new Set(graph.edges.map((e) => e.from))].filter((id) => absolute.has(id))
   sources.sort((a, b) => absolute.get(a)!.x - absolute.get(b)!.x || absolute.get(a)!.y - absolute.get(b)!.y)
-  return new Map(sources.map((id, i) => [id, (i % 8) + 1]))
+  return new Map(sources.map((id, i) => [id, (i % LINK_COLORS) + 1]))
 }
 
 // hostBoxes lays the apps level out at once, the nodes of a host in its box.
