@@ -175,7 +175,8 @@ func matchKey(patterns []string, key string) bool {
 }
 
 // dependencies turns the allowed values of e into dependencies, sorted by
-// key: URLs and DSNs, and the X_HOST keys, with the port of X_PORT.
+// key: URLs and DSNs, the X_HOST keys, with the port of X_PORT, and the
+// items of a JSON or YAML collection (see parseCollection).
 func dependencies(e env, cfg config.EnvfilesConfig, res *resolver) []snapshot.Dependency {
 	out := []snapshot.Dependency{}
 	for _, key := range sortedKeys(e) {
@@ -187,6 +188,10 @@ func dependencies(e env, cfg config.EnvfilesConfig, res *resolver) []snapshot.De
 			continue
 		}
 		source := snapshot.DependencySource{File: v.file, Line: v.line, KeyPath: v.keyPath}
+		if items, ok := parseCollection(v); ok && !v.unresolved {
+			out = append(out, collectionDependencies(key, v, items, e, cfg, res)...)
+			continue
+		}
 		all, err := dsn.ParseAll(v.value)
 		if errors.Is(err, dsn.ErrNotNetwork) {
 			continue

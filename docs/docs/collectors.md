@@ -306,6 +306,18 @@ A dependency holds the key, the file and line it was read from, the scheme, the
 target (IP, name with its resolved IPs, or unix socket), the port and, for
 database and broker schemes, the resource name (database, Redis index, AMQP vhost).
 
+A value holding a **JSON or YAML collection** (starting with `[`, `{` or `- `, or on
+several lines) gives one dependency per item, under the same key, its index as
+key path (`ELASTIC_SERVERS.0`). An object is read as a block (`host`, `port`, `dsn`,
+`url`, `dbname`, `adapter`…); a string as a URL, a DSN or `host:port`:
+
+```dotenv
+ELASTIC_SERVERS='[{"host":"172.16.1.12","port":9200},{"host":"172.16.1.13","port":9200}]'
+ELASTICSEARCH_SERVERS='["172.16.1.15:9200","172.16.1.16:9200"]'
+```
+
+Such keys are read once allowed, for instance with `*_SERVERS` in `allow_keys`.
+
 `APP_ENV` and `NODE_ENV` are sent as information only.
 
 ## What is never sent
@@ -319,7 +331,9 @@ Credentials are removed **on the host**, before the snapshot leaves it:
   A flattened key of a structured source (`DOCTRINE_DBAL_URL`) is filtered the same
   way. In the blocks of Laminas and Zend 1, only the `dsn`, `url`,
   `host`/`hostname`/`server`, `port`, `dbname`/`database` and `adapter` leaves of a
-  block are read, and denied keys never.
+  block are read, and denied keys never. The same goes for the objects of a JSON or
+  YAML collection; a string of a collection that is a bare word (no scheme, port,
+  dot, nor IP) is reported unparsed, neither sent nor resolved.
 - A connection string is reduced to **scheme, host, port, socket** and, for
   database and broker schemes (`mysql`, `postgres`, `redis`, `amqp`, `mongodb`,
   `clickhouse`…), the resource name; an HTTP URL (`http`, `https`, `ws`, `wss`)
