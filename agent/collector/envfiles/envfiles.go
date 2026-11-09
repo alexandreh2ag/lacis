@@ -159,9 +159,12 @@ func (r *reader) structured(e env, format, file string) error {
 	return err
 }
 
-// allowed tells the keys to read: allowed and not denied, compared in upper
-// case so that db_password is denied like DB_PASSWORD.
+// allowed tells the keys to read: forced, or allowed and not denied,
+// compared in upper case so that db_password is denied like DB_PASSWORD.
 func allowed(key string, cfg config.EnvfilesConfig) bool {
+	if slices.ContainsFunc(cfg.ForceKeys, func(k string) bool { return strings.EqualFold(k, key) }) {
+		return true
+	}
 	return matchKey(cfg.AllowKeys, key) && !matchKey(cfg.DenyKeys, key)
 }
 

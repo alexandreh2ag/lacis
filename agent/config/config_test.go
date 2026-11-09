@@ -238,6 +238,9 @@ func TestConfig_Validate(t *testing.T) {
 		{name: "missing label", mutate: func(c *Config) { c.Labels.Project = "" }, want: []string{"labels: project: label is required"}},
 		{name: "negative git max depth", mutate: func(c *Config) { c.Collectors.Apps.GitMaxDepth = -1 }, want: []string{"Config.Collectors.Apps.GitMaxDepth", `"min"`}},
 		{name: "full commands", mutate: func(c *Config) { c.Collectors.Apps.Commands = CommandFull }},
+		{name: "force keys", mutate: func(c *Config) { c.Collectors.Envfiles.ForceKeys = []string{"OAUTH_ISSUER_URL"} }},
+		{name: "force key pattern", mutate: func(c *Config) { c.Collectors.Envfiles.ForceKeys = []string{"OK", "*_URL", ""} },
+			want: []string{`force_keys[1]: "*_URL" is not an exact key name`, `force_keys[2]: "" is not an exact key name`}},
 		{name: "invalid commands", mutate: func(c *Config) { c.Collectors.Apps.Commands = "args" }, want: []string{"Config.Collectors.Apps.Commands", `"oneof"`}},
 		{
 			name: "invalid framework format",
@@ -345,6 +348,7 @@ func TestKeys(t *testing.T) {
 	assert.Contains(t, keys, "interval")
 	assert.Contains(t, keys, "collectors.apps.extra_config")
 	assert.Contains(t, keys, "collectors.envfiles.deny_keys")
+	assert.Contains(t, keys, "collectors.envfiles.force_keys")
 	assert.NotContains(t, keys, "labels")
 }
 

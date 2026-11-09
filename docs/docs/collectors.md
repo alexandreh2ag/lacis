@@ -327,7 +327,11 @@ Credentials are removed **on the host**, before the snapshot leaves it:
 - From the app configuration, **only the keys matching `allow_keys` and none of
   `deny_keys` are read**, compared ignoring case. Defaults: allowed `*_URL`,
   `*_DSN`, `*_HOST`, `*_PORT`, `APP_ENV`, `NODE_ENV`; denied `*SECRET*`, `*PASS*`,
-  `*PWD*`, `*TOKEN*`, `*KEY*`, `*CRED*`, `*AUTH*`, `*PRIVATE*`, `*SALT*`, `*COOKIE*`, `*WEBHOOK*`.
+  `*PWD*`, `*TOKEN*`, `*_KEY`, `KEY_*`, `*_KEY_*`, `*APIKEY*`, `*SSHKEY*`,
+  `*CRED*`, `*AUTH*`, `*PRIVATE*`, `*SALT*`, `*COOKIE*`, `*WEBHOOK*`: `KEY` as a
+  whole word only, `KEYCLOAK_URL` is read.
+  The exact names of `force_keys` are read in any case (`OAUTH_ISSUER_URL`, denied
+  by `*AUTH*`); their value is still reduced as below.
   A flattened key of a structured source (`DOCTRINE_DBAL_URL`) is filtered the same
   way. In the blocks of Laminas and Zend 1, only the `dsn`, `url`,
   `host`/`hostname`/`server`, `port`, `dbname`/`database` and `adapter` leaves of a

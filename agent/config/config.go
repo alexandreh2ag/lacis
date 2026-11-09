@@ -209,6 +209,9 @@ var SourceFormats = []string{"env", "php", "ini", "yaml", "json"}
 type EnvfilesConfig struct {
 	AllowKeys []string `mapstructure:"allow_keys"`
 	DenyKeys  []string `mapstructure:"deny_keys"`
+	// ForceKeys are exact key names read even when allow_keys does not
+	// match them or deny_keys does: OAUTH_ISSUER_URL, denied by *AUTH*.
+	ForceKeys []string `mapstructure:"force_keys"`
 }
 
 type TraefikConfig struct {
@@ -260,9 +263,11 @@ func DefaultConfig() *Config {
 			Envfiles: EnvfilesConfig{
 				AllowKeys: []string{"*_URL", "*_DSN", "*_HOST", "*_PORT", "APP_ENV", "NODE_ENV"},
 				DenyKeys: []string{
-					"*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*", "*PRIVATE*",
-					"*SALT*", "*COOKIE*", "*WEBHOOK*",
+					// KEY as a whole word only: KEYCLOAK_URL and KEYDB_HOST are read.
+					"*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*_KEY", "KEY_*", "*_KEY_*", "*APIKEY*",
+					"*SSHKEY*", "*CRED*", "*AUTH*", "*PRIVATE*", "*SALT*", "*COOKIE*", "*WEBHOOK*",
 				},
+				ForceKeys: []string{},
 			},
 			Docker: DockerConfig{
 				Socket: "/var/run/docker.sock",
@@ -313,6 +318,11 @@ func (c *Config) validateRules() []error {
 	}
 	if t.Password != "" && t.Username == "" {
 		errs = append(errs, errors.New("collectors.traefik.password: requires collectors.traefik.username"))
+	}
+	for i, k := range c.Collectors.Envfiles.ForceKeys {
+		if k == "" || strings.ContainsAny(k, `*?[\`) {
+			errs = append(errs, fmt.Errorf("collectors.envfiles.force_keys[%d]: %q is not an exact key name, patterns are not accepted", i, k))
+		}
 	}
 	for i, x := range c.Collectors.Apps.ExtraConfig {
 		if _, err := path.Match(x.App, ""); err != nil {

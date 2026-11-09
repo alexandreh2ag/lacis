@@ -193,6 +193,9 @@ func TestAllowed(t *testing.T) {
 		"db_password_url": false, "app_secret_dsn": false, "jwt_token_url": false,
 		"DB_PASS_URL": false, "DB_PWD_DSN": false, "GCP_CREDENTIALS_URL": false, "BASIC_AUTH_URL": false,
 		"PRIVATE_DSN": false, "HASH_SALT_URL": false, "COOKIE_DOMAIN_HOST": false, "oauth_url": false,
+		"KEY_SSH_PRIVATE": false, "KEY_FILE_URL": false, "JWT_KEY_PATH_URL": false, "STRIPE_KEY": false,
+		"STRIPEAPIKEY_URL": false, "deploy_sshkey_url": false,
+		"KEYCLOAK_APP_URL": true, "KEYDB_HOST": true, "MONKEY_URL": true,
 	} {
 		assert.Equal(t, want, allowed(key, cfg), key)
 	}
@@ -200,6 +203,13 @@ func TestAllowed(t *testing.T) {
 	assert.True(t, allowed("API_URL", custom), "patterns ignore case")
 	assert.False(t, allowed("SECRET_URL", custom))
 	assert.True(t, denied("password", config.DefaultConfig().Collectors.Envfiles))
+
+	forced := config.DefaultConfig().Collectors.Envfiles
+	forced.ForceKeys = []string{"oauth_issuer_url", "LEGACY_ENDPOINT"}
+	assert.True(t, allowed("OAUTH_ISSUER_URL", forced), "a forced key passes deny_keys, ignoring case")
+	assert.True(t, allowed("LEGACY_ENDPOINT", forced), "a forced key needs no allow_keys")
+	assert.False(t, allowed("OAUTH_ADMIN_URL", forced), "only the exact name is forced")
+	assert.False(t, allowed("OAUTH_ISSUER_URL", config.DefaultConfig().Collectors.Envfiles))
 }
 
 func TestResolverCache(t *testing.T) {

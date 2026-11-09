@@ -95,8 +95,10 @@ collectors:
             format: php
   envfiles:
     allow_keys: ["*_URL", "*_DSN", "*_HOST", "*_PORT", APP_ENV, NODE_ENV]
-    deny_keys: ["*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*KEY*", "*CRED*", "*AUTH*",
+    deny_keys: ["*SECRET*", "*PASS*", "*PWD*", "*TOKEN*", "*_KEY", "KEY_*", "*_KEY_*", "*APIKEY*", "*SSHKEY*",
+                "*CRED*", "*AUTH*",
                 "*PRIVATE*", "*SALT*", "*COOKIE*", "*WEBHOOK*"]
+    force_keys: [OAUTH_ISSUER_URL]
   traefik:
     api_url: http://127.0.0.1:8080
     username: lacis
@@ -255,7 +257,8 @@ framework sources.
 | Key                              | Type | Default | Description |
 | -------------------------------- | ---- | ------- | ----------- |
 | `collectors.envfiles.allow_keys` | list | `[*_URL, *_DSN, *_HOST, *_PORT, APP_ENV, NODE_ENV]` | Keys read from the app configuration (shell-style patterns). |
-| `collectors.envfiles.deny_keys`  | list | `[*SECRET*, *PASS*, *PWD*, *TOKEN*, *KEY*, *CRED*, *AUTH*, *PRIVATE*, *SALT*, *COOKIE*, *WEBHOOK*]` | Keys never read, even when allowed. |
+| `collectors.envfiles.deny_keys`  | list | `[*SECRET*, *PASS*, *PWD*, *TOKEN*, *_KEY, KEY_*, *_KEY_*, *APIKEY*, *SSHKEY*, *CRED*, *AUTH*, *PRIVATE*, *SALT*, *COOKIE*, *WEBHOOK*]` | Keys never read, even when allowed. |
+| `collectors.envfiles.force_keys` | list | `[]` | Exact key names read even when `allow_keys` does not match them or `deny_keys` does. Patterns are rejected. |
 
 Keys and patterns are compared ignoring case: `db_password` is denied like
 `DB_PASSWORD`. See [what is never sent](../collectors.md#what-is-never-sent).
@@ -271,6 +274,19 @@ collectors:
 
 A `deny_keys` given without the default patterns no longer denies them: a key such
 as `DB_PASSWORD` is then read when an allowed pattern matches it.
+
+`KEY` is denied as a whole word only (`API_KEY`, `KEY_FILE`, `JWT_KEY_PATH`,
+`STRIPEAPIKEY`): `KEYCLOAK_URL` and `KEYDB_HOST` are read.
+
+To read a key that a pattern denies by accident, such as `OAUTH_ISSUER_URL`
+(denied by `*AUTH*`), name it in `force_keys` rather than loosening `deny_keys`:
+only that exact key is read, the patterns still deny the others.
+
+```yaml
+collectors:
+  envfiles:
+    force_keys: [OAUTH_ISSUER_URL]
+```
 
 #### `collectors.traefik`
 
