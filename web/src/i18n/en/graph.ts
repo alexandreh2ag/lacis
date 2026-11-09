@@ -5,6 +5,8 @@ export const graph: Messages['graph'] = {
   seeIn: { infra: 'See in Infra', projects: 'See in Projects' },
   filters: {
     label: 'Filters',
+    fold: 'Fold the filters',
+    unfold: 'Unfold the filters',
     envs: 'Environments',
     projects: 'Projects',
     pick: 'Pick',

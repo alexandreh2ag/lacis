@@ -3,6 +3,8 @@ export const graph = {
   seeIn: { infra: 'Voir dans Infra', projects: 'Voir dans Projets' },
   filters: {
     label: 'Filtres',
+    fold: 'Replier les filtres',
+    unfold: 'Déplier les filtres',
     envs: 'Environnements',
     projects: 'Projets',
     pick: 'Choisir',

@@ -1,5 +1,6 @@
 import { useQuery } from '@apollo/client'
 import { useState } from 'react'
+import { Chevron, Funnel } from '@/components/Icon'
 import { Chips } from '@/components/Listing'
 import { MultiPicker } from '@/components/MultiPicker'
 import { useT } from '@/i18n'
@@ -13,8 +14,29 @@ function picked(e: React.ChangeEvent<HTMLInputElement>): boolean {
   return !ev.inputType || ev.inputType === 'insertReplacementText'
 }
 
+const foldKey = 'lacis-graph-filters'
+
+// readFolded tells whether the user left the panel folded; it stays so
+// from a visit to the next.
+export function readFolded(): boolean {
+  try {
+    return localStorage.getItem(foldKey) === 'folded'
+  } catch {
+    return false
+  }
+}
+
+function saveFolded(folded: boolean) {
+  try {
+    if (folded) localStorage.setItem(foldKey, 'folded')
+    else localStorage.removeItem(foldKey)
+  } catch {
+    // Without storage, the panel holds until the page reloads.
+  }
+}
+
 // GraphFilters is the side panel of the graph: the envs, projects, hosts,
-// statuses and links shown.
+// statuses and links shown. Folded, it leaves a thin rail to the graph.
 export function GraphFilters({ ns, p, envs, projects, counts }: {
   ns: string
   p: GraphParams
@@ -25,13 +47,28 @@ export function GraphFilters({ ns, p, envs, projects, counts }: {
   const t = useT()
   const hostnames = useQuery(HostnamesDoc, { variables: { ns } }).data?.namespace?.hosts.items ?? []
   const [hostInput, setHostInput] = useState('')
+  const [folded, setFolded] = useState(readFolded)
+  const fold = (f: boolean) => { saveFolded(f); setFolded(f) }
   const addHost = (h: string) => {
     const name = h.trim()
     if (name && !p.hosts.includes(name)) p.set({ host: [...p.hosts, name] })
     setHostInput('')
   }
+  if (folded) {
+    return (
+      <aside aria-label={t.graph.filters.label} className="flex w-16 flex-none flex-col items-center border-r border-border bg-surface-raised py-3">
+        <button className="lc-btn lc-btn--ghost gap-0.5 px-1.5" type="button" aria-expanded="false" aria-controls="graph-filters"
+          title={t.graph.filters.unfold} aria-label={t.graph.filters.unfold} onClick={() => fold(false)}><Funnel /><Chevron dir="right" /></button>
+      </aside>
+    )
+  }
   return (
-    <aside aria-label={t.graph.filters.label} className="flex w-[248px] flex-none flex-col gap-5 overflow-auto border-r border-border bg-surface-raised p-4">
+    <aside id="graph-filters" aria-label={t.graph.filters.label} className="flex w-[248px] flex-none flex-col gap-5 overflow-auto border-r border-border bg-surface-raised p-4">
+      <div className="-my-1 -mr-2 flex items-center justify-between">
+        <span className="font-semibold text-[13px]">{t.graph.filters.label}</span>
+        <button className="lc-btn lc-btn--ghost gap-0.5 px-1.5" type="button" aria-expanded="true" aria-controls="graph-filters"
+          title={t.graph.filters.fold} aria-label={t.graph.filters.fold} onClick={() => fold(true)}><Funnel /><Chevron dir="left" /></button>
+      </div>
       <section className="flex flex-col gap-2">
         <span className="lc-label">{t.graph.filters.envs}</span>
         <Chips label={t.graph.filters.envs} options={envs.map((e) => ({ value: e, label: e }))} selected={p.envs} onChange={(v) => p.set({ env: v })} />

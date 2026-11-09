@@ -48,6 +48,15 @@ export const Glyph = memo(function Glyph({ kind, tech }: { kind: Kind; tech?: st
   return tech && hasLogo(tech) ? <TechLogo tech={tech} /> : <KindIcon kind={kind} />
 })
 
+// Funnel is the icon of the filters.
+export function Funnel() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 3h12l-4.5 5.5V13l-3-1.5v-3Z" />
+    </svg>
+  )
+}
+
 export function Chevron({ dir }: { dir: 'left' | 'right' | 'down' | 'up' }) {
   const d = { left: 'M10 3.5 5.5 8l4.5 4.5', right: 'M6 3.5 10.5 8 6 12.5', down: 'M3.5 6 8 10.5 12.5 6', up: 'M3.5 10 8 5.5l4.5 4.5' }[dir]
   return (

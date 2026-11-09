@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useT } from '@/i18n'
-import { Chevron } from './Icon'
+import { Chevron, Funnel } from './Icon'
 import { Chips, type ChipOption } from './Listing'
 import { MultiPicker } from './MultiPicker'
 
@@ -14,14 +14,6 @@ export interface FilterField {
   value: string | null
   control: React.ReactNode
   clear: () => void
-}
-
-function Funnel() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 3h12l-4.5 5.5V13l-3-1.5v-3Z" />
-    </svg>
-  )
 }
 
 // FilterBar is the head of a listing: its search, a "Filtres" button
