@@ -12,7 +12,8 @@ import { ImpactPanel, useImpact } from './Impact'
 import { canOpen, title } from './kinds'
 import { laneMinimum, separateLanes } from './lanes'
 import type { Layout } from './layout'
-import { EdgeLayer, Markers } from './EdgeLayer'
+import { EdgeLayer } from './EdgeLayer'
+import { download, exportImage, type ExportFormat } from './exportImage'
 import { BoxNode, NodeCard, type BoxData } from './NodeCard'
 import { GraphViewDoc, type GNode } from './query'
 import { crossEnvs, toFlowEdges, toFlowNodes } from './toFlow'
@@ -158,6 +159,14 @@ function Graph() {
 
   const edges = useMemo(() => (view && placed ? toFlowEdges(view, placed, nodes, byId, impact.impact) : []), [view, placed, nodes, byId, impact.impact])
 
+  // onExport saves the whole graph as an image, named after the
+  // namespace and the lens.
+  const onExport = async (format: ExportFormat) => {
+    if (!root.current) return
+    const url = await exportImage(root.current, flow.getNodesBounds(flow.getNodes()), format)
+    download(url, `lacis-${ns}-${p.lens.key}.${format === 'svg' ? 'svg' : 'png'}`)
+  }
+
   const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : id.startsWith('more:') ? t.graph.otherItems : id)
   const opened = p.open ? { id: p.open, label: byId.get(p.open) ? title(byId.get(p.open)!) : p.open } : null
   const failed = error?.message ?? null
@@ -167,9 +176,8 @@ function Graph() {
         counts={graph ? { nodes: graph.nodes.length, edges: graph.edges.length } : null} />
 
       <div ref={layout.pane} className="relative min-w-0 flex-1">
-        <Markers />
         <GraphToolbar ns={ns} p={p} opened={opened} impact={impact} onClose={close} onFit={() => void flow.fitView(fitOptions)}
-          onRelayout={() => setRelayout((x) => x + 1)} />
+          onRelayout={() => setRelayout((x) => x + 1)} onExport={onExport} />
         {failed ? <div className="absolute inset-0 grid place-items-center" role="alert">{t.graph.loadError(failed)}</div> : null}
         {layout.error ? <div className="absolute inset-0 grid place-items-center" role="alert">{t.graph.layoutError(layout.error)}</div> : null}
         {!loading && graph && graph.nodes.length === 0 ? (

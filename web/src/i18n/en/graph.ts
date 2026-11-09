@@ -31,6 +31,12 @@ export const graph: Messages['graph'] = {
     counts: (nodes: number, links: number) => `${nodes} nodes · ${links} links`,
   },
   toolbar: {
+    exports: {
+      label: 'Export',
+      busy: 'Exporting…',
+      formats: { svg: 'SVG', png: 'PNG', 'png-transparent': 'PNG, transparent background' },
+      error: (message: string) => `The image could not be made: ${message}`,
+    },
     crumbs: 'Lens and filters',
     openedZone: 'Opened zone',
     opened: 'Opened:',

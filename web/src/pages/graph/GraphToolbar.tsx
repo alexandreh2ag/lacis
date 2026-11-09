@@ -1,12 +1,15 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { Chevron, Spinner } from '@/components/Icon'
 import { useT } from '@/i18n'
+import { exportFormats, type ExportFormat } from './exportImage'
 import type { ImpactDirection } from './Impact'
 import { LINK_COLORS } from './layout'
 import { lenses, type GraphParams } from './useGraphParams'
 
 // GraphToolbar sits above the graph: where the graph is, the zone
 // opened, the impact mode, the lens, and the view.
-export function GraphToolbar({ ns, p, opened, impact, onClose, onFit, onRelayout }: {
+export function GraphToolbar({ ns, p, opened, impact, onClose, onFit, onRelayout, onExport }: {
   ns: string
   p: GraphParams
   opened: { id: string; label: string } | null
@@ -14,6 +17,7 @@ export function GraphToolbar({ ns, p, opened, impact, onClose, onFit, onRelayout
   onClose: () => void
   onFit: () => void
   onRelayout: () => void
+  onExport: (format: ExportFormat) => Promise<void>
 }) {
   const t = useT()
   const crumbs = [t.graph.lenses[p.lens.key], ...p.projects, ...p.envs, ...p.hosts]
@@ -51,8 +55,57 @@ export function GraphToolbar({ ns, p, opened, impact, onClose, onFit, onRelayout
           <button key={l.key} type="button" aria-pressed={l.key === p.lens.key} onClick={() => p.set({ lens: l.key, open: null })}>{t.graph.lenses[l.key]}</button>
         ))}
       </div>
+      <ExportMenu onExport={onExport} />
       <button className="lc-btn" type="button" onClick={onFit}>{t.graph.toolbar.fit}</button>
       <button className="lc-btn" type="button" title={t.graph.toolbar.relayoutTitle} onClick={onRelayout}>{t.graph.toolbar.relayout}</button>
+    </div>
+  )
+}
+
+// ExportMenu offers the formats of the image of the graph. A click
+// outside or Escape closes it.
+function ExportMenu({ onExport }: { onExport: (format: ExportFormat) => Promise<void> }) {
+  const t = useT()
+  const x = t.graph.toolbar.exports
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  const run = (format: ExportFormat) => {
+    setOpen(false)
+    setBusy(true)
+    setError(null)
+    // The spinner is drawn before the export takes the page.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      onExport(format).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err))).finally(() => setBusy(false))
+    }))
+  }
+  return (
+    <div ref={ref} className="relative">
+      <button className="lc-btn" type="button" aria-haspopup="menu" aria-expanded={open} aria-busy={busy} disabled={busy} onClick={() => setOpen(!open)}>
+        {busy ? <><Spinner />{x.busy}</> : <>{x.label}<Chevron dir="down" /></>}
+      </button>
+      {open ? (
+        <div role="menu" aria-label={x.label} className="lc-panel absolute right-0 top-10 z-50 w-60">
+          <div className="lc-menu">
+            {exportFormats.map((f) => (
+              <button key={f} role="menuitem" type="button" className="lc-menu__item" onClick={() => run(f)}>{x.formats[f]}</button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {error ? <span role="alert" className="absolute right-0 top-10 w-60 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-danger">{x.error(error)}</span> : null}
     </div>
   )
 }

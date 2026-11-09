@@ -48,6 +48,16 @@ export const Glyph = memo(function Glyph({ kind, tech }: { kind: Kind; tech?: st
   return tech && hasLogo(tech) ? <TechLogo tech={tech} /> : <KindIcon kind={kind} />
 })
 
+// Spinner turns while something loads.
+export function Spinner() {
+  return (
+    <svg className="lc-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" opacity={0.25} />
+      <path d="M14 8a6 6 0 0 0-6-6" />
+    </svg>
+  )
+}
+
 // Funnel is the icon of the filters.
 export function Funnel() {
   return (

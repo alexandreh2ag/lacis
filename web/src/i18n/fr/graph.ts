@@ -29,6 +29,12 @@ export const graph = {
     counts: (nodes: number, links: number) => `${nodes} nœuds · ${links} liens`,
   },
   toolbar: {
+    exports: {
+      label: 'Exporter',
+      busy: 'Export…',
+      formats: { svg: 'SVG', png: 'PNG', 'png-transparent': 'PNG, fond transparent' },
+      error: (message: string) => `L'image n'a pas pu être créée : ${message}`,
+    },
     crumbs: 'Lentille et filtres',
     openedZone: 'Zone ouverte',
     opened: 'Ouvert :',

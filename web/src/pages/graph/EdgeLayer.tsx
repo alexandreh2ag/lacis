@@ -76,6 +76,7 @@ export const EdgeLayer = memo(function EdgeLayer({ edges, crossHidden }: { edges
     <ViewportPortal>
       <div className="lc-edges-layer">
         <svg className="lc-edges" aria-hidden="true">
+          <Markers />
           {drawn.map((d) => <EdgePath key={d.id} id={d.id} path={d.path} data={d.data} hidden={crossHidden && !!d.data.edge.crossEnv} />)}
         </svg>
         {drawn.map((d) => (d.data.edge.count > 1
@@ -159,20 +160,19 @@ function EdgeTooltip({ drawn }: { drawn: Drawn[] }) {
   )
 }
 
-// Markers are the arrow heads, one per color.
-export function Markers() {
+// Markers are the arrow heads, one per color, in the SVG of the edges:
+// an export of the graph takes them along.
+function Markers() {
   return (
-    <svg width="0" height="0" aria-hidden="true" style={{ position: 'absolute' }}>
-      <defs>
-        {Array.from({ length: LINK_COLORS }, (_, i) => i + 1).map((c) => (
-          <marker key={c} id={`lc-arrow-${c}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-            <path d="M0 0 L10 5 L0 10 z" fill={`var(--link-${c})`} />
-          </marker>
-        ))}
-        <marker id="lc-arrow-danger" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path d="M0 0 L10 5 L0 10 z" fill="var(--danger)" />
+    <defs>
+      {Array.from({ length: LINK_COLORS }, (_, i) => i + 1).map((c) => (
+        <marker key={c} id={`lc-arrow-${c}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill={`var(--link-${c})`} />
         </marker>
-      </defs>
-    </svg>
+      ))}
+      <marker id="lc-arrow-danger" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="var(--danger)" />
+      </marker>
+    </defs>
   )
 }
