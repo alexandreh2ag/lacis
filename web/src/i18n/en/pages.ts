@@ -229,7 +229,7 @@ export const pages: Messages['pages'] = {
     remove: 'Delete',
     cancel: 'Cancel',
     noApp: 'No app on this host.',
-    searchApps: 'Search an app, a path, a domain',
+    searchApps: 'Search an app, a path, a project',
     searchComponents: 'Search a name, a version, an address',
     components: (shown: number, all: number) => `${shown} component${s(shown)} of ${all}`,
     where: 'Listen, domains or path',

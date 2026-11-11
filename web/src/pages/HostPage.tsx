@@ -31,7 +31,8 @@ const HostPageDoc = graphql(`
         services { id type instance version packageVersion details firstSeenAt usedBy { ...AppLink } }
         webservers { id type version domains firstSeenAt usedBy { ...AppLink } }
         apps {
-          id name path role framework frameworkVersion vhosts firstSeenAt
+          id name path role framework frameworkVersion firstSeenAt
+          project { slug name } environment { slug name }
           code { version commit branch deployedAt }
           runtime { type version packageVersion source }
           dependencies { key }
@@ -168,10 +169,22 @@ function AppCard({ app }: { app: App }) {
         {app.code?.deployedAt ? <><dt>{ts.deployed}</dt><dd>{ago(app.code.deployedAt)}</dd></> : null}
         {app.framework ? <><dt>{ts.framework}</dt><dd>{app.framework} {app.frameworkVersion}</dd></> : null}
         {app.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}<PackageVersion version={app.runtime.version} packageVersion={app.runtime.packageVersion} /></span></dd></> : null}
-        {app.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}
+        <dt>{ts.project}</dt><dd><AppProject ns={ns} app={app} /></dd>
         <dt>{ts.dependencies}</dt><dd>{app.dependencies.length} · {ts.links(app.uses.length)}</dd>
       </dl>
     </div>
+  )
+}
+
+// AppProject links the project of the app, with its env.
+function AppProject({ ns, app }: { ns: string; app: App }) {
+  const ts = useT().pages.shared
+  if (!app.project) return <span className="lc-muted">{ts.noProject}</span>
+  return (
+    <span>
+      <Link to={`/${ns}/projects/${app.project.slug}`}>{app.project.slug}</Link>
+      {app.environment ? <span className="text-ink-muted"> · {app.environment.slug}</span> : null}
+    </span>
   )
 }
 
@@ -185,8 +198,8 @@ function Apps({ apps }: { apps: App[] }) {
   const [size, setSize] = useState(10)
   const [sort, setSort] = useState<{ by: string; desc: boolean }>({ by: 'name', desc: false })
   const sorted = useMemo(() => {
-    const value = (a: App) => sort.by === 'version' ? a.code?.version ?? '' : sort.by === 'framework' ? a.framework ?? '' : a.name
-    return apps.filter((a) => !q || [a.name, a.path, a.code?.version, a.framework, ...a.vhosts].some((x) => x?.toLowerCase().includes(q.toLowerCase())))
+    const value = (a: App) => sort.by === 'version' ? a.code?.version ?? '' : sort.by === 'framework' ? a.framework ?? '' : sort.by === 'project' ? a.project?.slug ?? '' : a.name
+    return apps.filter((a) => !q || [a.name, a.path, a.code?.version, a.framework, a.project?.slug, a.project?.name, a.environment?.slug].some((x) => x?.toLowerCase().includes(q.toLowerCase())))
       .sort((a, b) => value(a).localeCompare(value(b), 'fr', { numeric: true }) * (sort.desc ? -1 : 1))
   }, [apps, q, sort])
   if (apps.length === 0) return <p className="lc-muted m-0">{t.pages.host.noApp}</p>
@@ -202,7 +215,7 @@ function Apps({ apps }: { apps: App[] }) {
             <th>{ts.path}</th>
             <SortHeader label={ts.version} by="version" sort={sort.by} desc={sort.desc} onSort={onSort} />
             <SortHeader label={ts.framework} by="framework" sort={sort.by} desc={sort.desc} onSort={onSort} />
-            <th>{ts.domain}</th>
+            <SortHeader label={ts.project} by="project" sort={sort.by} desc={sort.desc} onSort={onSort} />
           </tr></thead>
           <tbody>
             {sorted.slice((page - 1) * size, page * size).map((a) => (
@@ -211,7 +224,7 @@ function Apps({ apps }: { apps: App[] }) {
                 <td className="max-w-[240px]"><Copyable value={a.path} className="text-[12px] text-ink-muted" /></td>
                 <td className="lc-mono">{a.code?.version}</td>
                 <td className="text-ink-muted">{[a.framework, a.frameworkVersion].filter(Boolean).join(' ')}</td>
-                <td>{a.vhosts[0] ? <Copyable value={a.vhosts[0]} /> : null}</td>
+                <td><AppProject ns={ns} app={a} /></td>
               </tr>
             ))}
           </tbody>

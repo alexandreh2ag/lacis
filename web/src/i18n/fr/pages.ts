@@ -230,7 +230,7 @@ export const pages = {
     remove: 'Supprimer',
     cancel: 'Annuler',
     noApp: 'Aucune app sur ce host.',
-    searchApps: 'Chercher une app, un chemin, un domaine',
+    searchApps: 'Chercher une app, un chemin, un projet',
     searchComponents: 'Chercher un nom, une version, une adresse',
     components: (shown: number, all: number) => `${shown} composant${s(shown)} sur ${all}`,
     where: 'Écoute, domaines ou chemin',
