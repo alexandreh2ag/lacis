@@ -6,7 +6,7 @@ import { canAdminister } from './Admin'
 import { iconRows } from './Icons'
 import { grantText } from './Roles'
 import { outputText, pending } from './Tasks'
-import { tokenState } from './Tokens'
+import { agentDrift, tokenState, versionOrder, versionSatisfies } from './Tokens'
 import { PasswordFields } from './Users'
 
 const passwordMismatch = t().admin.users.passwordMismatch
@@ -130,4 +130,25 @@ test('outputText says what a run changed', () => {
   expect(pending('running')).toBe(true)
   expect(pending('completed')).toBe(false)
   expect(Object.keys(t().admin.tasks.kinds)).toEqual(expect.arrayContaining(['purge_snapshots', 'purge_removed_entities', 'purge_expired_tokens', 'detect_token_conflicts', 'purge_history', 'purge_inactive_hosts']))
+})
+
+test('agent versions compare by their numbers', () => {
+  expect(versionOrder('0.0.10', '0.0.9')).toBe(1)
+  expect(versionOrder('v0.0.6', '0.0.6')).toBe(0)
+  expect(versionSatisfies('0.0.5', 'LT', '0.0.6')).toBe(true)
+  expect(versionSatisfies('0.0.6', 'LT', '0.0.6')).toBe(false)
+  expect(versionSatisfies('0.0.6', 'GTE', '0.0')).toBe(true)
+  expect(versionSatisfies('0.1.0', 'GT', '0.0.6')).toBe(true)
+  expect(versionSatisfies('dev', 'LT', '0.0.6')).toBe(false)
+  expect(versionSatisfies('0.0.1', 'LT', '')).toBe(true)
+})
+
+test('agentDrift tells how an agent stands to the server', () => {
+  expect(agentDrift('0.0.6', '0.0.6')).toBe('same')
+  expect(agentDrift('v0.0.6', '0.0.6')).toBe('same')
+  expect(agentDrift('0.0.5', '0.0.6')).toBe('older')
+  expect(agentDrift('0.1.0', '0.0.6')).toBe('newer')
+  expect(agentDrift('0.0.6', 'dev')).toBe('other')
+  expect(agentDrift('dev', 'dev')).toBe('same')
+  expect(agentDrift(null, '0.0.6')).toBe('unknown')
 })

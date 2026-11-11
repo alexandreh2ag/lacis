@@ -28,6 +28,8 @@ type AgentHost struct {
 	ID        uuid.UUID `json:"id"`
 	Hostname  string    `json:"hostname"`
 	Namespace string    `json:"namespace"`
+	// The version of the agent its last snapshot gave; null for an agent too old to send it.
+	AgentVersion *string `json:"agentVersion,omitempty"`
 }
 
 // The code deployed: from a deploy info file or the git repository.

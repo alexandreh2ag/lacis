@@ -54,7 +54,7 @@ type Documents = {
     "\n  query AdminTokens {\n    enrollmentTokens { id label createdAt expiresAt revokedAt agents }\n  }\n": typeof types.AdminTokensDocument,
     "\n  mutation CreateEnrollmentToken($label: String, $ttl: Int!) {\n    createEnrollmentToken(label: $label, ttl: $ttl) { secret token { id } }\n  }\n": typeof types.CreateEnrollmentTokenDocument,
     "\n  mutation RevokeEnrollmentToken($id: ID!) {\n    revokeEnrollmentToken(id: $id) { id revokedAt }\n  }\n": typeof types.RevokeEnrollmentTokenDocument,
-    "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace } }\n  }\n": typeof types.AdminAgentsDocument,
+    "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n": typeof types.AdminAgentsDocument,
     "\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n": typeof types.RevokeAgentDocument,
     "\n  query AdminUsers {\n    users { id username firstName lastName local oidc createdAt roles { id code } }\n    roleChoices { id code description }\n  }\n": typeof types.AdminUsersDocument,
     "\n  mutation CreateUser($input: CreateUserInput!) {\n    createUser(input: $input) { id }\n  }\n": typeof types.CreateUserDocument,
@@ -110,7 +110,7 @@ const documents: Documents = {
     "\n  query AdminTokens {\n    enrollmentTokens { id label createdAt expiresAt revokedAt agents }\n  }\n": types.AdminTokensDocument,
     "\n  mutation CreateEnrollmentToken($label: String, $ttl: Int!) {\n    createEnrollmentToken(label: $label, ttl: $ttl) { secret token { id } }\n  }\n": types.CreateEnrollmentTokenDocument,
     "\n  mutation RevokeEnrollmentToken($id: ID!) {\n    revokeEnrollmentToken(id: $id) { id revokedAt }\n  }\n": types.RevokeEnrollmentTokenDocument,
-    "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace } }\n  }\n": types.AdminAgentsDocument,
+    "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n": types.AdminAgentsDocument,
     "\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n": types.RevokeAgentDocument,
     "\n  query AdminUsers {\n    users { id username firstName lastName local oidc createdAt roles { id code } }\n    roleChoices { id code description }\n  }\n": types.AdminUsersDocument,
     "\n  mutation CreateUser($input: CreateUserInput!) {\n    createUser(input: $input) { id }\n  }\n": types.CreateUserDocument,
@@ -303,7 +303,7 @@ export function graphql(source: "\n  mutation RevokeEnrollmentToken($id: ID!) {\
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace } }\n  }\n"): (typeof documents)["\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace } }\n  }\n"];
+export function graphql(source: "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n"): (typeof documents)["\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

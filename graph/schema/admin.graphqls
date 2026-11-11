@@ -204,6 +204,8 @@ type AgentHost {
   id: ID!
   hostname: String!
   namespace: String!
+  "The version of the agent its last snapshot gave; null for an agent too old to send it."
+  agentVersion: String
 }
 
 # Nobody grants a permission they do not hold: the user mutations are refused (FORBIDDEN) when the

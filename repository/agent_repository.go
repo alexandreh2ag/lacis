@@ -35,6 +35,8 @@ type AgentRow struct {
 	Hostname   *string
 	Namespace  *string
 	TokenLabel *string
+	// AgentVersion is the version of the agent its last snapshot gave.
+	AgentVersion *string
 }
 
 type agentRepository struct {
@@ -74,7 +76,7 @@ func (r *agentRepository) Touch(ctx context.Context, id uuid.UUID, at time.Time)
 func (r *agentRepository) FindAll(ctx context.Context) ([]AgentRow, error) {
 	var rows []AgentRow
 	err := r.db.WithContext(ctx).Table("agents").
-		Select("agents.*, hosts.id as host_id, hosts.hostname, namespaces.slug as namespace, enrollment_tokens.label as token_label").
+		Select("agents.*, hosts.id as host_id, hosts.hostname, hosts.agent_version, namespaces.slug as namespace, enrollment_tokens.label as token_label").
 		Joins("left join hosts on hosts.agent_id = agents.id").
 		Joins("left join namespaces on namespaces.id = hosts.namespace_id").
 		Joins("left join enrollment_tokens on enrollment_tokens.id = agents.enrollment_token_id").
