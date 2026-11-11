@@ -9,21 +9,26 @@ export const ZONE_GAP = 16
 export const ZONE_HEAD = 132
 export const ROW_LABEL = 22
 export const ROW_STEP = ROW_LABEL + NODE_H + 18
-export const ZONE_W = 2 * ZONE_PAD + 3 * NODE_W + 2 * ZONE_GAP
-// MAX_SHOWN is the most cards a row shows; past it, one card less and a
-// "+N autres" card leading to the page of the zone.
-export const MAX_SHOWN = 3
+// VISIBLE is the most cards a row shows at once; past it, the row slides.
+export const VISIBLE = 3
+// SLIDE_W is the width of the track of a row: its visible cards.
+export const SLIDE_W = VISIBLE * NODE_W + (VISIBLE - 1) * ZONE_GAP
+// CHEVRON and CHEVRON_GAP are the buttons on each side of a row that
+// slides, and their space to the track.
+export const CHEVRON = 28
+export const CHEVRON_GAP = 8
+export const ZONE_W = 2 * ZONE_PAD + SLIDE_W
+// ZONE_SLIDING_W makes room for the chevrons when a row of the zone slides.
+export const ZONE_SLIDING_W = ZONE_W + 2 * (CHEVRON + CHEVRON_GAP)
 
 export type RowKey = 'apps' | 'components' | 'runtimes'
 
 export interface ZoneRow {
   key: RowKey
   label: string
-  total: number
-  shown: GNode[]
-  // more is the number of items the "+N autres" card stands for.
-  more: number
-  moreId: string
+  // items are all the content of the row, the first VISIBLE shown at
+  // first, the others a slide away.
+  items: GNode[]
   // top is the place of the row in its zone.
   top: number
 }
@@ -32,6 +37,9 @@ export interface Zone {
   id: string
   node: GNode
   rows: ZoneRow[]
+  // sliding tells a row of the zone holds more than VISIBLE cards: every
+  // row then leaves room for the chevrons.
+  sliding: boolean
   width: number
   height: number
 }
@@ -54,18 +62,27 @@ export function planZones(graph: GraphData): Map<string, Zone> {
       const all = items.filter((n) => rowOf(n) === key)
         .sort((a, b) => Number(!a.divergences.length) - Number(!b.divergences.length) || a.label.localeCompare(b.label, 'fr', { numeric: true }))
       if (!all.length) continue
-      const shown = all.length > MAX_SHOWN ? all.slice(0, MAX_SHOWN - 1) : all
-      rows.push({ key, label: t().graph.zone.rows[key], total: all.length, shown, more: all.length - shown.length, moreId: `more:${g.id}|${key}`,
-        top: ZONE_HEAD + rows.length * ROW_STEP })
+      rows.push({ key, label: t().graph.zone.rows[key], items: all, top: ZONE_HEAD + rows.length * ROW_STEP })
     }
-    zones.set(g.id, { id: g.id, node, rows, width: ZONE_W, height: ZONE_HEAD + Math.max(rows.length, 1) * ROW_STEP })
+    const sliding = rows.some((r) => r.items.length > VISIBLE)
+    zones.set(g.id, { id: g.id, node, rows, sliding, width: sliding ? ZONE_SLIDING_W : ZONE_W, height: ZONE_HEAD + Math.max(rows.length, 1) * ROW_STEP })
   }
   return zones
 }
 
-// cardPlace is where the i-th card of a row sits in its zone.
-export function cardPlace(row: ZoneRow, i: number): { x: number; y: number } {
-  return { x: ZONE_PAD + i * (NODE_W + ZONE_GAP), y: row.top + ROW_LABEL }
+// slideMax is the last first card a row can show: the row slides card by
+// card, from 0 to it.
+export function slideMax(row: ZoneRow): number {
+  return Math.max(0, row.items.length - VISIBLE)
+}
+
+// slideTo is the card a drag of dx pixels from the card at settles on: the
+// nearest, or the next one on a clear gesture, within the row.
+export function slideTo(row: ZoneRow, at: number, dx: number): number {
+  const step = NODE_W + ZONE_GAP
+  let i = Math.round(at - dx / step)
+  if (i === at && Math.abs(dx) > 30) i += dx < 0 ? 1 : -1
+  return Math.max(0, Math.min(slideMax(row), i))
 }
 
 const confidenceRank: Record<string, number> = { EXACT: 0, INFERRED: 1, AMBIGUOUS: 2 }
@@ -113,6 +130,5 @@ export function zoneOfItem(graph: GraphData, zones: Map<string, Zone>): (id: str
   for (const g of graph.groups) {
     if (zones.has(g.id)) for (const id of g.nodes) zoneOf.set(id, g.id)
   }
-  for (const z of zones.values()) for (const r of z.rows) zoneOf.set(r.moreId, z.id)
   return (id) => zoneOf.get(id) ?? id
 }

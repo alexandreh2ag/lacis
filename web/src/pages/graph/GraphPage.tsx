@@ -19,10 +19,10 @@ import { GraphViewDoc, type GNode } from './query'
 import { crossEnvs, toFlowEdges, toFlowNodes } from './toFlow'
 import { fitOptions, useGraphLayout } from './useGraphLayout'
 import { useGraphParams } from './useGraphParams'
-import { MoreNode, ZoneNode, type ZoneData } from './Zone'
+import { ZoneNode, type ZoneData } from './Zone'
 import { planZones, zoned, zoneOfItem, type Zone } from './zones'
 
-const nodeTypes = { card: NodeCard, box: BoxNode, zone: ZoneNode, more: MoreNode }
+const nodeTypes = { card: NodeCard, box: BoxNode, zone: ZoneNode }
 
 // otherLens is the link of a zone to the same thing in the other lens.
 function otherLens(ns: string, n: GNode): ZoneData['other'] {
@@ -121,14 +121,26 @@ function Graph() {
     if (!view || p.crossEnv) return undefined
     const envOf = new Map<string, string | null | undefined>(view.nodes.map((n) => [n.id, n.env]))
     for (const z of zones.values()) {
-      for (const row of z.rows) for (const item of row.shown) envOf.set(item.id, item.env ?? envOf.get(z.id))
+      for (const row of z.rows) for (const item of row.items) envOf.set(item.id, item.env ?? envOf.get(z.id))
     }
     return crossEnvs(view.edges, (id) => envOf.get(id), envs)
   }, [view, zones, envs, p.crossEnv])
 
+  // onItem is a click on a card of the opened zone: the zone under the
+  // impact, else the page of an app. Read through a ref, it does not
+  // build the nodes again.
+  const onItem = useRef<(n: GNode) => void>(() => {})
+  onItem.current = (n) => {
+    if (impact.on) {
+      if (p.open) impact.setTarget(p.open)
+      return
+    }
+    if (n.entity?.__typename === 'App') navigate(`/${ns}/apps/${n.entity.id}`)
+  }
   const nodes = useMemo(() => {
     if (!view || !placed) return []
-    return toFlowNodes(view, placed, zones, { ns, level: p.lens.level, impact: impact.impact, other: (n) => otherLens(ns, n), onClose: toggle, cross })
+    return toFlowNodes(view, placed, zones, { ns, level: p.lens.level, impact: impact.impact, other: (n) => otherLens(ns, n), onClose: toggle,
+      onItem: (n) => onItem.current(n), cross })
   // toggle follows p, whose open zone stands for it.
   }, [view, placed, zones, impact.impact, ns, p.open, p.lens.level, cross])
 
@@ -167,7 +179,7 @@ function Graph() {
     download(url, `lacis-${ns}-${p.lens.key}.${format === 'svg' ? 'svg' : 'png'}`)
   }
 
-  const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : id.startsWith('more:') ? t.graph.otherItems : id)
+  const label = (id: string) => (byId.get(id) ? title(byId.get(id)!) : id)
   const opened = p.open ? { id: p.open, label: byId.get(p.open) ? title(byId.get(p.open)!) : p.open } : null
   const failed = error?.message ?? null
   return (
@@ -211,23 +223,16 @@ function Graph() {
             proOptions={{ hideAttribution: true }}
             onNodeClick={(e, n) => {
               if (n.type === 'box' || e.ctrlKey || e.metaKey) return
-              // The content of the opened zone stands for the zone.
-              const id = n.parentId && n.parentId === p.open ? p.open : n.id
               if (impact.on) {
-                impact.setTarget(id)
+                impact.setTarget(n.id)
                 return
               }
               const g = byId.get(n.id)
-              // An app of the opened zone opens its page.
-              if (n.parentId === p.open && g?.entity?.__typename === 'App') {
-                navigate(`/${ns}/apps/${g.entity.id}`)
-                return
-              }
               if (n.type === 'card' && g && canOpen(g)) toggle(n.id)
-              else if (p.open && id !== p.open) close()
+              else if (p.open && n.id !== p.open) close()
             }}
             onPaneClick={() => { if (p.open && !impact.on) close() }}
-            onNodeMouseEnter={(_, n) => { if (n.type === 'card' || n.type === 'more') highlight.hoverNodeOn(n.id) }}
+            onNodeMouseEnter={(_, n) => { if (n.type === 'card') highlight.hoverNodeOn(n.id) }}
             onNodeMouseLeave={() => highlight.hoverNodeOn(null)}
           >
             <EdgeLayer edges={edges} crossHidden={!p.crossEnv} />

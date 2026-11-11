@@ -56,9 +56,6 @@ export const graph = {
     text: 'Aucun host ne correspond aux filtres. Les hosts inactifs sont masqués par défaut : cochez « inactif » pour les voir.',
   },
   others: 'autres',
-  otherItems: 'autres éléments',
-  more: (n: number, what: string) => `+${n} autre${n > 1 ? 's' : ''}${what ? ' ' + what : ''}`,
-  seeMore: 'Voir plus',
   legend: {
     app: 'App',
     service: 'Service, projet de service',
@@ -109,5 +106,11 @@ export const graph = {
     history: 'Historique',
     empty: 'Aucun contenu collecté.',
     rows: { apps: 'Apps', components: 'Webservers et services', runtimes: 'Runtimes' },
+    seeAll: 'Tout voir',
+    position: (from: number, to: number, total: number) => `${from}–${to} / ${total}`,
+    previous: (row: string) => `${row} précédents`,
+    next: (row: string) => `${row} suivants`,
+    hiddenBefore: (n: number) => `${n} avant`,
+    hiddenAfter: (n: number) => `${n} après`,
   },
 }

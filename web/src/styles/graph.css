@@ -58,8 +58,34 @@
 .lc-zone::after { content: ""; position: absolute; left: 0; right: 0; top: 122px; height: 1px; background: var(--border); }
 .lc-zone__head { position: absolute; left: 20px; right: 20px; top: 14px; display: flex; flex-direction: column; gap: 6px; cursor: default; }
 .lc-zone__line { font-size: 12.5px; line-height: 18px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lc-more-card { width: 216px; height: 56px; box-sizing: border-box; padding: 6px 12px; display: flex; flex-direction: column; justify-content: center;
-  gap: 2px; border: 1.5px dashed var(--brand); border-radius: var(--radius-md); background: var(--brand-tint); color: var(--ink); cursor: default; }
+/* A row of a zone: its label, its cards, sliding past three, a chevron on
+   each side and a dot per position. */
+.lc-zone__row { position: absolute; display: flex; flex-direction: column; cursor: default; }
+.lc-zone__row-head { display: flex; align-items: center; gap: 8px; }
+.lc-zone__pos { padding: 0 6px; border-radius: var(--radius-sm); background: var(--brand-tint); color: var(--brand-strong);
+  font: 500 11px/18px var(--font-mono); font-variant-numeric: tabular-nums; }
+.lc-zone__slider { display: flex; align-items: center; }
+.lc-zone__track { box-sizing: content-box; height: 56px; padding: 10px; margin: -10px; overflow: hidden; border-radius: var(--radius-md); outline: none; }
+.lc-zone__track--slides { cursor: grab; touch-action: pan-y; }
+.lc-zone__track--dragging, .lc-zone__track--dragging .lc-node { cursor: grabbing; }
+.lc-zone__track:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+.lc-zone__cards { display: flex; width: max-content; transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.lc-zone__track--dragging .lc-zone__cards { transition: none; }
+.lc-zone__track--dragging .lc-node { pointer-events: none; }
+.lc-zone__chevron { position: relative; flex: none; display: grid; place-items: center; width: 28px; height: 56px; padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--ink); cursor: pointer; }
+.lc-zone__chevron:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-tint); color: var(--brand); }
+.lc-zone__chevron:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.lc-zone__chevron:disabled { opacity: 0.35; cursor: default; }
+.lc-zone__chevron svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lc-zone__hidden { position: absolute; top: -8px; min-width: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--brand);
+  color: var(--surface-raised); font: 600 10px/16px var(--font-sans); text-align: center; }
+.lc-zone__chevron--prev .lc-zone__hidden { left: -6px; }
+.lc-zone__chevron--next .lc-zone__hidden { right: -6px; }
+.lc-zone__dots { display: flex; justify-content: center; gap: 4px; height: 6px; margin-top: 9px; }
+.lc-zone__dots i { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--border); transition: width 160ms, background 160ms; }
+.lc-zone__dots .lc-zone__dot--on { width: 14px; background: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .lc-zone__cards, .lc-zone__dots i { transition: none; } }
 .lc-node--diverges { border-color: var(--status-stale); }
 .lc-node--opens { cursor: zoom-in; }
 /* Impact: the chain from the target, its level on each card. */
