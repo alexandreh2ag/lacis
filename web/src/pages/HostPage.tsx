@@ -176,14 +176,14 @@ function AppCard({ app }: { app: App }) {
   )
 }
 
-// AppProject links the project of the app, with its env.
-function AppProject({ ns, app }: { ns: string; app: App }) {
+// AppProject links the project of the app, with its env unless noEnv.
+function AppProject({ ns, app, noEnv }: { ns: string; app: App; noEnv?: boolean }) {
   const ts = useT().pages.shared
   if (!app.project) return <span className="lc-muted">{ts.noProject}</span>
   return (
     <span>
       <Link to={`/${ns}/projects/${app.project.slug}`}>{app.project.slug}</Link>
-      {app.environment ? <span className="text-ink-muted"> · {app.environment.slug}</span> : null}
+      {app.environment && !noEnv ? <span className="text-ink-muted"> · {app.environment.slug}</span> : null}
     </span>
   )
 }
@@ -198,7 +198,7 @@ function Apps({ apps }: { apps: App[] }) {
   const [size, setSize] = useState(10)
   const [sort, setSort] = useState<{ by: string; desc: boolean }>({ by: 'name', desc: false })
   const sorted = useMemo(() => {
-    const value = (a: App) => sort.by === 'version' ? a.code?.version ?? '' : sort.by === 'framework' ? a.framework ?? '' : sort.by === 'project' ? a.project?.slug ?? '' : a.name
+    const value = (a: App) => sort.by === 'version' ? a.code?.version ?? '' : sort.by === 'framework' ? a.framework ?? '' : sort.by === 'project' ? a.project?.slug ?? '' : sort.by === 'env' ? a.environment?.slug ?? '' : a.name
     return apps.filter((a) => !q || [a.name, a.path, a.code?.version, a.framework, a.project?.slug, a.project?.name, a.environment?.slug].some((x) => x?.toLowerCase().includes(q.toLowerCase())))
       .sort((a, b) => value(a).localeCompare(value(b), 'fr', { numeric: true }) * (sort.desc ? -1 : 1))
   }, [apps, q, sort])
@@ -212,19 +212,21 @@ function Apps({ apps }: { apps: App[] }) {
         <table className="lc-table">
           <thead><tr>
             <SortHeader label={ts.app} by="name" sort={sort.by} desc={sort.desc} onSort={onSort} />
+            <SortHeader label={ts.project} by="project" sort={sort.by} desc={sort.desc} onSort={onSort} />
+            <SortHeader label={ts.env} by="env" sort={sort.by} desc={sort.desc} onSort={onSort} />
             <th>{ts.path}</th>
             <SortHeader label={ts.version} by="version" sort={sort.by} desc={sort.desc} onSort={onSort} />
             <SortHeader label={ts.framework} by="framework" sort={sort.by} desc={sort.desc} onSort={onSort} />
-            <SortHeader label={ts.project} by="project" sort={sort.by} desc={sort.desc} onSort={onSort} />
           </tr></thead>
           <tbody>
             {sorted.slice((page - 1) * size, page * size).map((a) => (
               <tr key={a.id}>
                 <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
+                <td><AppProject ns={ns} app={a} noEnv /></td>
+                <td className="text-ink-muted">{a.environment?.slug}</td>
                 <td className="max-w-[240px]"><Copyable value={a.path} className="text-[12px] text-ink-muted" /></td>
                 <td className="lc-mono">{a.code?.version}</td>
                 <td className="text-ink-muted">{[a.framework, a.frameworkVersion].filter(Boolean).join(' ')}</td>
-                <td><AppProject ns={ns} app={a} /></td>
               </tr>
             ))}
           </tbody>
