@@ -104,9 +104,10 @@ type ComplexityRoot struct {
 	}
 
 	AgentHost struct {
-		Hostname  func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Namespace func(childComplexity int) int
+		AgentVersion func(childComplexity int) int
+		Hostname     func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Namespace    func(childComplexity int) int
 	}
 
 	App struct {
@@ -976,6 +977,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Agent.TokenLabel(childComplexity), true
 
+	case "AgentHost.agentVersion":
+		if e.complexity.AgentHost.AgentVersion == nil {
+			break
+		}
+
+		return e.complexity.AgentHost.AgentVersion(childComplexity), true
 	case "AgentHost.hostname":
 		if e.complexity.AgentHost.Hostname == nil {
 			break
@@ -5026,6 +5033,8 @@ func (ec *executionContext) fieldContext_Agent_host(_ context.Context, field gra
 				return ec.fieldContext_AgentHost_hostname(ctx, field)
 			case "namespace":
 				return ec.fieldContext_AgentHost_namespace(ctx, field)
+			case "agentVersion":
+				return ec.fieldContext_AgentHost_agentVersion(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentHost", field.Name)
 		},
@@ -5166,6 +5175,35 @@ func (ec *executionContext) _AgentHost_namespace(ctx context.Context, field grap
 }
 
 func (ec *executionContext) fieldContext_AgentHost_namespace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentHost",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentHost_agentVersion(ctx context.Context, field graphql.CollectedField, obj *AgentHost) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentHost_agentVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.AgentVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentHost_agentVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AgentHost",
 		Field:      field,
@@ -22431,6 +22469,8 @@ func (ec *executionContext) _AgentHost(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "agentVersion":
+			out.Values[i] = ec._AgentHost_agentVersion(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

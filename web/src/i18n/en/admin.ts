@@ -153,6 +153,15 @@ export const admin: Messages['admin'] = {
     revokeTitle: (name: string) => `Revoke ${name}?`,
     revokeText: 'Its snapshots will be refused and the agent will stop. ',
     revokeHost: 'The host stays in the inventory: it will become stale then inactive, and can be deleted from its page.',
+    version: 'Version',
+    versionFilter: 'Agent version',
+    differs: (server: string) => `Differs from server (${server})`,
+    differsHint: 'Show only the agents whose version is not the one of the server',
+    older: 'outdated',
+    newer: 'newer',
+    olderHint: (server: string) => `Older than the server (${server}): update the agent.`,
+    newerHint: (server: string) => `Newer than the server (${server}).`,
+    unknown: 'unknown',
   },
 
   icons: {

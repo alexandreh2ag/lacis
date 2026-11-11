@@ -152,6 +152,15 @@ export const admin = {
     revokeTitle: (name: string) => `Révoquer ${name} ?`,
     revokeText: 'Ses snapshots seront refusés et l\'agent s\'arrêtera. ',
     revokeHost: 'Le host reste dans l\'inventaire : il deviendra stale puis inactif, et pourra être supprimé depuis sa fiche.',
+    version: 'Version',
+    versionFilter: 'Version de l\'agent',
+    differs: (server: string) => `Différente du serveur (${server})`,
+    differsHint: 'Ne montrer que les agents dont la version n\'est pas celle du serveur',
+    older: 'en retard',
+    newer: 'plus récente',
+    olderHint: (server: string) => `Plus ancienne que le serveur (${server}) : mettez l'agent à jour.`,
+    newerHint: (server: string) => `Plus récente que le serveur (${server}).`,
+    unknown: 'inconnue',
   },
 
   icons: {

@@ -33,7 +33,7 @@ func (r *agentResolver) Host(ctx context.Context, obj *repository.AgentRow) (*gr
 	if obj.HostID == nil {
 		return nil, nil
 	}
-	return &graph.AgentHost{ID: *obj.HostID, Hostname: deref(obj.Hostname), Namespace: deref(obj.Namespace)}, nil
+	return &graph.AgentHost{ID: *obj.HostID, Hostname: deref(obj.Hostname), Namespace: deref(obj.Namespace), AgentVersion: obj.AgentVersion}, nil
 }
 
 // ConflictHostnames is the resolver for the conflictHostnames field.

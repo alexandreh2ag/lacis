@@ -179,11 +179,11 @@ func TestTokensAndAgents(t *testing.T) {
 		f.post(t, `{ enrollmentTokens { label createdAt expiresAt revokedAt agents } }`))
 
 	f.agents.EXPECT().List(gomock.Any()).Return([]repository.AgentRow{
-		{Agent: model.Agent{Base: model.Base{ID: id(5)}, CreatedAt: created}, TokenLabel: ptr("web"), HostID: ptr(id(10)), Hostname: ptr("web-1"), Namespace: ptr("acme")},
+		{Agent: model.Agent{Base: model.Base{ID: id(5)}, CreatedAt: created}, TokenLabel: ptr("web"), HostID: ptr(id(10)), Hostname: ptr("web-1"), Namespace: ptr("acme"), AgentVersion: ptr("0.0.6")},
 		{Agent: model.Agent{Base: model.Base{ID: id(6)}, CreatedAt: created}},
 	}, nil)
-	assert.JSONEq(t, `{"agents":[{"tokenLabel":"web","host":{"hostname":"web-1","namespace":"acme"}},{"tokenLabel":null,"host":null}]}`,
-		f.post(t, `{ agents { tokenLabel host { hostname namespace } } }`))
+	assert.JSONEq(t, `{"agents":[{"tokenLabel":"web","host":{"hostname":"web-1","namespace":"acme","agentVersion":"0.0.6"}},{"tokenLabel":null,"host":null}]}`,
+		f.post(t, `{ agents { tokenLabel host { hostname namespace agentVersion } } }`))
 }
 
 func TestTokenMutations(t *testing.T) {
