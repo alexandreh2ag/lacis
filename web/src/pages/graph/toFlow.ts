@@ -5,8 +5,8 @@ import type { LinkData, LinkEdge } from './EdgeLayer'
 import { LINK_COLORS, type Layout } from './layout'
 import type { BoxData, CardData, CrossEnv } from './NodeCard'
 import type { GEdge, GNode, GraphData } from './query'
-import { pageOf, type MoreData, type ZoneData } from './Zone'
-import { cardPlace, type Zone } from './zones'
+import type { ZoneData } from './Zone'
+import type { Zone } from './zones'
 
 export interface FlowImpact {
   target: string
@@ -21,13 +21,15 @@ export interface FlowOptions {
   // other is the link of a zone to the same thing in the other lens.
   other: (n: GNode) => ZoneData['other']
   onClose: (id: string) => void
+  // onItem is a click on a card of the opened zone.
+  onItem: (n: GNode) => void
   // cross counts the links of each node with the other envs, shown on
   // its card when they are not drawn.
   cross?: Map<string, CrossEnv[]>
 }
 
 // toFlowNodes are the nodes React Flow draws: the lanes and host boxes,
-// the cards, the opened zone and its content. Their look under a hover
+// the cards, the opened zone, which draws its content itself. Their look under a hover
 // comes from the highlight, so a hover does not build them again.
 export function toFlowNodes(view: GraphData, placed: Layout, zones: Map<string, Zone>, o: FlowOptions): Node[] {
   const card = (n: GNode): CardData => ({ node: n, selected: !!o.impact && n.id === o.impact.target, impact: o.impact?.levels.get(n.id),
@@ -36,7 +38,6 @@ export function toFlowNodes(view: GraphData, placed: Layout, zones: Map<string, 
     id: b.id, type: 'box', position: { x: b.x, y: b.y }, data: { label: b.label, meta: b.meta, kind: b.kind, order: i } satisfies BoxData,
     width: b.width, height: b.height, selectable: false, draggable: false, zIndex: -1,
   }))
-  const content: Node[] = []
   for (const n of view.nodes) {
     const at = placed.nodes.get(n.id)
     if (!at) continue
@@ -47,22 +48,10 @@ export function toFlowNodes(view: GraphData, placed: Layout, zones: Map<string, 
     }
     out.push({
       id: n.id, type: 'zone', position: { x: at.x, y: at.y }, parentId: at.parent, expandParent: !!at.parent, width: zone.width, height: zone.height,
-      data: { zone, ns: o.ns, other: o.other(n), onClose: () => o.onClose(n.id) } satisfies ZoneData,
+      data: { zone, ns: o.ns, other: o.other(n), onClose: () => o.onClose(n.id), onItem: o.onItem } satisfies ZoneData,
     })
-    for (const row of zone.rows) {
-      row.shown.forEach((item, i) => {
-        content.push({ id: item.id, type: 'card', position: cardPlace(row, i), parentId: zone.id, draggable: false, data: card(item) })
-      })
-      if (row.more) {
-        const what = row.key === 'apps' ? 'apps' : row.key === 'runtimes' ? 'runtimes' : ''
-        content.push({
-          id: row.moreId, type: 'more', position: cardPlace(row, row.shown.length), parentId: zone.id, draggable: false, selectable: false,
-          data: { label: t().graph.more(row.more, what), to: pageOf(o.ns, n, row.key) } satisfies MoreData,
-        })
-      }
-    }
   }
-  return [...out, ...content]
+  return out
 }
 
 // toFlowEdges are the edges between two nodes drawn, each of the color of

@@ -2,7 +2,7 @@ import type { Layout } from './layout'
 import type { GEdge, GNode, GraphData } from './query'
 import { crossEnvs, hash, toFlowEdges, toFlowNodes } from './toFlow'
 import { shapeOf } from './useGraphLayout'
-import { planZones } from './zones'
+import { planZones, zoned } from './zones'
 
 const node = (id: string, kind: string, extra: Partial<GNode> = {}): GNode => ({
   id, kind, label: id, techs: [], count: 1, apps: 0, members: [], selected: true, expanded: false, hosts: [], divergences: [], ...extra,
@@ -27,30 +27,30 @@ const placed: Layout = {
   routes: new Map([['project:db@prod→lost', [{ x: 716, y: 28 }, { x: 900, y: 28 }]]]),
 }
 const zones = planZones(graph)
-const options = { ns: 'acme', level: 'PROJECT', impact: null, other: () => null, onClose: () => {} }
+const options = { ns: 'acme', level: 'PROJECT', impact: null, other: () => null, onClose: () => {}, onItem: () => {} }
 
-test('toFlowNodes draws the lanes, the cards placed, the opened zone and its content', () => {
+test('toFlowNodes draws the lanes, the cards placed and the opened zone, which draws its content itself', () => {
   const nodes = toFlowNodes(graph, placed, zones, options)
   expect(nodes.map((n) => [n.id, n.type, n.parentId])).toEqual([
     ['lane:prod', 'box', undefined],
     [zone, 'zone', 'lane:prod'],
     ['project:db@prod', 'card', 'lane:prod'],
-    [item, 'card', zone],
   ])
+  expect(nodes[1].data).toMatchObject({ zone: { rows: [{ key: 'apps', items: [{ id: item }] }] } })
 })
 
 test('toFlowNodes marks the target and the levels of the impact', () => {
-  const nodes = toFlowNodes(graph, placed, zones, { ...options, impact: { target: 'project:db@prod', levels: new Map([[item, 1]]), edges: new Set() } })
-  expect(nodes.find((n) => n.id === 'project:db@prod')?.data).toMatchObject({ selected: true })
-  expect(nodes.find((n) => n.id === item)?.data).toMatchObject({ selected: false, impact: 1 })
+  const nodes = toFlowNodes(graph, placed, zones, { ...options, impact: { target: 'project:db@prod', levels: new Map([['project:db@prod', 0]]), edges: new Set() } })
+  expect(nodes.find((n) => n.id === 'project:db@prod')?.data).toMatchObject({ selected: true, impact: 0 })
 })
 
-test('toFlowEdges keeps the edges between drawn nodes, an item taking the color of its zone', () => {
-  const nodes = toFlowNodes(graph, placed, zones, options)
+test('toFlowEdges keeps the edges between drawn nodes, those of the content of a zone leaving the zone', () => {
+  const view = zoned(graph, zones)
+  const nodes = toFlowNodes(view, placed, zones, options)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
-  const edges = toFlowEdges(graph, placed, nodes, byId, { target: item, levels: new Map(), edges: new Set([`${item}→project:db@prod`]) })
-  expect(edges.map((e) => e.id)).toEqual([`${item}→project:db@prod`])
-  expect(edges[0].data).toMatchObject({ color: 3, impact: true, fromLabel: item, toLabel: 'project:db@prod', route: undefined })
+  const edges = toFlowEdges(view, placed, nodes, byId, { target: zone, levels: new Map(), edges: new Set([`${zone}→project:db@prod`]) })
+  expect(edges.map((e) => e.id)).toEqual([`${zone}→project:db@prod`])
+  expect(edges[0].data).toMatchObject({ color: 3, impact: true, fromLabel: zone, toLabel: 'project:db@prod', route: undefined })
   expect(hash('x')).toBe(hash('x'))
 })
 

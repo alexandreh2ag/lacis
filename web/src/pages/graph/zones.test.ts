@@ -1,5 +1,5 @@
 import type { GEdge, GNode, GraphData } from './query'
-import { cardPlace, MAX_SHOWN, planZones, ROW_LABEL, ROW_STEP, ZONE_HEAD, ZONE_PAD, zoned, zoneOfItem } from './zones'
+import { planZones, ROW_STEP, slideMax, slideTo, ZONE_HEAD, ZONE_SLIDING_W, ZONE_W, zoned, zoneOfItem } from './zones'
 
 const node = (id: string, kind: string, extra: Partial<GNode> = {}): GNode => ({
   id, kind, label: id.split('|').pop()!, techs: [], count: 1, apps: 0, members: [], selected: true, expanded: false,
@@ -28,19 +28,31 @@ const graph: GraphData = {
   groups: [{ id: zone, label: zone, nodes: [...apps, diverging, nginx, php].map((n) => n.id) }],
 } as GraphData
 
-test('planZones shows three cards a row, what has a problem first', () => {
+test('planZones lays the content out in rows, what has a problem first, all of it', () => {
   const z = planZones(graph).get(zone)!
   expect(z.rows.map((r) => r.key)).toEqual(['apps', 'components', 'runtimes'])
   const [appsRow, components, runtimes] = z.rows
-  expect(appsRow.total).toBe(5)
-  expect(appsRow.shown.map((n) => n.label)).toEqual(['zz-worker', 'api-a'])
-  expect(appsRow.more).toBe(3)
-  expect(appsRow.shown.length + 1).toBe(MAX_SHOWN)
-  expect(components.shown).toEqual([nginx])
-  expect(components.more).toBe(0)
+  expect(appsRow.items.map((n) => n.label)).toEqual(['zz-worker', 'api-a', 'api-b', 'api-c', 'api-d'])
+  expect(components.items).toEqual([nginx])
   expect(runtimes.top).toBe(ZONE_HEAD + 2 * ROW_STEP)
-  expect(cardPlace(appsRow, 1)).toEqual({ x: ZONE_PAD + 216 + 16, y: ZONE_HEAD + ROW_LABEL })
+  // A row of five slides: the zone makes room for its chevrons.
+  expect(z.sliding).toBe(true)
+  expect(z.width).toBe(ZONE_SLIDING_W)
+  expect(planZones({ ...graph, groups: [{ ...graph.groups[0], nodes: [nginx.id, php.id] }] }).get(zone)).toMatchObject({ sliding: false, width: ZONE_W })
   expect(planZones({ ...graph, groups: [{ ...graph.groups[0], id: 'project:infra@production' }] }).size).toBe(0)
+})
+
+test('a row slides card by card, within its ends', () => {
+  const [appsRow, components] = planZones(graph).get(zone)!.rows
+  expect(slideMax(appsRow)).toBe(2)
+  expect(slideMax(components)).toBe(0)
+  // A drag settles on the nearest card, a clear short one on the next.
+  expect(slideTo(appsRow, 0, -240)).toBe(1)
+  expect(slideTo(appsRow, 0, -40)).toBe(1)
+  expect(slideTo(appsRow, 1, 40)).toBe(0)
+  expect(slideTo(appsRow, 1, 10)).toBe(1)
+  expect(slideTo(appsRow, 0, 300)).toBe(0)
+  expect(slideTo(appsRow, 1, -2000)).toBe(2)
 })
 
 test('zoned draws an opened zone alone, its links on the zone', () => {
@@ -54,6 +66,5 @@ test('zoned draws an opened zone alone, its links on the zone', () => {
 
   const of = zoneOfItem(graph, zones)
   expect(of(apps[3].id)).toBe(zone)
-  expect(of(`more:${zone}|apps`)).toBe(zone)
   expect(of('project:infra@production')).toBe('project:infra@production')
 })

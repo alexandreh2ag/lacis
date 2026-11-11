@@ -1,5 +1,5 @@
 import { Handle, NodeResizeControl, Position, ResizeControlVariant, type NodeProps } from '@xyflow/react'
-import { memo } from 'react'
+import { memo, type HTMLAttributes, type ReactNode } from 'react'
 import { CopyButton } from '@/components/Copy'
 import { Glyph, TechLogo } from '@/components/Icon'
 import { useT } from '@/i18n'
@@ -32,7 +32,18 @@ export interface CrossEnv {
 // NodeCard is a node of the graph as the design system draws it: always
 // 216 × 56, the name cut, the logos of what it folds.
 export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
-  const { node: n, selected, impact, copy, cross } = data as CardData
+  return (
+    <CardFace id={id} data={data as CardData}>
+      <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
+      <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
+    </CardFace>
+  )
+})
+
+// CardFace is the look of a card, drawn by a node of the graph or, with
+// no handles, inside the row of an opened zone.
+export function CardFace({ id, data, children, ...rest }: { id: string; data: CardData; children?: ReactNode } & HTMLAttributes<HTMLDivElement>) {
+  const { node: n, selected, impact, copy, cross } = data
   const state = useNodeState(id)
   const t = useT()
   const kind = kindOf(n)
@@ -49,8 +60,7 @@ export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
     impact ? 'lc-node--impact' : '',
     n.selected ? '' : 'lc-node--neighbor'].join(' ')
   return (
-    <div className={cls} title={canOpen(n) ? t.graph.card.clickToOpen(title(n)) : title(n)}>
-      <Handle type="target" position={Position.Left} className="lc-handle" isConnectable={false} />
+    <div {...rest} className={cls} title={canOpen(n) ? t.graph.card.clickToOpen(title(n)) : title(n)}>
       {count ? <span className="lc-node__count">{count}</span> : null}
       {impact ? <span className="lc-node__impact" title={t.graph.card.impactTitle(impact)}>{t.graph.card.impactBadge(impact)}</span> : null}
       <span className="lc-node__icon"><Glyph kind={kind} tech={mainTech(n)} /></span>
@@ -75,10 +85,10 @@ export const NodeCard = memo(function NodeCard({ id, data }: NodeProps) {
           ))}
         </span>
       ) : null}
-      <Handle type="source" position={Position.Right} className="lc-handle" isConnectable={false} />
+      {children}
     </div>
   )
-})
+}
 
 export interface BoxData extends Record<string, unknown> {
   label: string

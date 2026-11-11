@@ -58,9 +58,6 @@ export const graph: Messages['graph'] = {
     text: 'No host matches the filters. Inactive hosts are hidden by default: check “inactive” to see them.',
   },
   others: 'others',
-  otherItems: 'other items',
-  more: (n: number, what: string) => `+${n} more${what ? ' ' + what : ''}`,
-  seeMore: 'See more',
   legend: {
     app: 'App',
     service: 'Service, service project',
@@ -111,5 +108,11 @@ export const graph: Messages['graph'] = {
     history: 'History',
     empty: 'No content collected.',
     rows: { apps: 'Apps', components: 'Webservers and services', runtimes: 'Runtimes' },
+    seeAll: 'See all',
+    position: (from: number, to: number, total: number) => `${from}–${to} / ${total}`,
+    previous: (row: string) => `Previous ${row.toLowerCase()}`,
+    next: (row: string) => `Next ${row.toLowerCase()}`,
+    hiddenBefore: (n: number) => `${n} before`,
+    hiddenAfter: (n: number) => `${n} after`,
   },
 }
