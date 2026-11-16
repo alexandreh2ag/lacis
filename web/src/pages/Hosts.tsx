@@ -7,7 +7,7 @@ import { envOptions, Pager, SearchInput, SortHeader, StatusBadge, statusOptions,
 import { graphql } from '@/graphql'
 import type { HostSortField, HostStatus } from '@/graphql/graphql'
 import { useT } from '@/i18n'
-import { ago } from '@/lib/format'
+import { ago, formatFull } from '@/lib/format'
 
 const HostsDoc = graphql(`
   query Hosts($ns: String!, $filter: HostFilter, $sort: HostSort, $page: PageInput) {
@@ -83,7 +83,7 @@ export function Hosts() {
                   {[...h.webservers.map((w) => `${w.type} ${w.version ?? ''}`), ...h.services.map((s) => `${s.type} ${s.version ?? ''}`)].map((s) => s.trim()).join(', ')}
                 </td>
                 <td className="lc-num">{h.apps.length}</td>
-                <td><StatusBadge status={h.status} lastSeen={ts.lastSnapshot(ago(h.lastSeenAt))} /></td>
+                <td><StatusBadge status={h.status} lastSeen={`${ts.lastSnapshot(ago(h.lastSeenAt))} (${formatFull(h.lastSeenAt)})`} /></td>
               </tr>
             ))}
             {!loading && list?.items.length === 0 ? <tr><td colSpan={8} className="text-ink-muted">{t.pages.hosts.none}</td></tr> : null}

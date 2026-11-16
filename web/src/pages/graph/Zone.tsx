@@ -13,6 +13,7 @@ import { NODE_W } from './layout'
 import { CardFace } from './NodeCard'
 import { ZoneHostsDoc, type GNode } from './query'
 import { CHEVRON, CHEVRON_GAP, ROW_LABEL, slideMax, slideTo, SLIDE_W, VISIBLE, ZONE_GAP, ZONE_PAD, type RowKey, type Zone, type ZoneRow } from './zones'
+import { Ago } from '@/components/Ago'
 
 export interface ZoneData extends Record<string, unknown> {
   zone: Zone
@@ -70,7 +71,7 @@ function Header({ zone, ns, other, onClose }: ZoneData) {
         </span>
       ) : (
         <span className="lc-zone__line">
-          {host?.agentVersion ? t.graph.zone.agent(host.agentVersion) : ''}{lastSeen ? t.graph.zone.lastSnapshot(ago(lastSeen)) : ''}
+          {host?.agentVersion ? t.graph.zone.agent(host.agentVersion) : ''}<Ago at={lastSeen}>{t.graph.zone.lastSnapshot(ago(lastSeen))}</Ago>
         </span>
       )}
       <span className="nodrag flex gap-3.5 text-[12.5px]">

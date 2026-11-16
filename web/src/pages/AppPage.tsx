@@ -1,3 +1,4 @@
+import { Ago } from '@/components/Ago'
 import { useQuery } from '@apollo/client'
 import { Fragment, useMemo } from 'react'
 import { Link, useParams } from 'react-router'
@@ -192,7 +193,7 @@ function General({ app: a }: { app: App }) {
               <dt>{ts.path}</dt><dd><Copyable value={a.path} /></dd>
               {a.resolvedPath && a.resolvedPath !== a.path ? <><dt>{ta.resolved}</dt><dd><Copyable value={a.resolvedPath} /></dd></> : null}
               {a.vhosts.map((v) => <div key={v} className="contents"><dt>{ts.domain}</dt><dd><Copyable value={v} /></dd></div>)}
-              <dt>{ts.seenSince}</dt><dd>{ago(a.firstSeenAt)}</dd>
+              <dt>{ts.seenSince}</dt><dd><Ago at={a.firstSeenAt} /></dd>
             </dl>
           </div>
         </section>
@@ -224,7 +225,7 @@ function Hosts({ ns, app: a }: { ns: string; app: App }) {
             : <Link className="lc-mono" to={`/${ns}/apps/${x.id}?tab=general`}>{x.path}</Link>}</td>
           <td className="lc-mono">{x.code?.version ?? x.code?.branch}</td>
           <td>{x.code?.commit ? <Copyable value={x.code.commit} shown={x.code.commit.slice(0, 7)} /> : null}</td>
-          <td className="text-ink-muted">{ago(x.code?.deployedAt)}</td>
+          <td className="text-ink-muted"><Ago at={x.code?.deployedAt} /></td>
           <td><StatusBadge status={x.host.status} /></td>
         </tr>
       ))}</tbody>

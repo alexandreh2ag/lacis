@@ -4,7 +4,8 @@ import { errorMessage } from '@/components/Dialog'
 import { graphql } from '@/graphql'
 import type { AdminTasksQuery } from '@/graphql/graphql'
 import { t as text, useT } from '@/i18n'
-import { ago, formatDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
+import { Ago } from '@/components/Ago'
 
 const TasksDoc = graphql(`
   query AdminTasks {
@@ -63,7 +64,7 @@ function RunLine({ run }: { run: Run }) {
     <span className="flex flex-col gap-0.5 leading-[18px]">
       <span className="inline-flex flex-wrap items-center gap-2">
         <StateBadge run={run} />
-        <span className="text-[12.5px] text-ink-muted" title={formatDateTime(at)}>{ago(at)}</span>
+        <span className="text-[12.5px] text-ink-muted"><Ago at={at} /></span>
       </span>
       {run.state === 'completed' && outputText(run.output) ? <span className="text-[12.5px]">{outputText(run.output)}</span> : null}
       {last && run.state !== 'completed' ? <span className="lc-mono text-[12px] text-danger" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{last}</span> : null}

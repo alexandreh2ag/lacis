@@ -5,7 +5,7 @@ const units: [Intl.RelativeTimeFormatUnit, number][] = [
 ]
 
 // The formats follow the language spoken, made once per language.
-const formats = new Map<string, { rtf: Intl.RelativeTimeFormat; dateTime: Intl.DateTimeFormat; date: Intl.DateTimeFormat }>()
+const formats = new Map<string, { rtf: Intl.RelativeTimeFormat; dateTime: Intl.DateTimeFormat; full: Intl.DateTimeFormat; date: Intl.DateTimeFormat }>()
 
 function format() {
   const l = lang()
@@ -14,6 +14,7 @@ function format() {
     f = {
       rtf: new Intl.RelativeTimeFormat(l, { numeric: 'auto' }),
       dateTime: new Intl.DateTimeFormat(l, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      full: new Intl.DateTimeFormat(l, { dateStyle: 'long', timeStyle: 'medium' }),
       date: new Intl.DateTimeFormat(l, { day: 'numeric', month: 'short', year: 'numeric' }),
     }
     formats.set(l, f)
@@ -35,6 +36,12 @@ export function ago(iso: string | null | undefined, now = Date.now()): string {
 
 export function formatDateTime(iso: string | null | undefined): string {
   return iso ? format().dateTime.format(new Date(iso)) : ''
+}
+
+// formatFull writes the whole date and time, year and seconds included:
+// « 15 novembre 2026 à 22:30:12 ».
+export function formatFull(iso: string | null | undefined): string {
+  return iso ? format().full.format(new Date(iso)) : ''
 }
 
 export function formatDate(iso: string | null | undefined): string {

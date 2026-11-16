@@ -16,6 +16,7 @@ import { useT } from '@/i18n'
 import { ago } from '@/lib/format'
 import { field, resourcesOf, str } from '@/lib/json'
 import { refresh } from '@/config'
+import { Ago } from '@/components/Ago'
 
 const HostPageDoc = graphql(`
   query HostPage($ns: String!, $id: ID!) {
@@ -72,7 +73,7 @@ export function HostPage() {
         <StatusBadge status={h.status} />
         <span>
           {h.project ? <Link to={`/${ns}/projects/${h.project.slug}`}>{h.project.slug}</Link> : ts.noProject}
-          {h.environment ? ` · ${h.environment.slug}` : ''}{th.lastSnapshot(ago(h.lastSeenAt))}{h.agentVersion ? th.agent(h.agentVersion) : ''}
+          {h.environment ? ` · ${h.environment.slug}` : ''}<Ago at={h.lastSeenAt}>{th.lastSnapshot(ago(h.lastSeenAt))}</Ago>{h.agentVersion ? th.agent(h.agentVersion) : ''}
         </span>
         {main ? <Copyable value={main.address} /> : null}
         <span className="flex-1" />
@@ -169,7 +170,7 @@ function AppCard({ app }: { app: App }) {
       </div>
       <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
         {app.code?.commit ? <><dt>{ts.commit}</dt><dd><Copyable value={app.code.commit} shown={app.code.commit.slice(0, 7) + (app.code.branch ? ` · ${app.code.branch}` : '')} /></dd></> : null}
-        {app.code?.deployedAt ? <><dt>{ts.deployed}</dt><dd>{ago(app.code.deployedAt)}</dd></> : null}
+        {app.code?.deployedAt ? <><dt>{ts.deployed}</dt><dd><Ago at={app.code.deployedAt} /></dd></> : null}
         {app.framework ? <><dt>{ts.framework}</dt><dd>{app.framework} {app.frameworkVersion}</dd></> : null}
         {app.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}<PackageVersion version={app.runtime.version} packageVersion={app.runtime.packageVersion} /></span></dd></> : null}
         <dt>{ts.project}</dt><dd><AppProject ns={ns} app={app} /></dd>
@@ -298,7 +299,7 @@ function Components({ host }: { host: Host }) {
                 <td><span className="inline-flex items-center gap-2"><span className="lc-node__techs"><TechLogo tech={c.tech} /></span>{c.name}</span></td>
                 <td><div className="flex flex-col"><span className="lc-mono">{c.version}</span><PackageVersion version={c.version} packageVersion={c.packageVersion} /></div></td>
                 <td><div className="flex flex-wrap gap-x-3.5 gap-y-0.5">{c.where.map((w) => <Copyable key={w} value={w} />)}</div></td>
-                <td className="text-ink-muted">{ago(c.since)}</td>
+                <td className="text-ink-muted"><Ago at={c.since} /></td>
               </tr>
             ))}
           </tbody>
@@ -370,7 +371,7 @@ function Containers({ containers }: { containers: Container[] }) {
                 <td><span className={c.state === 'running' ? 'lc-badge' : 'lc-badge lc-badge--inactive'}>{c.state}</span></td>
                 <td><div className="flex flex-wrap gap-x-3.5 gap-y-0.5">{c.ports.map((p) => <Copyable key={p} value={p} />)}</div></td>
                 <td className="text-ink-muted">{[c.composeProject, c.composeService].filter(Boolean).join(' / ')}</td>
-                <td className="text-ink-muted">{ago(c.firstSeenAt)}</td>
+                <td className="text-ink-muted"><Ago at={c.firstSeenAt} /></td>
               </tr>
             ))}
           </tbody>
@@ -402,8 +403,8 @@ function General({ host: h }: { host: Host }) {
             {res.disks.map((d, i) => <div key={`${i}:${d.mount}`} className="contents"><dt>{th.disk}</dt><dd>{d.mount} · {th.gb(d.sizeGb)}</dd></div>)}
             <dt>{th.ip}</dt><dd><Ips ips={h.ips.map((i) => ({ address: i.address, interface: i.interface }))} shown={8} interfaces /></dd>
             {networks.map((n) => <div key={n.slug} className="contents"><dt>{th.network}</dt><dd><Copyable value={n.name} /></dd></div>)}
-            <dt>{ts.seenSince}</dt><dd>{ago(h.firstSeenAt)}</dd>
-            <dt>{th.lastSnapshotLabel}</dt><dd>{ago(h.lastSeenAt)}</dd>
+            <dt>{ts.seenSince}</dt><dd><Ago at={h.firstSeenAt} /></dd>
+            <dt>{th.lastSnapshotLabel}</dt><dd><Ago at={h.lastSeenAt} /></dd>
             {h.agentVersion ? <><dt>{th.agentLabel}</dt><dd>{h.agentVersion}</dd></> : null}
           </dl>
         </div>

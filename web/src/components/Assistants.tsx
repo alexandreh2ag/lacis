@@ -4,6 +4,7 @@ import { useT } from '@/i18n'
 import { ago, formatDate } from '@/lib/format'
 import { Copyable } from './Copy'
 import { errorMessage } from './Dialog'
+import { Ago } from '@/components/Ago'
 
 // Grant is an access an assistant was given through OAuth.
 export interface Grant {
@@ -73,7 +74,7 @@ export function GrantList({ grants, loading, empty, onRevoke }: {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="font-semibold">{g.clientName}</span>
                 <span className="lc-muted text-[12.5px]">
-                  {[t.since(formatDate(g.createdAt)), t.used(ago(g.lastUsedAt)), t.until(formatDate(g.expiresAt))].join(' · ')}
+                  {t.since(formatDate(g.createdAt))} · <Ago at={g.lastUsedAt}>{t.used(ago(g.lastUsedAt))}</Ago> · {t.until(formatDate(g.expiresAt))}
                 </span>
               </div>
               {onRevoke ? (

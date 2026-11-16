@@ -10,7 +10,8 @@ import { config } from '@/config'
 import { graphql } from '@/graphql'
 import type { AdminAgentsQuery, AdminTokensQuery, VersionOp } from '@/graphql/graphql'
 import { useT } from '@/i18n'
-import { ago, formatDate, formatDateTime } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
+import { Ago } from '@/components/Ago'
 
 const TokensDoc = graphql(`
   query AdminTokens {
@@ -337,7 +338,7 @@ export function Agents({ write, server = config.version }: { write: boolean; ser
                 ) : <span className="lc-muted">{x.host ? g.unknown : '—'}</span>}</td>
                 <td>{x.tokenLabel ?? <span className="lc-muted">{t.admin.noLabel}</span>}</td>
                 <td>{formatDate(x.createdAt)}</td>
-                <td>{x.lastSeenAt ? <span title={formatDateTime(x.lastSeenAt)}>{ago(x.lastSeenAt)}</span> : <span className="lc-muted">{t.admin.never}</span>}</td>
+                <td>{x.lastSeenAt ? <Ago at={x.lastSeenAt} /> : <span className="lc-muted">{t.admin.never}</span>}</td>
                 <td><span className="inline-flex flex-wrap gap-1.5">
                   {x.revokedAt ? <span className="lc-badge lc-badge--error" title={formatDateTime(x.revokedAt)}>{t.admin.tokens.badges.revoked}</span>
                     : <span className="lc-badge">{t.admin.tokens.badges.active}</span>}

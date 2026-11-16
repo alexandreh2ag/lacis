@@ -10,8 +10,9 @@ import { graphql } from '@/graphql'
 import type { AdminUsersQuery } from '@/graphql/graphql'
 import { config } from '@/config'
 import { useT } from '@/i18n'
-import { ago, formatDate, formatDateTime } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import { useSession } from '@/session'
+import { Ago } from '@/components/Ago'
 
 const UsersDoc = graphql(`
   query AdminUsers {
@@ -120,8 +121,8 @@ export function Users({ write }: { write: boolean }) {
                   : <span className="lc-muted">{u.none}</span>}</td>
                 <td>{formatDate(x.createdAt)}</td>
                 <td>{x.lastLoginAt ? (
-                  <span className="flex items-center gap-1.5" title={formatDateTime(x.lastLoginAt)}>
-                    {ago(x.lastLoginAt)}
+                  <span className="flex items-center gap-1.5">
+                    <Ago at={x.lastLoginAt} />
                     {x.lastLoginMethod ? <span className="lc-badge lc-badge--plain">{u.loginMethods[x.lastLoginMethod]}</span> : null}
                   </span>
                 ) : <span className="lc-muted">{t.admin.never}</span>}</td>
