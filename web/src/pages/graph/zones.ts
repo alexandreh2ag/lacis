@@ -49,14 +49,16 @@ function rowOf(n: GNode): RowKey {
 }
 
 // planZones lays the content of each opened node out in rows, what has a
-// problem first: an app deployed in several versions.
+// problem first: an app deployed in several versions. A node opened
+// without content, such as a project whose host runs nothing known, has
+// no group: its zone says it is empty.
 export function planZones(graph: GraphData): Map<string, Zone> {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
+  const content = new Map(graph.groups.map((g) => [g.id, g.nodes]))
   const zones = new Map<string, Zone>()
-  for (const g of graph.groups) {
-    const node = byId.get(g.id)
-    if (!node?.expanded) continue
-    const items = g.nodes.map((id) => byId.get(id)).filter((n): n is GNode => !!n)
+  for (const node of graph.nodes) {
+    if (!node.expanded) continue
+    const items = (content.get(node.id) ?? []).map((id) => byId.get(id)).filter((n): n is GNode => !!n)
     const rows: ZoneRow[] = []
     for (const key of ['apps', 'components', 'runtimes'] as RowKey[]) {
       const all = items.filter((n) => rowOf(n) === key)
@@ -65,7 +67,7 @@ export function planZones(graph: GraphData): Map<string, Zone> {
       rows.push({ key, label: t().graph.zone.rows[key], items: all, top: ZONE_HEAD + rows.length * ROW_STEP })
     }
     const sliding = rows.some((r) => r.items.length > VISIBLE)
-    zones.set(g.id, { id: g.id, node, rows, sliding, width: sliding ? ZONE_SLIDING_W : ZONE_W, height: ZONE_HEAD + Math.max(rows.length, 1) * ROW_STEP })
+    zones.set(node.id, { id: node.id, node, rows, sliding, width: sliding ? ZONE_SLIDING_W : ZONE_W, height: ZONE_HEAD + Math.max(rows.length, 1) * ROW_STEP })
   }
   return zones
 }

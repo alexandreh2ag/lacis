@@ -39,7 +39,14 @@ test('planZones lays the content out in rows, what has a problem first, all of i
   expect(z.sliding).toBe(true)
   expect(z.width).toBe(ZONE_SLIDING_W)
   expect(planZones({ ...graph, groups: [{ ...graph.groups[0], nodes: [nginx.id, php.id] }] }).get(zone)).toMatchObject({ sliding: false, width: ZONE_W })
-  expect(planZones({ ...graph, groups: [{ ...graph.groups[0], id: 'project:infra@production' }] }).size).toBe(0)
+  // The group of a node not opened makes no zone.
+  expect([...planZones({ ...graph, groups: [{ ...graph.groups[0], id: 'project:infra@production' }] }).keys()]).toEqual([zone])
+})
+
+test('a node opened without content is an empty zone', () => {
+  const z = planZones({ ...graph, groups: [] }).get(zone)!
+  expect(z.rows).toEqual([])
+  expect(z).toMatchObject({ sliding: false, width: ZONE_W, height: ZONE_HEAD + ROW_STEP })
 })
 
 test('a row slides card by card, within its ends', () => {
