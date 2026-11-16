@@ -190,8 +190,9 @@ For each app:
   that file: their ids and cron expressions, their commands only with
   `collectors.apps.commands: full`, never their environment. The file is read confined to the app root (a relative `-c` is
   joined to the directory of the program); a file out of the app is not read;
-- **framework**: Symfony, Laminas, Zend, Zend Framework 1, Laravel, Next.js, Nuxt,
-  NestJS, or a [declarative detector](./configuration/agent.md#collectorsapps);
+- **framework**: Symfony, Laminas, Zend (Framework 2/3, from its `zendframework/zend-mvc`
+  package or, before 2.5, its `zendframework/zendframework` one), Zend Framework 1,
+  Laravel, Next.js, Nuxt, NestJS, or a [declarative detector](./configuration/agent.md#collectorsapps);
 - **runtime** it really runs on: the PHP-FPM pool its vhost sends to, the binary
   of its Node process, the PHP of its launcher command, or its `.nvmrc`, with the
   package version of that runtime or of its PHP-FPM;
@@ -283,8 +284,9 @@ pairing included; the dependency keeps the dotted path as its `key_path`. A file
 holds 10,000 values at most.
 
 The Laminas and Zend Framework 1 loaders keep the blocks of their configuration
-instead (such as `db.params`): only the `dsn`, `url`, `host`/`hostname`/`server`,
-`port`, `dbname`/`database` and `adapter` leaves of a block are read.
+instead (such as `db.params`): only the `dsn`, `url`, `uri`, `endpoint` (a whole
+URL), `host`/`hostname`/`server`, `port`, `dbname`/`database` and `adapter` leaves of
+a block are read.
 
 **PHP files are parsed, never run.** The file must return a literal array, in the
 `array()` or `[]` syntax. Its values may be literals (strings, numbers, booleans,
@@ -334,7 +336,7 @@ Credentials are removed **on the host**, before the snapshot leaves it:
   The exact names of `force_keys` are read in any case (`OAUTH_ISSUER_URL`, denied
   by `*AUTH*`); their value is still reduced as below.
   A flattened key of a structured source (`DOCTRINE_DBAL_URL`) is filtered the same
-  way. In the blocks of Laminas and Zend 1, only the `dsn`, `url`,
+  way. In the blocks of Laminas and Zend 1, only the `dsn`, `url`, `uri`, `endpoint`,
   `host`/`hostname`/`server`, `port`, `dbname`/`database` and `adapter` leaves of a
   block are read, and denied keys never. The same goes for the objects of a JSON or
   YAML collection; a string of a collection that is a bare word (no scheme, port,

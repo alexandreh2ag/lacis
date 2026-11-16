@@ -372,7 +372,7 @@ return ['doctrine' => ['connection' => ['orm_default' => [
 		"/srv/lam/config/autoload/doctrine.local.php": `<?php return ['doctrine' => ['connection' => ['orm_default' => ['params' => ['dbname' => 'new']]]]];`,
 		"/srv/lam/config/autoload/z.local.php":        `<?php return ['api' => ['url' => 'http://10.0.1.50:8080/v1']];`,
 		"/srv/lam/config/autoload/ignored.php":        `<?php return ['ignored' => ['host' => '10.0.1.99']];`,
-		"/srv/zf/config/autoload/global.php":          `<?php return ['db' => ['dsn' => 'pgsql:host=10.0.2.1;port=5433;dbname=zf']];`,
+		"/srv/zf/config/autoload/global.php":          `<?php return ['db' => ['dsn' => 'pgsql:host=10.0.2.1;port=5433;dbname=zf'], 'stores_client' => ['endpoint' => 'http://10.0.2.2/graphql']];`,
 	})
 	k.EXPECT().LookupHost(gomock.Any(), gomock.Any()).Times(0)
 	apps, err := collect(t, ctx,
@@ -396,10 +396,13 @@ return ['doctrine' => ['connection' => ['orm_default' => [
 		"doctrine.connection.orm_default.params": "unparsed",
 		"api":                                    "http://10.0.1.50:8080/ " + dir + "z.local.php:1",
 	}, got, "local over global, getenv resolved against the env, the unresolved url unparsed")
-	require.Len(t, apps[1].Dependencies, 1)
+	require.Len(t, apps[1].Dependencies, 2)
 	assert.Equal(t, "pgsql", apps[1].Dependencies[0].Scheme)
 	assert.Equal(t, 5433, apps[1].Dependencies[0].Port)
 	assert.Equal(t, "zf", apps[1].Dependencies[0].Path)
+	assert.Equal(t, "stores_client", apps[1].Dependencies[1].Key)
+	assert.Equal(t, "http", apps[1].Dependencies[1].Scheme)
+	assert.Equal(t, "/graphql", apps[1].Dependencies[1].URLPath, "an endpoint is a whole URL")
 }
 
 func TestCollect_LaminasLauncherEnv(t *testing.T) {

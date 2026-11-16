@@ -424,6 +424,7 @@ func TestFrameworks(t *testing.T) {
 	f.Files(t, map[string]string{
 		"/laminas/composer.lock":                         `{"packages": [{"name": "laminas/laminas-mvc", "version": "3.7.0"}]}`,
 		"/zend/composer.lock":                            `{"packages": [{"name": "zendframework/zend-mvc", "version": "2.7.15"}]}`,
+		"/zend2/composer.lock":                           `{"packages": [{"name": "zendframework/zendxml", "version": "1.2.0"}, {"name": "zendframework/zendframework", "version": "2.4.13"}]}`,
 		"/next-lock/package.json":                        `{"devDependencies": {"next": "^13"}}`,
 		"/next-lock/package-lock.json":                   `{"packages": {"node_modules/next": {"version": "13.5.6"}}}`,
 		"/next-range/package.json":                       `{"dependencies": {"next": "^12.0.0"}}`,
@@ -447,6 +448,7 @@ func TestFrameworks(t *testing.T) {
 	tests := map[string]*snapshot.Framework{
 		"/laminas":    {Name: "laminas", Version: "3.7.0"},
 		"/zend":       {Name: "zend", Version: "2.7.15"},
+		"/zend2":      {Name: "zend", Version: "2.4.13"},
 		"/next-lock":  {Name: "next", Version: "13.5.6"},
 		"/next-range": {Name: "next", Version: "^12.0.0"},
 		"/zend1-ini":  {Name: "zend1"},

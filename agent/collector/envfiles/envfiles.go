@@ -222,7 +222,7 @@ func dependency(key string, source snapshot.DependencySource, d dsn.DSN, res *re
 }
 
 // blockDependencies turns the blocks of a structured configuration into
-// dependencies keyed by their path: a dsn or url key is parsed as a URL,
+// dependencies keyed by their path: a key of urlKeys is parsed as a URL,
 // else host, port and dbname are read. Denied keys are never read.
 func blockDependencies(blocks []block, cfg config.EnvfilesConfig, res *resolver) []snapshot.Dependency {
 	out := []snapshot.Dependency{}
@@ -235,7 +235,7 @@ func blockDependencies(blocks []block, cfg config.EnvfilesConfig, res *resolver)
 			}
 			return value{}, false
 		}
-		if v, ok := get("dsn", "url"); ok {
+		if v, ok := get(urlKeys...); ok {
 			source := snapshot.DependencySource{File: v.file, Line: v.line, KeyPath: b.path}
 			all, err := dsn.ParseAll(v.value)
 			if errors.Is(err, dsn.ErrNotNetwork) {

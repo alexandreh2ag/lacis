@@ -24,8 +24,11 @@ type block struct {
 	values map[string]value
 }
 
-// blockKeys make a block a dependency; dsn and url hold a whole URL.
-var blockKeys = []string{"host", "hostname", "server", "dsn", "url"}
+// urlKeys hold a whole URL, such as the endpoint of a GraphQL client.
+var urlKeys = []string{"dsn", "url", "uri", "endpoint"}
+
+// blockKeys make a block a dependency.
+var blockKeys = append([]string{"host", "hostname", "server"}, urlKeys...)
 
 // adapterSchemes map the Zend_Db adapters to schemes.
 var adapterSchemes = map[string]string{

@@ -23,7 +23,9 @@ type detector struct {
 var builtinDetectors = []detector{
 	{name: "symfony", detect: composerPackage("symfony/framework-bundle")},
 	{name: "laminas", detect: composerPackage("laminas/laminas-mvc")},
-	{name: "zend", detect: composerPackage("zendframework/zend-mvc")},
+	// Zend Framework 2.5+ comes in components; 2.0 to 2.4 as the
+	// zendframework/zendframework package alone, which 3.0 kept.
+	{name: "zend", detect: composerPackage("zendframework/zend-mvc", "zendframework/zendframework")},
 	{name: "zend1", detect: detectZend1},
 	{name: "laravel", detect: composerPackage("laravel/framework")},
 	{name: "next", detect: npmPackage("next")},
@@ -73,9 +75,9 @@ func framework(fsys afero.Fs, root string, detectors []detector) *snapshot.Frame
 	return nil
 }
 
-// composerPackage detects a package of composer.lock, its version without
-// the "v" prefix.
-func composerPackage(name string) func(afero.Fs, string) (string, bool) {
+// composerPackage detects the first of the packages found in composer.lock,
+// its version without the "v" prefix.
+func composerPackage(names ...string) func(afero.Fs, string) (string, bool) {
 	return func(fsys afero.Fs, root string) (string, bool) {
 		var lock struct {
 			Packages []struct {
@@ -86,9 +88,11 @@ func composerPackage(name string) func(afero.Fs, string) (string, bool) {
 		if !readJSON(fsys, path.Join(root, "composer.lock"), &lock) {
 			return "", false
 		}
-		for _, p := range lock.Packages {
-			if p.Name == name {
-				return strings.TrimPrefix(p.Version, "v"), true
+		for _, name := range names {
+			for _, p := range lock.Packages {
+				if p.Name == name {
+					return strings.TrimPrefix(p.Version, "v"), true
+				}
 			}
 		}
 		return "", false
