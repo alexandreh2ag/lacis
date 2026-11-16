@@ -401,6 +401,43 @@ func TestCollect_RedisValkey(t *testing.T) {
 	}
 }
 
+func TestCollect_VarnishWorkerDown(t *testing.T) {
+	// The cache worker is down: the manager alone runs, listening on its
+	// CLI port only. The addresses of -a stay.
+	h := newHost(t)
+	h.process(100, 1, "/usr/sbin/varnishd", "/usr/sbin/varnishd", "-j", "unix,user=vcache", "-F", "-a", ":6081",
+		"-a", "localhost:8443,PROXY", "-p", "feature=+http2", "-f", "/etc/varnish/default.vcl", "-s", "malloc,256m")
+	h.listen(100, "127.0.0.1:43653")
+	h.pkg("varnish", "7.7.3-1~bookworm")
+	out, _, err := collect(t, h.context(nil))
+	require.NoError(t, err)
+	require.Len(t, out.Services, 1)
+	assert.Equal(t, []string{"0.0.0.0:6081", "127.0.0.1:43653", "127.0.0.1:8443", "[::1]:8443", "[::]:6081"}, out.Services[0].Listen)
+}
+
+func TestVarnishListen(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  []string
+		want []string
+	}{
+		{name: "every address", cmd: []string{"varnishd", "-a", ":6081"}, want: []string{"0.0.0.0:6081", "[::]:6081"}},
+		{name: "attached, named, with a protocol", cmd: []string{"varnishd", "-ahttp=127.0.0.1:6081,HTTP"}, want: []string{"127.0.0.1:6081"}},
+		{name: "an IPv6 address", cmd: []string{"varnishd", "-a", "[::1]:6082"}, want: []string{"[::1]:6082"}},
+		{name: "a unix socket", cmd: []string{"varnishd", "-a", "proxy=/run/varnish.sock,PROXY,user=vcache,mode=660"}, want: []string{"unix:/run/varnish.sock"}},
+		{name: "without port", cmd: []string{"varnishd", "-a", "10.0.0.5"}, want: []string{"10.0.0.5:80"}},
+		{name: "without -a", cmd: []string{"varnishd", "-f", "/etc/varnish/default.vcl"}, want: []string{"0.0.0.0:80", "[::]:80"}},
+		{name: "a host name", cmd: []string{"varnishd", "-a", "cache.internal:6081", "-a", "localhost:8443"}, want: []string{"127.0.0.1:8443", "[::1]:8443"}},
+		{name: "a port name", cmd: []string{"varnishd", "-a", ":http"}},
+		{name: "a title of one string", cmd: []string{"/usr/sbin/varnishd -a :6081"}, want: []string{"0.0.0.0:6081", "[::]:6081"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, varnishListen(tt.cmd))
+		})
+	}
+}
+
 func TestCollect_ClamAV(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -467,7 +504,7 @@ func TestCollect_VarnishVault(t *testing.T) {
 				h.process(300, 1, "/usr/bin/vault", "/usr/bin/vault", "login")
 			},
 			want: []snapshot.Service{
-				{Type: "varnish", Version: "7.1.1", PackageVersion: "7.1.1-1.1", Listen: []string{"0.0.0.0:6081"}},
+				{Type: "varnish", Version: "7.1.1", PackageVersion: "7.1.1-1.1", Listen: []string{"0.0.0.0:6081", "[::]:6081"}},
 				{Type: "vault", Version: "1.15.2", PackageVersion: "1.15.2-1", Listen: []string{"0.0.0.0:8200"}},
 			},
 		},
@@ -480,7 +517,8 @@ func TestCollect_VarnishVault(t *testing.T) {
 				h.versions["/opt/vault/bin/vault version"] = "Vault v1.17.3 (c7f4a9d0aa7cfc4e8e4cbd9f3cda00e4b8c7d1d4), built 2024-08-06T14:28:45Z\n"
 			},
 			want: []snapshot.Service{
-				{Type: "varnish", Version: "7.4.2"},
+				// -a :6081 is every address, whether it listens or not.
+				{Type: "varnish", Version: "7.4.2", Listen: []string{"0.0.0.0:6081", "[::]:6081"}},
 				{Type: "vault", Version: "1.17.3"},
 			},
 		},

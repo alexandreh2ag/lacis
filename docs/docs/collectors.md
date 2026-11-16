@@ -108,6 +108,8 @@ process. For each:
 - the **package version**, its packaging revision included
   (`8.2.24-1+deb12u1`), when the service comes from a package;
 - the **addresses it listens on** (TCP and unix sockets) across its process tree;
+  for Varnish, the addresses of its `-a` options too (`:80` without any), as its
+  cache worker holds the sockets: a worker down or restarting changes no link;
 - an **instance** name when a type runs several times: the PostgreSQL cluster of
   Debian (`/etc/postgresql/<version>/<cluster>/`), the PHP version of PHP-FPM, else
   the first address;

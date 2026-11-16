@@ -8,9 +8,11 @@ import (
 	stdContext "context"
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/alexandreh2ag/lacis/agent/collector"
@@ -183,6 +185,7 @@ var detectors = []detector{
 		match: func(p system.Process) bool { return base(p) == "varnishd" },
 		// The cache worker is a child varnishd: one instance.
 		packages:    []string{"varnish", "varnish-plus"},
+		describe:    describeVarnish,
 		versionRe:   regexp.MustCompile(`\(varnish-(\d+(?:\.\d+)+)`),
 		versionArgs: []string{"-V"},
 	},
@@ -432,6 +435,76 @@ func flagValue(args []string, name string) string {
 		}
 	}
 	return ""
+}
+
+// describeVarnish adds the addresses of its -a options to those it listens
+// on: the cache worker holds the sockets, and while it is down or
+// restarting the manager alone runs. Varnish being down is no change of
+// the inventory: the links to it stay.
+func describeVarnish(d *detection, svc *snapshot.Service) error {
+	for _, addr := range varnishListen(d.process.Cmdline) {
+		if !slices.Contains(svc.Listen, addr) {
+			svc.Listen = append(svc.Listen, addr)
+		}
+	}
+	slices.Sort(svc.Listen)
+	return nil
+}
+
+// varnishListen reads the -a options of varnishd, [name=]address[:port]
+// or [name=]/path, then their options (",PROXY", ",user=…"): ":6081" is
+// every address, localhost the loopback ones. Without any, Varnish
+// listens on :80. A host name other than localhost is left out.
+func varnishListen(cmd []string) []string {
+	if len(cmd) == 1 {
+		cmd = strings.Fields(cmd[0])
+	}
+	var specs []string
+	for i, arg := range cmd {
+		switch {
+		case arg == "-a" && i+1 < len(cmd):
+			specs = append(specs, cmd[i+1])
+		case strings.HasPrefix(arg, "-a") && len(arg) > 2:
+			specs = append(specs, arg[2:])
+		}
+	}
+	if len(specs) == 0 {
+		specs = []string{":80"}
+	}
+	var out []string
+	for _, spec := range specs {
+		addr, _, _ := strings.Cut(spec, ",")
+		if name, rest, ok := strings.Cut(addr, "="); ok && !strings.ContainsAny(name, ":/[") {
+			addr = rest
+		}
+		if strings.HasPrefix(addr, "/") || strings.HasPrefix(addr, "@") {
+			out = append(out, "unix:"+addr)
+			continue
+		}
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			host, port = strings.Trim(addr, "[]"), "80"
+		}
+		if _, err := strconv.Atoi(port); err != nil {
+			continue
+		}
+		var hosts []string
+		switch host {
+		case "", "*":
+			hosts = []string{"0.0.0.0", "::"}
+		case "localhost":
+			hosts = []string{"127.0.0.1", "::1"}
+		default:
+			if net.ParseIP(host) == nil {
+				continue
+			}
+			hosts = []string{host}
+		}
+		for _, h := range hosts {
+			out = append(out, net.JoinHostPort(h, port))
+		}
+	}
+	return out
 }
 
 // describeMySQL tells MariaDB apart: before 10.5 its binary is mysqld.
