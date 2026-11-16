@@ -10,12 +10,12 @@ import { graphql } from '@/graphql'
 import type { AdminUsersQuery } from '@/graphql/graphql'
 import { config } from '@/config'
 import { useT } from '@/i18n'
-import { formatDate } from '@/lib/format'
+import { ago, formatDate, formatDateTime } from '@/lib/format'
 import { useSession } from '@/session'
 
 const UsersDoc = graphql(`
   query AdminUsers {
-    users { id username firstName lastName local oidc createdAt roles { id code } }
+    users { id username firstName lastName local oidc createdAt lastLoginAt lastLoginMethod roles { id code } }
     roleChoices { id code description }
   }
 `)
@@ -81,7 +81,7 @@ export function Users({ write }: { write: boolean }) {
   const users = (data?.users ?? []).filter((u) => (!roles.length || u.roles.some((r) => roles.includes(r.code)))
     && (!login.length || (login.includes('local') && u.local) || (login.includes('oidc') && u.oidc)))
   const tbl = useTable(users, (u) => [u.username, fullName(u), ...u.roles.map((r) => r.code)],
-    (u, by) => by === 'name' ? fullName(u) : by === 'created' ? u.createdAt : u.username, 'username')
+    (u, by) => by === 'name' ? fullName(u) : by === 'created' ? u.createdAt : by === 'lastLogin' ? u.lastLoginAt ?? '' : u.username, 'username')
   const head = (label: string, by: string) => <SortHeader label={label} by={by} sort={tbl.sort.by} desc={tbl.sort.desc} onSort={tbl.onSort} />
   const choices = data?.roleChoices ?? []
 
@@ -103,7 +103,7 @@ export function Users({ write }: { write: boolean }) {
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="lc-table">
           <thead><tr>
-            {head(u.user, 'username')}{head(t.admin.name, 'name')}<th>{u.login}</th><th>{u.roles}</th>{head(t.admin.createdOn, 'created')}
+            {head(u.user, 'username')}{head(t.admin.name, 'name')}<th>{u.login}</th><th>{u.roles}</th>{head(t.admin.createdOn, 'created')}{head(u.lastLogin, 'lastLogin')}
             {actions ? <th><span className="sr-only">{t.admin.actions}</span></th> : null}
           </tr></thead>
           <tbody>
@@ -119,6 +119,12 @@ export function Users({ write }: { write: boolean }) {
                 <td>{x.roles.length ? <span className="lc-tags">{x.roles.map((r) => <span key={r.id} className="lc-tag pr-2">{r.code}</span>)}</span>
                   : <span className="lc-muted">{u.none}</span>}</td>
                 <td>{formatDate(x.createdAt)}</td>
+                <td>{x.lastLoginAt ? (
+                  <span className="flex items-center gap-1.5" title={formatDateTime(x.lastLoginAt)}>
+                    {ago(x.lastLoginAt)}
+                    {x.lastLoginMethod ? <span className="lc-badge lc-badge--plain">{u.loginMethods[x.lastLoginMethod]}</span> : null}
+                  </span>
+                ) : <span className="lc-muted">{t.admin.never}</span>}</td>
                 {actions ? (
                   <td className="lc-num">
                     <span className="inline-flex gap-1">

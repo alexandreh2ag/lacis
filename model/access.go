@@ -15,7 +15,19 @@ type User struct {
 	PasswordHash *string
 	OIDCSubject  *string `gorm:"column:oidc_subject"`
 	CreatedAt    time.Time
+	// LastLoginAt and LastLoginMethod are the last sign-in of the user,
+	// nil when it never signed in.
+	LastLoginAt     *time.Time
+	LastLoginMethod *LoginMethod
 }
+
+// LoginMethod is how a user signed in.
+type LoginMethod string
+
+const (
+	LoginPassword LoginMethod = "password"
+	LoginSSO      LoginMethod = "sso"
+)
 
 func (User) TableName() string { return "users" }
 

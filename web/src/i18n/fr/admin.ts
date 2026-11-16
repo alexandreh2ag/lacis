@@ -24,6 +24,8 @@ export const admin = {
     role: 'Rôle',
     login: 'Connexion',
     logins: { local: 'Mot de passe', oidc: 'SSO' },
+    lastLogin: 'Dernière connexion',
+    loginMethods: { PASSWORD: 'Mot de passe', SSO: 'SSO' },
     count: (n: number) => `${n} utilisateur${s(n)}`,
     noun: 'utilisateurs',
     create: 'Nouvel utilisateur',

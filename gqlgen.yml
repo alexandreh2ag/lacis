@@ -168,6 +168,13 @@ models:
         value: github.com/alexandreh2ag/lacis/model.ActionWrite
       ALL:
         value: github.com/alexandreh2ag/lacis/model.ActionAll
+  LoginMethod:
+    model: github.com/alexandreh2ag/lacis/model.LoginMethod
+    enum_values:
+      PASSWORD:
+        value: github.com/alexandreh2ag/lacis/model.LoginPassword
+      SSO:
+        value: github.com/alexandreh2ag/lacis/model.LoginSSO
   EnrollmentToken:
     model: github.com/alexandreh2ag/lacis/service.EnrollmentTokenDetail
   Agent:

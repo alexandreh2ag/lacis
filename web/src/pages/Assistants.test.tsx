@@ -37,7 +37,8 @@ test('the tab says when the MCP server is off', async () => {
   expect(await screen.findByText('Aucun assistant autorisé.')).toBeTruthy()
 })
 
-const user = { __typename: 'Account', id: 'u1', username: 'bob', firstName: null, lastName: null, local: true, oidc: false, createdAt: '2026-10-01T00:00:00Z', roles: [] }
+const user = { __typename: 'Account', id: 'u1', username: 'bob', firstName: null, lastName: null, local: true, oidc: false, createdAt: '2026-10-01T00:00:00Z',
+  lastLoginAt: '2026-11-10T09:00:00Z', lastLoginMethod: 'PASSWORD' as const, roles: [] }
 const userGrants = AdminUserOAuthGrantsDocument
 
 test('an administrator who reads the users sees the assistants of one, without revoking', async () => {

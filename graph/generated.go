@@ -82,14 +82,16 @@ type ComplexityRoot struct {
 	}
 
 	Account struct {
-		CreatedAt func(childComplexity int) int
-		FirstName func(childComplexity int) int
-		ID        func(childComplexity int) int
-		LastName  func(childComplexity int) int
-		Local     func(childComplexity int) int
-		Oidc      func(childComplexity int) int
-		Roles     func(childComplexity int) int
-		Username  func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		FirstName       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		LastLoginAt     func(childComplexity int) int
+		LastLoginMethod func(childComplexity int) int
+		LastName        func(childComplexity int) int
+		Local           func(childComplexity int) int
+		Oidc            func(childComplexity int) int
+		Roles           func(childComplexity int) int
+		Username        func(childComplexity int) int
 	}
 
 	Agent struct {
@@ -903,6 +905,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Account.ID(childComplexity), true
+	case "Account.lastLoginAt":
+		if e.complexity.Account.LastLoginAt == nil {
+			break
+		}
+
+		return e.complexity.Account.LastLoginAt(childComplexity), true
+	case "Account.lastLoginMethod":
+		if e.complexity.Account.LastLoginMethod == nil {
+			break
+		}
+
+		return e.complexity.Account.LastLoginMethod(childComplexity), true
 	case "Account.lastName":
 		if e.complexity.Account.LastName == nil {
 			break
@@ -4840,6 +4854,64 @@ func (ec *executionContext) fieldContext_Account_createdAt(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Account_lastLoginAt(ctx context.Context, field graphql.CollectedField, obj *service.Account) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Account_lastLoginAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastLoginAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Account_lastLoginAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Account",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Account_lastLoginMethod(ctx context.Context, field graphql.CollectedField, obj *service.Account) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Account_lastLoginMethod,
+		func(ctx context.Context) (any, error) {
+			return obj.LastLoginMethod, nil
+		},
+		nil,
+		ec.marshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Account_lastLoginMethod(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Account",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LoginMethod does not have child fields")
 		},
 	}
 	return fc, nil
@@ -12453,6 +12525,10 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 				return ec.fieldContext_Account_oidc(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Account_createdAt(ctx, field)
+			case "lastLoginAt":
+				return ec.fieldContext_Account_lastLoginAt(ctx, field)
+			case "lastLoginMethod":
+				return ec.fieldContext_Account_lastLoginMethod(ctx, field)
 			case "roles":
 				return ec.fieldContext_Account_roles(ctx, field)
 			}
@@ -12535,6 +12611,10 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 				return ec.fieldContext_Account_oidc(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Account_createdAt(ctx, field)
+			case "lastLoginAt":
+				return ec.fieldContext_Account_lastLoginAt(ctx, field)
+			case "lastLoginMethod":
+				return ec.fieldContext_Account_lastLoginMethod(ctx, field)
 			case "roles":
 				return ec.fieldContext_Account_roles(ctx, field)
 			}
@@ -12617,6 +12697,10 @@ func (ec *executionContext) fieldContext_Mutation_setUserRoles(ctx context.Conte
 				return ec.fieldContext_Account_oidc(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Account_createdAt(ctx, field)
+			case "lastLoginAt":
+				return ec.fieldContext_Account_lastLoginAt(ctx, field)
+			case "lastLoginMethod":
+				return ec.fieldContext_Account_lastLoginMethod(ctx, field)
 			case "roles":
 				return ec.fieldContext_Account_roles(ctx, field)
 			}
@@ -16395,6 +16479,10 @@ func (ec *executionContext) fieldContext_Query_users(_ context.Context, field gr
 				return ec.fieldContext_Account_oidc(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Account_createdAt(ctx, field)
+			case "lastLoginAt":
+				return ec.fieldContext_Account_lastLoginAt(ctx, field)
+			case "lastLoginMethod":
+				return ec.fieldContext_Account_lastLoginMethod(ctx, field)
 			case "roles":
 				return ec.fieldContext_Account_roles(ctx, field)
 			}
@@ -22490,6 +22578,10 @@ func (ec *executionContext) _Account(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "lastLoginAt":
+			out.Values[i] = ec._Account_lastLoginAt(ctx, field, obj)
+		case "lastLoginMethod":
+			out.Values[i] = ec._Account_lastLoginMethod(ctx, field, obj)
 		case "roles":
 			out.Values[i] = ec._Account_roles(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -32910,6 +33002,36 @@ func (ec *executionContext) marshalOLinkEnd2githubᚗcomᚋalexandreh2agᚋlacis
 	}
 	return ec._LinkEnd(ctx, sel, v)
 }
+
+func (ec *executionContext) unmarshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod(ctx context.Context, v any) (*model.LoginMethod, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod(ctx context.Context, sel ast.SelectionSet, v *model.LoginMethod) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod[*v])
+	return res
+}
+
+var (
+	unmarshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod = map[string]model.LoginMethod{
+		"PASSWORD": model.LoginPassword,
+		"SSO":      model.LoginSSO,
+	}
+	marshalOLoginMethod2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐLoginMethod = map[model.LoginMethod]string{
+		model.LoginPassword: "PASSWORD",
+		model.LoginSSO:      "SSO",
+	}
+)
 
 func (ec *executionContext) marshalONamespace2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋmodelᚐNamespace(ctx context.Context, sel ast.SelectionSet, v *model.Namespace) graphql.Marshaler {
 	if v == nil {

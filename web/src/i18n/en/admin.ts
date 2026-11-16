@@ -26,6 +26,8 @@ export const admin: Messages['admin'] = {
     role: 'Role',
     login: 'Login',
     logins: { local: 'Password', oidc: 'SSO' },
+    lastLogin: 'Last login',
+    loginMethods: { PASSWORD: 'Password', SSO: 'SSO' },
     count: (n: number) => `${n} user${s(n)}`,
     noun: 'users',
     create: 'New user',

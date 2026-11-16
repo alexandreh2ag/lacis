@@ -52,10 +52,19 @@ func newAuthFixture(t *testing.T) *authFixture {
 
 func TestAuth_LoginAndAuthenticate(t *testing.T) {
 	f := newAuthFixture(t)
+	bob, err := f.repos.User.FindByUsername(ctx, "bob")
+	require.NoError(t, err)
+	assert.Nil(t, bob.LastLoginAt, "never signed in")
+	assert.Nil(t, bob.LastLoginMethod)
 	login, err := f.svc.Login(ctx, LoginInput{Username: " Admin ", Password: "correct horse", IP: "10.0.0.1"})
 	require.NoError(t, err)
 	assert.Equal(t, f.clock.now.Add(time.Hour), login.ExpiresAt)
 	assert.Len(t, login.Token, 43)
+	admin, err := f.repos.User.FindByUsername(ctx, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, admin.LastLoginAt)
+	assert.True(t, f.clock.now.Equal(*admin.LastLoginAt))
+	assert.Equal(t, model.LoginPassword, *admin.LastLoginMethod)
 
 	p, err := f.svc.Authenticate(ctx, login.Token)
 	require.NoError(t, err)
@@ -165,7 +174,7 @@ func TestAuth_OIDCGroupsAndLogout(t *testing.T) {
 	bob, err := f.repos.User.FindByUsername(ctx, "bob")
 	require.NoError(t, err)
 
-	login, err := f.svc.open(ctx, f.repos, bob, []string{"devs", "unknown"}, f.clock.now)
+	login, err := f.svc.open(ctx, f.repos, bob, []string{"devs", "unknown"}, model.LoginSSO, f.clock.now)
 	require.NoError(t, err)
 	p, err := f.svc.Authenticate(ctx, login.Token)
 	require.NoError(t, err)
@@ -203,6 +212,9 @@ func TestAuth_LoginOIDC(t *testing.T) {
 	assert.Equal(t, "u-1", *p.User.OIDCSubject)
 	assert.Nil(t, p.User.PasswordHash)
 	assert.Empty(t, p.Namespace)
+	require.NotNil(t, p.User.LastLoginAt)
+	assert.True(t, f.clock.now.Equal(*p.User.LastLoginAt))
+	assert.Equal(t, model.LoginSSO, *p.User.LastLoginMethod)
 	first := p.User.ID
 
 	// The same subject finds the user and follows the provider; a name the

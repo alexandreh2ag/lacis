@@ -127,7 +127,16 @@ type Account {
   "Whether the user signs in with SSO."
   oidc: Boolean!
   createdAt: Time!
+  "The last sign-in of the user, null when it never signed in."
+  lastLoginAt: Time
+  "How the user signed in last, null when it never signed in."
+  lastLoginMethod: LoginMethod
   roles: [RoleRef!]!
+}
+
+enum LoginMethod {
+  PASSWORD
+  SSO
 }
 
 type RoleRef {

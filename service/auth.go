@@ -126,7 +126,7 @@ func (s *authService) Login(ctx context.Context, in LoginInput) (*Login, error) 
 		if _, err := repos.Session.DeleteExpired(ctx, now); err != nil {
 			return err
 		}
-		login, err = s.open(ctx, repos, user, nil, now)
+		login, err = s.open(ctx, repos, user, nil, model.LoginPassword, now)
 		return err
 	})
 	if errors.Is(err, ErrUnauthorized) {
@@ -139,8 +139,9 @@ func (s *authService) Login(ctx context.Context, in LoginInput) (*Login, error) 
 	return login, nil
 }
 
-// open creates a session of the user; groups are its OIDC groups.
-func (s *authService) open(ctx context.Context, repos *repository.Repositories, user *model.User, groups []string, now time.Time) (*Login, error) {
+// open creates a session of the user and records its sign-in with method;
+// groups are its OIDC groups.
+func (s *authService) open(ctx context.Context, repos *repository.Repositories, user *model.User, groups []string, method model.LoginMethod, now time.Time) (*Login, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("generate session token: %w", err)
@@ -153,6 +154,9 @@ func (s *authService) open(ctx context.Context, repos *repository.Repositories, 
 		session.OIDCGroups = model.StringArray{}
 	}
 	if err := repos.Session.Create(ctx, session); err != nil {
+		return nil, err
+	}
+	if err := repos.User.SetLastLogin(ctx, user.ID, now, method); err != nil {
 		return nil, err
 	}
 	return &Login{Token: token, ExpiresAt: expires}, nil
@@ -176,7 +180,7 @@ func (s *authService) LoginOIDC(ctx context.Context, c openid.Claims) (*Login, e
 		if _, err := repos.Session.DeleteExpired(ctx, now); err != nil {
 			return err
 		}
-		login, err = s.open(ctx, repos, user, c.Groups, now)
+		login, err = s.open(ctx, repos, user, c.Groups, model.LoginSSO, now)
 		return err
 	})
 	if err != nil {
