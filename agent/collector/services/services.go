@@ -28,6 +28,7 @@ const (
 	TypeMariaDB       = "mariadb"
 	TypePostgreSQL    = "postgresql"
 	TypeRedis         = "redis"
+	TypeValkey        = "valkey"
 	TypePHPFPM        = "php-fpm"
 	TypeElasticsearch = "elasticsearch"
 	TypeKeycloak      = "keycloak"
@@ -64,6 +65,10 @@ type detector struct {
 // mysqlVersion reads "mysqld  Ver 8.0.39 for Linux" and "mariadbd  Ver
 // 10.11.6-MariaDB-0+deb12u1 for debian-linux-gnu".
 var mysqlVersion = regexp.MustCompile(`\bVer (\d+(?:\.\d+)+)`)
+
+// redisVersion reads "Redis server v=7.4.1 sha=…" and "Valkey server
+// v=8.0.1 sha=…".
+var redisVersion = regexp.MustCompile(`\bv=(\d+(?:\.\d+)+)`)
 
 // releaseVersion reads the release of MinIO and Silo: "minio version
 // RELEASE.2024-01-16T16-07-38Z (commit-id=…)".
@@ -124,7 +129,17 @@ var detectors = []detector{
 		typ:       TypeRedis,
 		match:     func(p system.Process) bool { return base(p) == "redis-server" },
 		packages:  []string{"redis-server", "redis", "redis-tools"},
-		versionRe: regexp.MustCompile(`\bv=(\d+(?:\.\d+)+)`),
+		versionRe: redisVersion,
+	},
+	{
+		// Valkey, the fork of Redis by the Linux Foundation, numbers its
+		// versions its own way: a type of its own. The executable tells
+		// it, not the command: the redis-server of valkey-redis-compat
+		// is a link to valkey-server.
+		typ:       TypeValkey,
+		match:     func(p system.Process) bool { return base(p) == "valkey-server" },
+		packages:  []string{"valkey-server", "valkey"},
+		versionRe: redisVersion,
 	},
 	{
 		typ:      TypePHPFPM,

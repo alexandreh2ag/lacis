@@ -94,8 +94,9 @@ only when its version is the one the binary printed.
 ## `services`
 
 Services running on the host, recognized by their main process: MySQL, MariaDB,
-PostgreSQL, Redis, PHP-FPM, Elasticsearch, Keycloak, ClickHouse, MongoDB,
-RabbitMQ, Varnish, Vault, the ClamAV daemon (`clamd`, from the `clamav-daemon` or
+PostgreSQL, Redis, Valkey (its own type: the fork of Redis numbers its versions its
+own way, and runs as `valkey-server` even when started as `redis-server`), PHP-FPM,
+Elasticsearch, Keycloak, ClickHouse, MongoDB, RabbitMQ, Varnish, Vault, the ClamAV daemon (`clamd`, from the `clamav-daemon` or
 `clamd` package), and the object stores MinIO and Silo (the fork of MinIO by
 Pigsty, its binary renamed `silo`), from their `minio server` or `silo server`
 process. For each:
@@ -130,7 +131,8 @@ Reads the Docker API on its socket.
   `clickhouse`, `keycloak`, `memcached`, `minio`, `silo`… official or Bitnami) is
   also added to the services with its container name, image, **published ports**
   and networks. Its version comes from the image tag, refined by the image's
-  version variable (`PG_VERSION`, `REDIS_VERSION`…) or the OCI version label.
+  version variable (`PG_VERSION`, `REDIS_VERSION`, `VALKEY_VERSION`…) or the OCI
+  version label. A `valkey` image is a Valkey, not a Redis.
 
 It also removes the Docker bridges and veth interfaces from the host interfaces:
 their subnets are private to the host.

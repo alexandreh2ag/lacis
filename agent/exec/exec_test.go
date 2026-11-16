@@ -58,7 +58,7 @@ func TestAllowed(t *testing.T) {
 	match := func(name string) bool {
 		return slices.ContainsFunc(Allowed, func(re *regexp.Regexp) bool { return re.MatchString(name) })
 	}
-	for _, name := range []string{"systemd-detect-virt", "dpkg-query", "rpm", "php", "php8.2", "php82", "node", "redis-server", "clamd"} {
+	for _, name := range []string{"systemd-detect-virt", "dpkg-query", "rpm", "php", "php8.2", "php82", "node", "redis-server", "valkey-server", "clamd"} {
 		assert.True(t, match(name), name)
 	}
 	for _, name := range []string{"sh", "bash", "php-fpm8.2", "phpize", "node-gyp", "rm", "nginx", "clamscan", "freshclam"} {

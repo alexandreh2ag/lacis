@@ -173,6 +173,7 @@ func TestImages(t *testing.T) {
 		"postgres:16":                              {"postgresql", "16"},
 		"postgis/postgis:15-3.4":                   {"postgresql", "15"},
 		"bitnami/redis:7.2.5-debian-12-r0":         {"redis", "7.2.5"},
+		"valkey/valkey:8.0.1-alpine":               {"valkey", "8.0.1"},
 		"quay.io/keycloak/keycloak:25.0.6":         {"keycloak", "25.0.6"},
 		"clickhouse/clickhouse-server:24.8":        {"clickhouse", "24.8"},
 		"localhost:5000/mongo:v7.0":                {"mongodb", "7.0"},

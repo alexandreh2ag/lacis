@@ -28,7 +28,7 @@ const Name = "docker"
 var imageServices = map[string]string{
 	"postgres": "postgresql", "postgresql": "postgresql", "postgis": "postgresql",
 	"mysql": "mysql", "percona-server": "mysql", "mariadb": "mariadb",
-	"redis": "redis", "redis-stack-server": "redis", "valkey": "redis",
+	"redis": "redis", "redis-stack-server": "redis", "valkey": "valkey",
 	"mongo": "mongodb", "mongodb": "mongodb", "mongodb-community-server": "mongodb",
 	"rabbitmq": "rabbitmq", "elasticsearch": "elasticsearch", "opensearch": "elasticsearch",
 	"clickhouse-server": "clickhouse", "clickhouse": "clickhouse", "keycloak": "keycloak",
@@ -41,6 +41,7 @@ var versionEnv = map[string][]string{
 	"mysql":         {"MYSQL_VERSION", "MYSQL_MAJOR"},
 	"mariadb":       {"MARIADB_VERSION", "MARIADB_MAJOR"},
 	"redis":         {"REDIS_VERSION"},
+	"valkey":        {"VALKEY_VERSION"},
 	"mongodb":       {"MONGO_VERSION", "MONGO_MAJOR"},
 	"rabbitmq":      {"RABBITMQ_VERSION"},
 	"elasticsearch": {"ELASTIC_VERSION", "ELASTICSEARCH_VERSION"},

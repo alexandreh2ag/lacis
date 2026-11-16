@@ -349,6 +349,58 @@ func TestBinaryVersion(t *testing.T) {
 	}
 }
 
+func TestCollect_RedisValkey(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(h *host)
+		want  []snapshot.Service
+	}{
+		{
+			name: "from packages",
+			setup: func(h *host) {
+				h.process(100, 1, "/usr/bin/redis-server", "/usr/bin/redis-server 127.0.0.1:6379")
+				h.listen(100, "127.0.0.1:6379")
+				h.pkg("redis-server", "5:7.0.15-1~deb12u1")
+				h.process(200, 1, "/usr/bin/valkey-server", "/usr/bin/valkey-server 127.0.0.1:6380")
+				h.listen(200, "127.0.0.1:6380")
+				h.pkg("valkey-server", "8.0.2+dfsg1-1")
+			},
+			want: []snapshot.Service{
+				{Type: "redis", Version: "7.0.15", PackageVersion: "5:7.0.15-1~deb12u1", Listen: []string{"127.0.0.1:6379"}},
+				{Type: "valkey", Version: "8.0.2", PackageVersion: "8.0.2+dfsg1-1", Listen: []string{"127.0.0.1:6380"}},
+			},
+		},
+		{
+			// valkey-redis-compat links redis-server to valkey-server:
+			// the command says redis, the executable valkey.
+			name: "valkey started as redis-server",
+			setup: func(h *host) {
+				h.process(100, 1, "/usr/bin/valkey-server", "redis-server *:6379")
+				h.listen(100, "0.0.0.0:6379")
+				h.pkg("valkey-server", "8.1.1+dfsg1-1")
+			},
+			want: []snapshot.Service{{Type: "valkey", Version: "8.1.1", PackageVersion: "8.1.1+dfsg1-1", Listen: []string{"0.0.0.0:6379"}}},
+		},
+		{
+			name: "from the binary",
+			setup: func(h *host) {
+				h.process(100, 1, "/opt/valkey/bin/valkey-server", "/opt/valkey/bin/valkey-server *:6379")
+				h.versions["/opt/valkey/bin/valkey-server"] = "Valkey server v=8.0.1 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=dfd3d1ab3fe37b6b\n"
+			},
+			want: []snapshot.Service{{Type: "valkey", Version: "8.0.1"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHost(t)
+			tt.setup(h)
+			out, _, err := collect(t, h.context(nil))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, out.Services)
+		})
+	}
+}
+
 func TestCollect_ClamAV(t *testing.T) {
 	tests := []struct {
 		name  string
