@@ -152,7 +152,10 @@ func (c *collection) fromVhost(ws *snapshot.Webserver, v *snapshot.Vhost) {
 	}
 	for _, target := range expandUpstreams(ws, v.Upstreams) {
 		p, ok := c.localProcess(target)
-		if !ok {
+		// A PHP-FPM worker sits in the directory of the last script it
+		// ran, whichever vhost sent it: that is no app the vhost proxies
+		// to. The root of the vhost gives its app.
+		if !ok || isFPM(p) {
 			continue
 		}
 		if a := c.add(p.Cwd); a != nil {
@@ -206,7 +209,12 @@ func (c *collection) launcherApp(l system.Launcher) *app {
 func isAppProcess(p system.Process) bool {
 	base := path.Base(p.Exe)
 	return !p.InContainer && p.Cwd != "" && p.Cwd != "/" &&
-		(base == "node" || (strings.HasPrefix(base, "php") && !strings.HasPrefix(base, "php-fpm")))
+		(base == "node" || (strings.HasPrefix(base, "php") && !isFPM(p)))
+}
+
+// isFPM tells a PHP-FPM process, master or worker.
+func isFPM(p system.Process) bool {
+	return strings.HasPrefix(path.Base(p.Exe), "php-fpm")
 }
 
 func appendProcess(list []system.Process, p system.Process) []system.Process {

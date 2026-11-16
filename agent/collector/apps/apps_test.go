@@ -253,6 +253,36 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, want, out.Apps)
 }
 
+func TestCollect_FPMWorkerCwd(t *testing.T) {
+	// Two sites on one FPM pool, each deployed with a link to its build.
+	h := newHost(t)
+	h.fs.Files(t, map[string]string{
+		"/home/web/builds/sites/2-8-7/cg/www/composer.json":    "{}",
+		"/home/web/builds/sites/2-8-7/cg/www/public/index.php": "",
+		"/home/web/builds/sites/2-8-7/ns/www/composer.json":    "{}",
+		"/home/web/builds/sites/2-8-7/ns/www/public/index.php": "",
+	})
+	h.fs.Link("/home/web/var/www/sites/production/cg/www", "/home/web/builds/sites/2-8-7/cg/www")
+	h.fs.Link("/home/web/var/www/sites/production/ns/www", "/home/web/builds/sites/2-8-7/ns/www")
+	// The worker holding the socket last ran a script of ns: it sits in
+	// its directory, the target of the link.
+	h.process(2000, "/usr/sbin/php-fpm7.0", "/home/web/builds/sites/2-8-7/ns/www/public", "php-fpm: pool www")
+	h.listen(2000, "127.0.0.1:9000")
+	out := &snapshot.Snapshot{Webservers: []snapshot.Webserver{{Type: "nginx", Vhosts: []snapshot.Vhost{
+		{ServerNames: []string{"comptoirdesfers.com"}, Root: "/home/web/var/www/sites/production/cg/www/public", Upstreams: []string{"127.0.0.1:9000"}},
+		{ServerNames: []string{"nicodeme-aubade.fr"}, Root: "/home/web/var/www/sites/production/ns/www/public", Upstreams: []string{"127.0.0.1:9000"}},
+	}}}}
+	require.NoError(t, h.collect(out))
+	got := map[string][]string{}
+	for _, a := range out.Apps {
+		got[a.Path] = a.Vhosts
+	}
+	assert.Equal(t, map[string][]string{
+		"/home/web/var/www/sites/production/cg/www": {"comptoirdesfers.com"},
+		"/home/web/var/www/sites/production/ns/www": {"nicodeme-aubade.fr"},
+	}, got, "the directory of an FPM worker gives no app: each site keeps its path and its names")
+}
+
 func TestNormalizeAddr(t *testing.T) {
 	for in, want := range map[string]string{
 		"localhost:9000":        "127.0.0.1:9000",
