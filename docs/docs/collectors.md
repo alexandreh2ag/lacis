@@ -95,8 +95,9 @@ only when its version is the one the binary printed.
 
 Services running on the host, recognized by their main process: MySQL, MariaDB,
 PostgreSQL, Redis, PHP-FPM, Elasticsearch, Keycloak, ClickHouse, MongoDB,
-RabbitMQ, Varnish, Vault, and the object stores MinIO and Silo (the fork of MinIO
-by Pigsty, its binary renamed `silo`), from their `minio server` or `silo server`
+RabbitMQ, Varnish, Vault, the ClamAV daemon (`clamd`, from the `clamav-daemon` or
+`clamd` package), and the object stores MinIO and Silo (the fork of MinIO by
+Pigsty, its binary renamed `silo`), from their `minio server` or `silo server`
 process. For each:
 
 - the **version**, from its package (`dpkg-query` or `rpm`), else by probing its

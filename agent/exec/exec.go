@@ -38,7 +38,7 @@ var Allowed = []*regexp.Regexp{
 	regexp.MustCompile(`^php(\d+(\.\d+)?)?$`),
 	regexp.MustCompile(`^node$`),
 	// --version of the services installed without package.
-	regexp.MustCompile(`^(redis-server|mysqld|mariadbd|postgres|varnishd|vault|minio|silo)$`),
+	regexp.MustCompile(`^(redis-server|mysqld|mariadbd|postgres|varnishd|vault|minio|silo|clamd)$`),
 }
 
 const (

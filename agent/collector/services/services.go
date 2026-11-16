@@ -37,6 +37,7 @@ const (
 	TypeVarnish       = "varnish"
 	TypeVault         = "vault"
 	TypeMinIO         = "minio"
+	TypeClamAV        = "clamav"
 	// TypeSilo is the community fork of MinIO by Pigsty, its binary renamed.
 	TypeSilo = "silo"
 )
@@ -192,6 +193,14 @@ var detectors = []detector{
 		packages:  []string{"silo"},
 		describe:  describeObjectStore,
 		versionRe: releaseVersion,
+	},
+	{
+		typ:   TypeClamAV,
+		match: func(p system.Process) bool { return base(p) == "clamd" },
+		// clamav-daemon on Debian, clamd on Red Hat.
+		packages: []string{"clamav-daemon", "clamd"},
+		// "ClamAV 1.0.7/27460/Mon Nov 11 09:36:52 2024".
+		versionRe: regexp.MustCompile(`\bClamAV (\d+(?:\.\d+)+)`),
 	},
 	{
 		typ:      TypeRabbitMQ,

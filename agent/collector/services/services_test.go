@@ -349,6 +349,51 @@ func TestBinaryVersion(t *testing.T) {
 	}
 }
 
+func TestCollect_ClamAV(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(h *host)
+		want  []snapshot.Service
+	}{
+		{
+			name: "from the package of Debian",
+			setup: func(h *host) {
+				h.process(100, 1, "/usr/sbin/clamd", "/usr/sbin/clamd", "--foreground=true")
+				h.listen(100, "0.0.0.0:3310")
+				h.pkg("clamav-daemon", "1.0.7+dfsg-1~deb12u1")
+				// freshclam updates the signatures: no service.
+				h.process(200, 1, "/usr/bin/freshclam", "/usr/bin/freshclam", "-d", "--foreground=true")
+			},
+			want: []snapshot.Service{{Type: "clamav", Version: "1.0.7", PackageVersion: "1.0.7+dfsg-1~deb12u1", Listen: []string{"0.0.0.0:3310"}}},
+		},
+		{
+			name: "from the package of Red Hat",
+			setup: func(h *host) {
+				h.process(100, 1, "/usr/sbin/clamd", "/usr/sbin/clamd", "-c", "/etc/clamd.d/scan.conf")
+				h.pkg("clamd", "1.4.1-1.el9")
+			},
+			want: []snapshot.Service{{Type: "clamav", Version: "1.4.1", PackageVersion: "1.4.1-1.el9"}},
+		},
+		{
+			name: "from the binary",
+			setup: func(h *host) {
+				h.process(100, 1, "/usr/local/sbin/clamd", "/usr/local/sbin/clamd")
+				h.versions["/usr/local/sbin/clamd"] = "ClamAV 1.0.7/27460/Mon Nov 11 09:36:52 2024\n"
+			},
+			want: []snapshot.Service{{Type: "clamav", Version: "1.0.7"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHost(t)
+			tt.setup(h)
+			out, _, err := collect(t, h.context(nil))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, out.Services)
+		})
+	}
+}
+
 func TestCollect_VarnishVault(t *testing.T) {
 	tests := []struct {
 		name  string
