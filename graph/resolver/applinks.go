@@ -81,12 +81,8 @@ func (x *index) linkRoutes(ids []string) []graph.LinkRoute {
 			continue
 		}
 		done[id] = true
-		for i := range x.inv.Apps {
-			a := &x.inv.Apps[i]
-			if x.identity(model.LinkNodeApp, &a.ID, nil) != from {
-				continue
-			}
-			for _, p := range x.paths.Uses(a.ID) {
+		for _, c := range x.consumers(from) {
+			for _, p := range x.paths.Uses(c) {
 				last := p.Last()
 				if detail(p.First()).Key == key && x.identity(last.ToType, last.ToID, last.ExternalTarget) == to {
 					paths = append(paths, p)
@@ -95,6 +91,23 @@ func (x *index) linkRoutes(ids []string) []graph.LinkRoute {
 		}
 	}
 	return x.routes(paths)
+}
+
+// consumers are the apps of an identity, or its webservers: what a
+// webserver routes to starts from it.
+func (x *index) consumers(identity string) []uuid.UUID {
+	var out []uuid.UUID
+	for i := range x.inv.Apps {
+		if a := &x.inv.Apps[i]; x.identity(model.LinkNodeApp, &a.ID, nil) == identity {
+			out = append(out, a.ID)
+		}
+	}
+	for i := range x.inv.Webservers {
+		if w := &x.inv.Webservers[i]; x.identity(model.LinkNodeWebserver, &w.ID, nil) == identity {
+			out = append(out, w.ID)
+		}
+	}
+	return out
 }
 
 // routes are the routes of effective links, step by step, the routes

@@ -145,13 +145,24 @@ Through a webserver:
 - with no route left, the webserver is the end of the path, a **dead end**;
 - of several routes of one dependency to the same end, the shortest is kept.
 
+The routes of a webserver go on the same way, for the names they route: the
+Traefik router of `api.shop.example` reaches the nginx behind it, then the app
+of that vhost.
+
 The confidence of an effective link is the weakest of its path. The effective links
 are given whatever the hosts, an app being its name in its project and env: one per
 consumer, dependency and thing used, the hosts of each step of their routes kept as an
 information. The front lists them in *Uses* and *Used by*, the proxies crossed in a
 `via` chip and, unfolded, step by step; the page of a webserver keeps its own links.
+
+The graph draws a link to what is used, not to the proxies crossed. The pages of a
+project and of a host do list them: a project made of proxies alone (an HAProxy in
+front of a MySQL cluster, a Traefik) is *used by* the apps whose requests cross
+them, and *depends* on what their routes lead to out of the project.
+
 In GraphQL, `App.uses` and `App.usedBy` (all the deployments of the app together),
-`Service.usedBy` and `Webserver.usedBy` (the routes ending at it) give them as
+`Service.usedBy`, `Webserver.usedBy` (the routes ending at it), `Webserver.relays`
+(the routes crossing it) and `Webserver.uses` (what its routes lead to) give them as
 `AppLink`s; `linkRoutes(ids)` gives their routes, step by step;
 `impact(throughProxies: true)` crosses the webservers without counting them as a
 level.

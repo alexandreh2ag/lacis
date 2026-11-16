@@ -643,9 +643,11 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Links       func(childComplexity int) int
 		Places      func(childComplexity int) int
+		Relays      func(childComplexity int) int
 		Routing     func(childComplexity int) int
 		Type        func(childComplexity int) int
 		UsedBy      func(childComplexity int) int
+		Uses        func(childComplexity int) int
 		Version     func(childComplexity int) int
 	}
 }
@@ -827,6 +829,8 @@ type WebserverResolver interface {
 	Dependents(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
 	Links(ctx context.Context, obj *model.Webserver) ([]model.Link, error)
 	UsedBy(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error)
+	Relays(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error)
+	Uses(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error)
 }
 
 type executableSchema struct {
@@ -3508,6 +3512,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Webserver.Places(childComplexity), true
+	case "Webserver.relays":
+		if e.complexity.Webserver.Relays == nil {
+			break
+		}
+
+		return e.complexity.Webserver.Relays(childComplexity), true
 	case "Webserver.routing":
 		if e.complexity.Webserver.Routing == nil {
 			break
@@ -3526,6 +3536,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Webserver.UsedBy(childComplexity), true
+	case "Webserver.uses":
+		if e.complexity.Webserver.Uses == nil {
+			break
+		}
+
+		return e.complexity.Webserver.Uses(childComplexity), true
 	case "Webserver.version":
 		if e.complexity.Webserver.Version == nil {
 			break
@@ -10727,6 +10743,10 @@ func (ec *executionContext) fieldContext_Host_webservers(_ context.Context, fiel
 				return ec.fieldContext_Webserver_links(ctx, field)
 			case "usedBy":
 				return ec.fieldContext_Webserver_usedBy(ctx, field)
+			case "relays":
+				return ec.fieldContext_Webserver_relays(ctx, field)
+			case "uses":
+				return ec.fieldContext_Webserver_uses(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Webserver", field.Name)
 		},
@@ -14433,6 +14453,10 @@ func (ec *executionContext) fieldContext_Namespace_webserver(ctx context.Context
 				return ec.fieldContext_Webserver_links(ctx, field)
 			case "usedBy":
 				return ec.fieldContext_Webserver_usedBy(ctx, field)
+			case "relays":
+				return ec.fieldContext_Webserver_relays(ctx, field)
+			case "uses":
+				return ec.fieldContext_Webserver_uses(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Webserver", field.Name)
 		},
@@ -19601,6 +19625,104 @@ func (ec *executionContext) _Webserver_usedBy(ctx context.Context, field graphql
 }
 
 func (ec *executionContext) fieldContext_Webserver_usedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Webserver",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
+			case "from":
+				return ec.fieldContext_AppLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_AppLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_AppLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_AppLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Webserver_relays(ctx context.Context, field graphql.CollectedField, obj *model.Webserver) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Webserver_relays,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Webserver().Relays(ctx, obj)
+		},
+		nil,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Webserver_relays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Webserver",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
+			case "from":
+				return ec.fieldContext_AppLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_AppLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_AppLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_AppLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Webserver_uses(ctx context.Context, field graphql.CollectedField, obj *model.Webserver) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Webserver_uses,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Webserver().Uses(ctx, obj)
+		},
+		nil,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Webserver_uses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Webserver",
 		Field:      field,
@@ -28925,6 +29047,78 @@ func (ec *executionContext) _Webserver(ctx context.Context, sel ast.SelectionSet
 					}
 				}()
 				res = ec._Webserver_usedBy(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "relays":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Webserver_relays(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "uses":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Webserver_uses(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

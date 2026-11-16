@@ -24,9 +24,9 @@ type ProjectOut struct {
 	// Apps are its apps, one per name and env.
 	Apps  []ProjectApp  `json:"apps,omitempty"`
 	Hosts []ProjectHost `json:"hosts,omitempty"`
-	// Dependencies are what its apps use, UsedBy the apps of the other
-	// projects using its apps, services and webservers: through the
-	// proxies, named in via.
+	// Dependencies are what its apps and its proxies use, UsedBy the apps
+	// of the other projects using its apps, services and webservers:
+	// through the proxies, named in via.
 	Dependencies []ProjectLink `json:"dependencies,omitempty"`
 	UsedBy       []ProjectLink `json:"used_by,omitempty"`
 }
@@ -116,11 +116,20 @@ func (x *index) projectOut(p *model.Project, now time.Time) ProjectOut {
 	}
 	slices.Sort(out.Envs)
 
-	// What the apps use, and who of the other projects uses its apps and
-	// the services and webservers of its hosts.
+	// What the apps and the webservers of its hosts use, and who of the
+	// other projects uses its apps and the services and webservers of its
+	// hosts, a proxy whatever it routes to. A webserver serving the apps of
+	// the project is no dependency of it.
+	webservers := x.webserversOfProject(p.ID)
 	deps := newLinkSet(x)
 	for id := range mine {
 		deps.add(x.paths.Uses(id), func(linkpath.Path) bool { return true })
+	}
+	for _, id := range webservers {
+		deps.add(x.paths.Uses(id), func(path linkpath.Path) bool {
+			last := path.Last()
+			return x.end(last.ToType, last.ToID, last.ExternalTarget).Project != p.Slug
+		})
 	}
 	used := newLinkSet(x)
 	other := func(path linkpath.Path) bool {
@@ -130,10 +139,13 @@ func (x *index) projectOut(p *model.Project, now time.Time) ProjectOut {
 	for id := range mine {
 		used.add(x.paths.UsedBy(id), other)
 	}
-	for _, list := range [][]uuid.UUID{x.servicesOfProject(p.ID), x.webserversOfProject(p.ID)} {
+	for _, list := range [][]uuid.UUID{x.servicesOfProject(p.ID), webservers} {
 		for _, id := range list {
 			used.add(x.paths.UsedBy(id), other)
 		}
+	}
+	for _, id := range webservers {
+		used.add(x.paths.Through(id), other)
 	}
 	out.Dependencies, out.UsedBy = deps.sorted(), used.sorted()
 	return out

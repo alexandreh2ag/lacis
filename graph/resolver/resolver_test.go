@@ -342,7 +342,11 @@ func TestNamespace_EffectiveLinks(t *testing.T) {
 			usedBy { key confidence via from { ... on App { name } } }
 		}
 		service(id:"`+id(21).String()+`") { usedBy { from { ... on App { name } } } }
-		webserver(id:"`+nginx.String()+`") { usedBy { key } }
+		webserver(id:"`+nginx.String()+`") {
+			usedBy { key }
+			relays { key via from { ... on App { name } } to { ... on App { name } } }
+			uses { key via from { __typename } to { ... on App { name } } }
+		}
 	} }`)
 	assert.JSONEq(t, `{"namespace":{
 		"front":{"uses":[{"key":"API_URL","confidence":"INFERRED","deadEnd":false,"resolvedBy":["route"],"via":["nginx"],
@@ -358,8 +362,30 @@ func TestNamespace_EffectiveLinks(t *testing.T) {
 				{"key":"CACHE_URL","via":[],"to":{"__typename":"Host"}}],
 			"usedBy":[{"key":"API_URL","confidence":"INFERRED","via":["nginx"],"from":{"name":"front"}}]},
 		"service":{"usedBy":[{"from":{"name":"api"}}]},
-		"webserver":{"usedBy":[]}
+		"webserver":{"usedBy":[],
+			"relays":[{"key":"API_URL","via":["nginx"],"from":{"name":"front"},"to":{"name":"api"}}],
+			"uses":[{"key":null,"via":[],"from":{"__typename":"Webserver"},"to":{"name":"api"}}]}
 	}}`, got)
+}
+
+func TestNamespace_WebserverLinkRoutes(t *testing.T) {
+	f := newFixture(t, reader())
+	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).Times(2)
+	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inventory(t), nil).Times(2)
+	nginx := id(22)
+
+	var res struct {
+		Namespace struct {
+			Webserver struct {
+				Uses []struct{ ID string }
+			}
+		}
+	}
+	require.NoError(t, json.Unmarshal([]byte(f.post(t, `{ namespace(slug:"acme") { webserver(id:"`+nginx.String()+`") { uses { id } } } }`)), &res))
+	require.Len(t, res.Namespace.Webserver.Uses, 1)
+	assert.JSONEq(t, `{"namespace":{"linkRoutes":[{"steps":[{"node":{"__typename":"Webserver"},"hosts":["web-1"]},{"node":{"__typename":"App"},"hosts":["web-1"]}]}]}}`,
+		f.post(t, `{ namespace(slug:"acme") { linkRoutes(ids: ["`+res.Namespace.Webserver.Uses[0].ID+`"]) { steps { node { __typename } hosts } } } }`),
+		"the routes of what a webserver routes to start from it")
 }
 
 func TestNamespace_LinkRoutes(t *testing.T) {

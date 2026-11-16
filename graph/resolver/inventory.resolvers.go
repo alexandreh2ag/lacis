@@ -430,6 +430,16 @@ func (r *webserverResolver) UsedBy(ctx context.Context, obj *model.Webserver) ([
 	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
 }
 
+// Relays is the resolver for the relays field.
+func (r *webserverResolver) Relays(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error) {
+	return r.groupsOf(ctx, obj.NamespaceID, func(x *index) []linkpath.Path { return x.paths.Through(obj.ID) })
+}
+
+// Uses is the resolver for the uses field.
+func (r *webserverResolver) Uses(ctx context.Context, obj *model.Webserver) ([]linkpath.Group, error) {
+	return r.groupsOf(ctx, obj.NamespaceID, func(x *index) []linkpath.Path { return x.paths.Uses(obj.ID) })
+}
+
 // App returns graph.AppResolver implementation.
 func (r *Resolver) App() graph.AppResolver { return &appResolver{r} }
 

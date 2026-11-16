@@ -109,7 +109,7 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "search", Annotations: readOnly("Search the inventory"),
 		Description: "Finds namespaces and projects whose slug, name or description contains the query, and hosts, apps, services, webservers and containers whose name, path, domain, vhost, image or IP contains it, case-insensitive."}, s.search)
 	add(s, srv, &mcp.Tool{Name: "get_project", Annotations: readOnly("Get a project"),
-		Description: "Gives a project by slug or name: its envs, its apps (one per name and env, with their versions, domains and hosts), its hosts, what its apps use and which apps of other projects use it, through the reverse proxies (named in via)."}, s.getProject)
+		Description: "Gives a project by slug or name: its envs, its apps (one per name and env, with their versions, domains and hosts), its hosts, what its apps and its proxies route to, and which apps of other projects use it, through the reverse proxies (named in via); a proxy is used by the apps whose requests cross it."}, s.getProject)
 	add(s, srv, &mcp.Tool{Name: "list_projects", Annotations: readOnly("List the projects"),
 		Description: "Lists the projects, with their envs and how many apps and hosts they have; filtered by namespace, env or a text in their slug, name or description."}, s.listProjects)
 	add(s, srv, &mcp.Tool{Name: "list_apps", Annotations: readOnly("List the apps"),
@@ -121,7 +121,7 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "list_hosts", Annotations: readOnly("List the hosts"),
 		Description: "Lists the hosts with their project, env, OS, status and number of apps; filtered by namespace, project, env or a text in their hostname."}, s.listHosts)
 	add(s, srv, &mcp.Tool{Name: "used_by", Annotations: readOnly("Who uses it"),
-		Description: "Finds the apps, with their host, project and env, that use a project, an app, a service (by type such as mysql, or id), a host or a webserver, through the reverse proxies (named in via). A project or a host using itself is left out."}, s.usedBy)
+		Description: "Finds the apps, with their host, project and env, that use a project, an app, a service (by type such as mysql, or id), a host or a webserver, through the reverse proxies (named in via); a webserver is used too by the apps whose requests cross it. A project or a host using itself is left out."}, s.usedBy)
 	add(s, srv, &mcp.Tool{Name: "get_host", Annotations: readOnly("Get a host"),
 		Description: "Gives a host by hostname or id: OS, kernel, resources, IPs, runtimes, services, webservers, apps and containers."}, s.getHost)
 	add(s, srv, &mcp.Tool{Name: "get_app", Annotations: readOnly("Get an app"),

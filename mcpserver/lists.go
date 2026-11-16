@@ -276,13 +276,14 @@ func (s *server) usedBy(ctx context.Context, req *mcp.CallToolRequest, in UsedBy
 	out.Target = target
 	seen := map[string]bool{}
 	for _, id := range ids {
-		for _, p := range x.paths.UsedBy(id) {
+		// A webserver is used too by the routes crossing it.
+		for _, p := range append(slices.Clone(x.paths.UsedBy(id)), x.paths.Through(id)...) {
 			first, last := p.First(), p.Last()
 			if inside(first.FromID) {
 				continue
 			}
 			c := x.consumer(p)
-			key := first.FromID.String() + "\x00" + last.ToID.String() + "\x00" + c.Key
+			key := first.FromID.String() + "\x00" + endKey(last) + "\x00" + c.Key
 			if !seen[key] {
 				seen[key] = true
 				out.Consumers = append(out.Consumers, c)
@@ -295,6 +296,18 @@ func (s *server) usedBy(ctx context.Context, req *mcp.CallToolRequest, in UsedBy
 	})
 	out.Consumers, out.Truncated = truncate(out.Consumers, limit(in.Limit))
 	return nil, out, nil
+}
+
+// endKey tells the end of a link apart: an entity by its id, an external
+// target by itself.
+func endKey(l *model.Link) string {
+	if l.ToID != nil {
+		return l.ToID.String()
+	}
+	if l.ExternalTarget != nil {
+		return l.ToType + "\x00" + *l.ExternalTarget
+	}
+	return l.ToType
 }
 
 func (x *index) consumer(p linkpath.Path) Consumer {

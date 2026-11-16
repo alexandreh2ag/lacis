@@ -227,6 +227,10 @@ type Webserver {
   links: [Link!]!
   "Who uses the webserver for a name its routes lead nowhere known with: the routes ending at it."
   usedBy: [AppLink!]!
+  "Who uses the webserver as a proxy: the routes crossing it, to what they reach."
+  relays: [AppLink!]!
+  "What the webserver routes to, through the proxies behind it: its routes, whatever the names called."
+  uses: [AppLink!]!
 }
 
 type App {

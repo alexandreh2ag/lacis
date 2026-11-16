@@ -445,7 +445,8 @@ func TestServer_UsedBy(t *testing.T) {
 		{name: "a service in another env", args: map[string]any{"target": "mysql", "env": "staging"}, err: `no project, app, service, host or webserver "mysql"`},
 		{name: "a host, what runs on it left out", args: map[string]any{"target": "db-1"}, target: "host db-1",
 			want: []string{"shop-front@web-1 -> mysql "}},
-		{name: "a webserver by id", args: map[string]any{"target": nginx.ID.String()}, target: nginx.ID.String()},
+		{name: "a webserver by id, the routes crossing it", args: map[string]any{"target": nginx.ID.String()}, target: nginx.ID.String(),
+			want: []string{"crm@crm-1 -> shop-front nginx@web-1", "legacy@web-2 -> shop-front nginx@web-1"}},
 		{name: "unknown", args: map[string]any{"target": "nope"}, err: "use search"},
 		{name: "no target", args: map[string]any{"target": " "}, err: "the target is required"},
 	}

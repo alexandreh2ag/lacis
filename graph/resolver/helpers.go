@@ -92,11 +92,17 @@ func (r *Resolver) history(ctx context.Context, namespace string, f service.Hist
 
 // usedBy are the app links to a service or a webserver.
 func (r *Resolver) usedBy(ctx context.Context, namespaceID, id uuid.UUID) ([]linkpath.Group, error) {
+	return r.groupsOf(ctx, namespaceID, func(x *index) []linkpath.Path { return x.paths.UsedBy(id) })
+}
+
+// groupsOf are the app links of the effective links paths gives in a
+// namespace.
+func (r *Resolver) groupsOf(ctx context.Context, namespaceID uuid.UUID, paths func(*index) []linkpath.Path) ([]linkpath.Group, error) {
 	x, err := r.index(ctx, namespaceID)
 	if err != nil {
 		return nil, err
 	}
-	return orEmpty(x.groups(x.paths.UsedBy(id))), nil
+	return orEmpty(x.groups(paths(x))), nil
 }
 
 // detail decodes the detail of a link.

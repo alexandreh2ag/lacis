@@ -130,6 +130,73 @@ func TestUsedBy(t *testing.T) {
 	assert.Empty(t, g.UsedBy(id("ws-nginx")))
 }
 
+func TestUses_Webserver(t *testing.T) {
+	tests := []struct {
+		name  string
+		from  string
+		links []model.Link
+		want  []string
+	}{
+		{name: "its routes, through the proxies behind it", from: "ws-traefik", links: inventory(), want: []string{
+			"ws-traefik > ws-nginx > app-api",
+			"ws-traefik > app-blog",
+			"ws-traefik > ext-10.9.9.9",
+		}},
+		{name: "a route goes on for the names it routes", from: "ws-front", links: []model.Link{
+			exact("ws-front", "ws-back", map[string]any{"domains": []string{"x.example"}}),
+			exact("ws-back", "app-x", map[string]any{"domains": []string{"x.example"}}),
+			exact("ws-back", "app-y", map[string]any{"domains": []string{"y.example"}}),
+		}, want: []string{"ws-front > ws-back > app-x"}},
+		{name: "a route of no name, as a call by IP", from: "ws-front", links: []model.Link{
+			exact("ws-front", "ws-back", nil),
+			exact("ws-back", "app-x", map[string]any{"domains": []string{"x.example"}}),
+			exact("ws-back", "app-y", map[string]any{"domains": []string{"y.example"}}),
+		}, want: []string{"ws-front > ws-back (dead end)"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shown(New(tt.links).Uses(id(tt.from))))
+		})
+	}
+}
+
+func TestThrough(t *testing.T) {
+	g := New(inventory())
+	tests := []struct {
+		name string
+		id   string
+		want []string
+	}{
+		{name: "proxy of proxies", id: "ws-traefik", want: []string{
+			"app-front > ws-traefik > ws-nginx > app-api",
+			"app-front > ws-traefik > ext-10.9.9.9",
+			"app-bo > ws-traefik > ws-nginx > app-api",
+			"app-other > ws-traefik > app-blog",
+		}},
+		{name: "behind a proxy", id: "ws-nginx", want: []string{
+			"app-api > ws-nginx > app-api",
+			"app-front > ws-traefik > ws-nginx > app-api",
+			"app-bo > ws-traefik > ws-nginx > app-api",
+		}},
+		{name: "by port", id: "ws-haproxy", want: []string{
+			"app-front > ws-haproxy > svc-es1",
+			"app-front > ws-haproxy > svc-es2",
+		}},
+		{name: "not a webserver", id: "svc-mysql"},
+		{name: "unknown", id: "ws-unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := g.Through(id(tt.id))
+			if tt.want == nil {
+				assert.Empty(t, got)
+				return
+			}
+			assert.Equal(t, tt.want, shown(got), "the dead ends stop at it: UsedBy gives them")
+		})
+	}
+}
+
 func TestRoutes(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -29,7 +29,7 @@ const HostPageDoc = graphql(`
         runtimes { id type version path manager packageVersion firstSeenAt }
         containers { id name containerId image version state ports networks composeProject composeService firstSeenAt }
         services { id type instance version packageVersion details firstSeenAt usedBy { ...AppLink } }
-        webservers { id type version domains firstSeenAt usedBy { ...AppLink } }
+        webservers { id type version domains firstSeenAt usedBy { ...AppLink } relays { ...AppLink } }
         apps {
           id name path role framework frameworkVersion firstSeenAt
           project { slug name } environment { slug name }
@@ -87,10 +87,11 @@ export function HostPage() {
 
 function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
   // Who uses the components of the host, through the proxies: its apps,
-  // its services, and its webservers where a route ends at them.
+  // its services, and its webservers where a route ends at them or crosses
+  // them.
   const usedBy = useMemo(() => splitUsedBy([
     ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type })),
-    ...h.webservers.flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type })),
+    ...h.webservers.flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type })),
     ...h.apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' })),
   ], (r) => hostOf(r.link.from)?.id === h.id), [h])
   const t = useT()

@@ -127,11 +127,14 @@ func (g *Graph) Uses(id uuid.UUID) []Path {
 // From are the effective links starting with a link of the graph: the
 // link alone, or the routes it goes on through when it reaches a
 // webserver. Of the routes reaching the same end, the shortest is kept:
-// one path per thing used.
+// one path per thing used. A route of a webserver goes on for the names it
+// routes.
 func (g *Graph) From(l *model.Link) []Path {
 	var names []string
 	if n := g.names[l]; n != "" {
 		names = []string{n}
+	} else if l.FromType == model.LinkNodeWebserver && len(g.domains[l]) > 0 {
+		names = g.domains[l]
 	}
 	var out []Path
 	for _, p := range g.follow(nil, []*model.Link{l}, names, g.path[l]) {
@@ -150,6 +153,24 @@ func (g *Graph) From(l *model.Link) []Path {
 // reaching it, directly or through webservers. A webserver is not a
 // consumer: what calls it is.
 func (g *Graph) UsedBy(id uuid.UUID) []Path {
+	return g.reaching(id, func(p Path) bool {
+		last := p.Last()
+		return last.ToID != nil && *last.ToID == id
+	})
+}
+
+// Through are the effective links crossing a webserver: the paths of the
+// consumers whose requests it routes on, to what they reach. UsedBy keeps
+// those ending at it alone, where its routes lead nowhere known.
+func (g *Graph) Through(id uuid.UUID) []Path {
+	return g.reaching(id, func(p Path) bool {
+		return slices.ContainsFunc(p.Links[1:], func(l *model.Link) bool { return l.FromID == id })
+	})
+}
+
+// reaching are the paths of the consumers reaching an entity that keep
+// holds.
+func (g *Graph) reaching(id uuid.UUID, keep func(Path) bool) []Path {
 	// The consumers are what reaches the entity going back through the
 	// webservers; their paths are walked forward, as Uses does, so that
 	// both ways agree.
@@ -177,7 +198,7 @@ func (g *Graph) UsedBy(id uuid.UUID) []Path {
 	var out []Path
 	for _, c := range order {
 		for _, p := range g.Uses(c) {
-			if last := p.Last(); last.ToID != nil && *last.ToID == id {
+			if keep(p) {
 				out = append(out, p)
 			}
 		}

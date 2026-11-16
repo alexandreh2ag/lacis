@@ -44,7 +44,7 @@ const ProjectPageDoc = graphql(`
           id hostname status ips { address defaultRoute } os { pretty } apps { id }
           places { ...ProjectPlace }
           services { id type instance version places { ...ProjectPlace } usedBy { ...AppLink } }
-          webservers { id type version places { ...ProjectPlace } usedBy { ...AppLink } }
+          webservers { id type version places { ...ProjectPlace } usedBy { ...AppLink } relays { ...AppLink } uses { ...AppLink } }
         }
       }
     }
@@ -53,8 +53,15 @@ const ProjectPageDoc = graphql(`
 `)
 
 type NS = NonNullable<ProjectPageQuery['namespace']>
-type MergedApp = NS['merged']['items'][number]
 type App = NS['apps']['items'][number]
+
+// Consumer is what uses things for the project in an env: one of its apps,
+// or one of the proxies of its hosts.
+interface Consumer {
+  name: string
+  env: string
+  uses: NS['merged']['items'][number]['uses']
+}
 
 // Dep is what the apps of an env use, whatever the hosts it runs on: a
 // service, a proxy or an app of a project, a host, an external target.
@@ -76,12 +83,12 @@ interface Dep {
   links: PathLink[]
 }
 
-// dependencies are what the apps use, through the proxies: the app or the
-// service at the end, one row per app, merged by project and env whatever
-// the hosts.
-function dependencies(apps: MergedApp[]): Dep[] {
+// dependencies are what the apps and the proxies use, through the proxies:
+// the app or the service at the end, one row per consumer, merged by
+// project and env whatever the hosts.
+function dependencies(consumers: Consumer[]): Dep[] {
   const out = new Map<string, Dep>()
-  for (const a of apps) {
+  for (const a of consumers) {
     for (const l of a.uses) {
       const t = l.to
       let d: Omit<Dep, 'key' | 'details' | 'by' | 'keys' | 'env' | 'confidence' | 'deadEnd' | 'links'>
@@ -96,7 +103,7 @@ function dependencies(apps: MergedApp[]): Dep[] {
         case 'App': d = { target: t.name, appId: t.id, project: projectOf(t), kind: 'app' }; detail = 'app'; break
         default: d = { target: t.target, kind: 'external' }; detail = t.reason ?? text().pages.project.external
       }
-      const env = a.environment?.slug ?? ''
+      const env = a.env
       // One row per app using the target: its route tells one link.
       const id = [d.kind, d.tech ?? '', d.target, d.project ?? '', env, a.name].join('\u0000')
       const cur = out.get(id) ?? { ...d, key: id, details: [], env, by: [], keys: [], confidence: l.confidence, deadEnd: false, links: [] }
@@ -105,7 +112,8 @@ function dependencies(apps: MergedApp[]): Dep[] {
       if (l.key && !cur.keys.includes(l.key)) cur.keys.push(l.key)
       if (l.confidence !== 'EXACT') cur.confidence = l.confidence
       cur.deadEnd ||= l.deadEnd
-      cur.links.push(l)
+      // The proxies of one type in one env of the project are one.
+      if (!cur.links.some((x) => x.id === l.id)) cur.links.push(l)
       out.set(id, cur)
     }
   }
@@ -167,13 +175,20 @@ export function ProjectPage() {
   const placed = (places: Parameters<typeof envsIn>[0]) => envsIn(places, slug).some((e) => inEnv(e))
   const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => placed(h.places)), [n, env, slug])
   const merged = useMemo(() => (n?.merged.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
-  const deps = useMemo(() => dependencies(merged), [merged])
+  // What the apps use, and what the proxies of its hosts route to out of
+  // the project: a proxy serving the apps of the project is no dependency.
+  const deps = useMemo(() => dependencies([
+    ...merged.map((a) => ({ name: a.name, env: a.environment?.slug ?? '', uses: a.uses })),
+    ...hosts.flatMap((h) => h.webservers.flatMap((w) => envsIn(w.places, slug).filter((e) => inEnv(e))
+      .map((env) => ({ name: w.type, env, uses: w.uses.filter((l) => projectOf(l.to) !== slug) })))),
+  ]), [merged, hosts, slug])
   // Who uses the project, through the proxies: its apps, the services of
-  // its hosts, and their webservers where a route ends at them.
+  // its hosts, and their webservers where a route ends at them or crosses
+  // them.
   const { others: usedBy, self: usedBySelf } = useMemo(() => splitUsedBy([
     ...hosts.flatMap((h) => [
       ...h.services.filter((s) => placed(s.places)).flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
-      ...h.webservers.filter((w) => placed(w.places)).flatMap((w) => usedByRows(w.usedBy, { name: w.type, tech: w.type, host: h })),
+      ...h.webservers.filter((w) => placed(w.places)).flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type, host: h })),
     ]),
     ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
   ], (r) => projectOf(r.link.from) === slug), [hosts, merged, slug])
