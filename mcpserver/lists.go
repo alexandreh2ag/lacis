@@ -356,7 +356,7 @@ func (x *index) resolveTarget(in UsedByInput) (string, []uuid.UUID, func(uuid.UU
 				ids[a.ID] = true
 			}
 		}
-		for _, list := range [][]uuid.UUID{x.servicesOfProject(p.ID), x.webserversOfProject(p.ID)} {
+		for _, list := range [][]uuid.UUID{x.servicesOfProject(p.ID), x.webserversOfProject(p.ID), x.hostsOfProject(p.ID)} {
 			for _, id := range list {
 				ids[id] = true
 			}

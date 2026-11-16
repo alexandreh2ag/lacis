@@ -354,6 +354,7 @@ type ComplexityRoot struct {
 		Runtimes       func(childComplexity int) int
 		Services       func(childComplexity int) int
 		Status         func(childComplexity int) int
+		UsedBy         func(childComplexity int) int
 		Virtualization func(childComplexity int) int
 		Webservers     func(childComplexity int) int
 	}
@@ -705,6 +706,7 @@ type HostResolver interface {
 	Services(ctx context.Context, obj *model.Host) ([]model.Service, error)
 	Webservers(ctx context.Context, obj *model.Host) ([]model.Webserver, error)
 	Apps(ctx context.Context, obj *model.Host) ([]model.App, error)
+	UsedBy(ctx context.Context, obj *model.Host) ([]linkpath.Group, error)
 	History(ctx context.Context, obj *model.Host, page *PageInput) (*ChangeEventList, error)
 }
 type HostIPResolver interface {
@@ -2044,6 +2046,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Host.Status(childComplexity), true
+	case "Host.usedBy":
+		if e.complexity.Host.UsedBy == nil {
+			break
+		}
+
+		return e.complexity.Host.UsedBy(childComplexity), true
 	case "Host.virtualization":
 		if e.complexity.Host.Virtualization == nil {
 			break
@@ -5768,6 +5776,8 @@ func (ec *executionContext) fieldContext_App_host(_ context.Context, field graph
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -9951,6 +9961,8 @@ func (ec *executionContext) fieldContext_GraphNode_hosts(_ context.Context, fiel
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -10829,6 +10841,55 @@ func (ec *executionContext) fieldContext_Host_apps(_ context.Context, field grap
 	return fc, nil
 }
 
+func (ec *executionContext) _Host_usedBy(ctx context.Context, field graphql.CollectedField, obj *model.Host) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Host_usedBy,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Host().UsedBy(ctx, obj)
+		},
+		nil,
+		ec.marshalNAppLink2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋlinkpathᚐGroupᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Host_usedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Host",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AppLink_id(ctx, field)
+			case "from":
+				return ec.fieldContext_AppLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_AppLink_to(ctx, field)
+			case "key":
+				return ec.fieldContext_AppLink_key(ctx, field)
+			case "confidence":
+				return ec.fieldContext_AppLink_confidence(ctx, field)
+			case "deadEnd":
+				return ec.fieldContext_AppLink_deadEnd(ctx, field)
+			case "resolvedBy":
+				return ec.fieldContext_AppLink_resolvedBy(ctx, field)
+			case "via":
+				return ec.fieldContext_AppLink_via(ctx, field)
+			case "routes":
+				return ec.fieldContext_AppLink_routes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AppLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Host_history(ctx context.Context, field graphql.CollectedField, obj *model.Host) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11103,6 +11164,8 @@ func (ec *executionContext) fieldContext_HostList_items(_ context.Context, field
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -14048,6 +14111,8 @@ func (ec *executionContext) fieldContext_Namespace_host(ctx context.Context, fie
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -15377,6 +15442,8 @@ func (ec *executionContext) fieldContext_Network_hosts(_ context.Context, field 
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -18164,6 +18231,8 @@ func (ec *executionContext) fieldContext_Service_host(_ context.Context, field g
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -19375,6 +19444,8 @@ func (ec *executionContext) fieldContext_Webserver_host(_ context.Context, field
 				return ec.fieldContext_Host_webservers(ctx, field)
 			case "apps":
 				return ec.fieldContext_Host_apps(ctx, field)
+			case "usedBy":
+				return ec.fieldContext_Host_usedBy(ctx, field)
 			case "history":
 				return ec.fieldContext_Host_history(ctx, field)
 			}
@@ -25142,6 +25213,42 @@ func (ec *executionContext) _Host(ctx context.Context, sel ast.SelectionSet, obj
 					}
 				}()
 				res = ec._Host_apps(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "usedBy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Host_usedBy(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

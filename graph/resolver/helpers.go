@@ -90,7 +90,7 @@ func (r *Resolver) history(ctx context.Context, namespace string, f service.Hist
 	return &graph.ChangeEventList{Items: rows, HasMore: more}, nil
 }
 
-// usedBy are the app links to a service or a webserver.
+// usedBy are the app links to a service, a webserver or a host.
 func (r *Resolver) usedBy(ctx context.Context, namespaceID, id uuid.UUID) ([]linkpath.Group, error) {
 	return r.groupsOf(ctx, namespaceID, func(x *index) []linkpath.Path { return x.paths.UsedBy(id) })
 }

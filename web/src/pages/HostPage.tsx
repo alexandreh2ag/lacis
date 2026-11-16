@@ -24,6 +24,7 @@ const HostPageDoc = graphql(`
       host(id: $id) {
         id hostname status lastSeenAt firstSeenAt agentVersion kernel arch virtualization resources
         project { slug name } environment { slug name }
+        usedBy { ...AppLink }
         os { id version pretty }
         ips { address prefixLength interface defaultRoute network { slug name } }
         runtimes { id type version path manager packageVersion firstSeenAt }
@@ -86,10 +87,11 @@ export function HostPage() {
 }
 
 function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
-  // Who uses the components of the host, through the proxies: its apps,
-  // its services, and its webservers where a route ends at them or crosses
-  // them.
+  // Who uses the host, through the proxies: itself, nothing known running
+  // on the port called, its apps, its services, and its webservers where a
+  // route ends at them or crosses them.
   const usedBy = useMemo(() => splitUsedBy([
+    ...usedByRows(h.usedBy, { name: h.hostname, tech: 'host' }),
     ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type })),
     ...h.webservers.flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type })),
     ...h.apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' })),

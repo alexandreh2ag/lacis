@@ -326,13 +326,18 @@ func TestServer_GetProject_UsedBy(t *testing.T) {
 	inv.Hosts, inv.Apps = append(inv.Hosts, crmHost), append(inv.Apps, crm)
 	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeApp, FromID: crm.ID, ToType: model.LinkNodeWebserver, ToID: &nginx.ID,
 		Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceExact, Detail: json.RawMessage(`{"key":"SHOP_URL","target":"https://www.acme.example"}`)})
+	// It calls too db-1 itself, nothing known running on its port.
+	inv.Links = append(inv.Links, model.Link{FromType: model.LinkNodeApp, FromID: crm.ID, ToType: model.LinkNodeHost, ToID: &db1.ID,
+		Source: model.LinkSourceEnv, Confidence: model.LinkConfidenceInferred, Detail: json.RawMessage(`{"key":"CLAMAV_DSN","target":"10.0.0.9:3310"}`)})
 	f.ns.EXPECT().Inventory(gomock.Any(), acme.ID).Return(inv, nil).AnyTimes()
 
 	var out mcpserver.ProjectOut
 	require.Empty(t, f.call(t, "get_project", map[string]any{"project": "shop", "namespace": "acme"}, &out))
-	require.Len(t, out.UsedBy, 1)
+	require.Len(t, out.UsedBy, 2)
+	assert.Equal(t, mcpserver.ProjectLink{From: mcpserver.End{Kind: "app", Name: "crm"}, To: mcpserver.End{Kind: "host", Name: "db-1", ID: db1.ID.String(), Host: "db-1", Project: "shop", Env: "production"},
+		Key: "CLAMAV_DSN", Confidence: "inferred"}, out.UsedBy[0], "a host of the project used itself")
 	assert.Equal(t, mcpserver.ProjectLink{From: mcpserver.End{Kind: "app", Name: "crm"}, To: mcpserver.End{Kind: "app", Name: "shop-front", Project: "shop", Env: "production"},
-		Key: "SHOP_URL", Confidence: "exact", Via: []string{"nginx@web-1"}}, out.UsedBy[0])
+		Key: "SHOP_URL", Confidence: "exact", Via: []string{"nginx@web-1"}}, out.UsedBy[1])
 }
 
 func TestServer_HostedProjects(t *testing.T) {

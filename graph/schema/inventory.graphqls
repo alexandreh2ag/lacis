@@ -133,6 +133,8 @@ type Host {
   services: [Service!]!
   webservers: [Webserver!]!
   apps: [App!]!
+  "Who uses the host itself, through the proxies: the routes ending at it, not at what runs on it."
+  usedBy: [AppLink!]!
   history(page: PageInput): ChangeEventList!
 }
 

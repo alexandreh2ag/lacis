@@ -147,6 +147,9 @@ func (x *index) projectOut(p *model.Project, now time.Time) ProjectOut {
 	for _, id := range webservers {
 		used.add(x.paths.Through(id), other)
 	}
+	for _, id := range x.hostsOfProject(p.ID) {
+		used.add(x.paths.UsedBy(id), other)
+	}
 	out.Dependencies, out.UsedBy = deps.sorted(), used.sorted()
 	return out
 }
@@ -204,6 +207,19 @@ func (x *index) servicesOfProject(projectID uuid.UUID) []uuid.UUID {
 	for _, s := range x.inv.Services {
 		if x.places.Any(s.ID, func(p placement.Place) bool { return p.Project == projectID }) {
 			out = append(out, s.ID)
+		}
+	}
+	return out
+}
+
+// hostsOfProject are the hosts its labels give to the project: a link
+// reaching a host itself, not what runs on it, belongs to the project of
+// the host.
+func (x *index) hostsOfProject(projectID uuid.UUID) []uuid.UUID {
+	var out []uuid.UUID
+	for _, h := range x.inv.Hosts {
+		if h.ProjectID != nil && *h.ProjectID == projectID {
+			out = append(out, h.ID)
 		}
 	}
 	return out

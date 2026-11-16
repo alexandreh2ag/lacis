@@ -158,11 +158,15 @@ information. The front lists them in *Uses* and *Used by*, the proxies crossed i
 The graph draws a link to what is used, not to the proxies crossed. The pages of a
 project and of a host do list them: a project made of proxies alone (an HAProxy in
 front of a MySQL cluster, a Traefik) is *used by* the apps whose requests cross
-them, and *depends* on what their routes lead to out of the project.
+them, and *depends* on what their routes lead to out of the project. A host
+reached itself, nothing known running on the port called (a ClamAV daemon behind
+an HAProxy), is *used by* the apps reaching it, on its page and on the page of
+the project of its labels.
 
 In GraphQL, `App.uses` and `App.usedBy` (all the deployments of the app together),
-`Service.usedBy`, `Webserver.usedBy` (the routes ending at it), `Webserver.relays`
-(the routes crossing it) and `Webserver.uses` (what its routes lead to) give them as
+`Service.usedBy`, `Host.usedBy` (the routes ending at the host itself),
+`Webserver.usedBy` (the routes ending at it), `Webserver.relays` (the routes
+crossing it) and `Webserver.uses` (what its routes lead to) give them as
 `AppLink`s; `linkRoutes(ids)` gives their routes, step by step;
 `impact(throughProxies: true)` crosses the webservers without counting them as a
 level.

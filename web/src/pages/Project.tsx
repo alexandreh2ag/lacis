@@ -43,13 +43,30 @@ const ProjectPageDoc = graphql(`
         items {
           id hostname status ips { address defaultRoute } os { pretty } apps { id }
           places { ...ProjectPlace }
-          services { id type instance version places { ...ProjectPlace } usedBy { ...AppLink } }
-          webservers { id type version places { ...ProjectPlace } usedBy { ...AppLink } relays { ...AppLink } uses { ...AppLink } }
+          services { id type version }
+          webservers { id type version }
         }
       }
     }
   }
   fragment ProjectPlace on Place { project { slug } environment { slug } }
+`)
+
+// The links of the hosts of the project and of what runs on them, apart:
+// with the page, they would pass the complexity a query may have.
+const ProjectHostLinksDoc = graphql(`
+  query ProjectHostLinks($ns: String!, $project: String!) {
+    namespace(slug: $ns) {
+      id
+      hosts(filter: { projects: [$project] }, page: { limit: 500 }) {
+        items {
+          id hostname project { slug } places { ...ProjectPlace } usedBy { ...AppLink }
+          services { id type instance places { ...ProjectPlace } usedBy { ...AppLink } }
+          webservers { id type places { ...ProjectPlace } usedBy { ...AppLink } relays { ...AppLink } uses { ...AppLink } }
+        }
+      }
+    }
+  }
 `)
 
 type NS = NonNullable<ProjectPageQuery['namespace']>
@@ -163,7 +180,9 @@ function deployedApps(apps: App[]): DeployedApp[] {
 
 export function ProjectPage() {
   const { ns = '', slug = '' } = useParams()
-  const { data, error } = useQuery(ProjectPageDoc, { variables: { ns, project: slug }, ...refresh })
+  const { data, error: pageError } = useQuery(ProjectPageDoc, { variables: { ns, project: slug }, ...refresh })
+  const { data: links, error: linksError } = useQuery(ProjectHostLinksDoc, { variables: { ns, project: slug }, ...refresh })
+  const error = pageError ?? linksError
   const t = useT()
   const tp = t.pages.project
   const ts = t.pages.shared
@@ -174,24 +193,27 @@ export function ProjectPage() {
   const apps = useMemo(() => (n?.apps.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
   const placed = (places: Parameters<typeof envsIn>[0]) => envsIn(places, slug).some((e) => inEnv(e))
   const hosts = useMemo(() => (n?.hosts.items ?? []).filter((h) => placed(h.places)), [n, env, slug])
+  const linkHosts = useMemo(() => (links?.namespace?.hosts.items ?? []).filter((h) => placed(h.places)), [links, env, slug])
   const merged = useMemo(() => (n?.merged.items ?? []).filter((a) => inEnv(a.environment?.slug)), [n, env])
   // What the apps use, and what the proxies of its hosts route to out of
   // the project: a proxy serving the apps of the project is no dependency.
   const deps = useMemo(() => dependencies([
     ...merged.map((a) => ({ name: a.name, env: a.environment?.slug ?? '', uses: a.uses })),
-    ...hosts.flatMap((h) => h.webservers.flatMap((w) => envsIn(w.places, slug).filter((e) => inEnv(e))
+    ...linkHosts.flatMap((h) => h.webservers.flatMap((w) => envsIn(w.places, slug).filter((e) => inEnv(e))
       .map((env) => ({ name: w.type, env, uses: w.uses.filter((l) => projectOf(l.to) !== slug) })))),
-  ]), [merged, hosts, slug])
+  ]), [merged, linkHosts, slug])
   // Who uses the project, through the proxies: its apps, the services of
-  // its hosts, and their webservers where a route ends at them or crosses
-  // them.
+  // its hosts, their webservers where a route ends at them or crosses
+  // them, and the hosts of its labels reached themselves, nothing known
+  // running on the port called.
   const { others: usedBy, self: usedBySelf } = useMemo(() => splitUsedBy([
-    ...hosts.flatMap((h) => [
+    ...linkHosts.flatMap((h) => [
+      ...(h.project?.slug === slug ? usedByRows(h.usedBy, { name: h.hostname, tech: 'host', host: h }) : []),
       ...h.services.filter((s) => placed(s.places)).flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
       ...h.webservers.filter((w) => placed(w.places)).flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type, host: h })),
     ]),
     ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
-  ], (r) => projectOf(r.link.from) === slug), [hosts, merged, slug])
+  ], (r) => projectOf(r.link.from) === slug), [linkHosts, merged, slug])
   // An app deployed in several versions in one env diverges.
   const diverging = useMemo(() => {
     const versions = new Map<string, Set<string>>()

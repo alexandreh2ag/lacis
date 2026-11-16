@@ -291,6 +291,11 @@ func (r *hostResolver) Apps(ctx context.Context, obj *model.Host) ([]model.App, 
 	return x.appsOf[obj.ID], nil
 }
 
+// UsedBy is the resolver for the usedBy field.
+func (r *hostResolver) UsedBy(ctx context.Context, obj *model.Host) ([]linkpath.Group, error) {
+	return r.usedBy(ctx, obj.NamespaceID, obj.ID)
+}
+
 // History is the resolver for the history field.
 func (r *hostResolver) History(ctx context.Context, obj *model.Host, page *graph.PageInput) (*graph.ChangeEventList, error) {
 	x, err := r.index(ctx, obj.NamespaceID)

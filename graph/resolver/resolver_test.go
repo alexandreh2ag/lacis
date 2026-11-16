@@ -342,6 +342,7 @@ func TestNamespace_EffectiveLinks(t *testing.T) {
 			usedBy { key confidence via from { ... on App { name } } }
 		}
 		service(id:"`+id(21).String()+`") { usedBy { from { ... on App { name } } } }
+		host(id:"`+id(11).String()+`") { usedBy { key from { ... on App { name } } to { __typename } } }
 		webserver(id:"`+nginx.String()+`") {
 			usedBy { key }
 			relays { key via from { ... on App { name } } to { ... on App { name } } }
@@ -362,6 +363,7 @@ func TestNamespace_EffectiveLinks(t *testing.T) {
 				{"key":"CACHE_URL","via":[],"to":{"__typename":"Host"}}],
 			"usedBy":[{"key":"API_URL","confidence":"INFERRED","via":["nginx"],"from":{"name":"front"}}]},
 		"service":{"usedBy":[{"from":{"name":"api"}}]},
+		"host":{"usedBy":[{"key":"CACHE_URL","from":{"name":"api"},"to":{"__typename":"Host"}}]},
 		"webserver":{"usedBy":[],
 			"relays":[{"key":"API_URL","via":["nginx"],"from":{"name":"front"},"to":{"name":"api"}}],
 			"uses":[{"key":null,"via":[],"from":{"__typename":"Webserver"},"to":{"name":"api"}}]}
