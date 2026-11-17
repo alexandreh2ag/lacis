@@ -1,0 +1,27 @@
+{
+  "docsSidebar": [
+    "intro",
+    "installation",
+    {
+      "type": "category",
+      "label": "Configuration",
+      "items": [
+        "configuration/server",
+        "configuration/agent"
+      ]
+    },
+    "collectors",
+    "linking",
+    "permissions",
+    "oidc",
+    {
+      "type": "category",
+      "label": "CLI",
+      "items": [
+        "cli/server",
+        "cli/agent"
+      ]
+    },
+    "architecture"
+  ]
+}
