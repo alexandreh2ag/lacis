@@ -314,7 +314,8 @@ func (s *oauthService) Authorize(ctx context.Context, p *auth.Principal, req Aut
 	if p == nil {
 		return "", ErrUnauthorized
 	}
-	if _, err := s.CheckAuthorize(ctx, req); err != nil {
+	client, err := s.CheckAuthorize(ctx, req)
+	if err != nil {
 		return "", err
 	}
 	code, hashed, err := hash.NewToken(OAuthCodePrefix)
@@ -330,9 +331,14 @@ func (s *oauthService) Authorize(ctx context.Context, p *auth.Principal, req Aut
 		if err := repos.OAuth.MarkClientAuthorized(ctx, req.ClientID, now); err != nil {
 			return err
 		}
-		return repos.OAuth.CreateCode(ctx, &model.OAuthCode{ID: hashed, ClientID: req.ClientID, UserID: p.User.ID,
+		err := repos.OAuth.CreateCode(ctx, &model.OAuthCode{ID: hashed, ClientID: req.ClientID, UserID: p.User.ID,
 			OIDCGroups: groups, RedirectURI: req.RedirectURI, CodeChallenge: req.CodeChallenge,
 			Scope: OAuthScopeRead, ExpiresAt: now.Add(OAuthCodeTTL)})
+		if err != nil {
+			return err
+		}
+		return repos.Audit.Create(ctx, newAuditEvent(now, p.User, model.AuditAuth, AuditMCPAuthorize,
+			AuditAbout{Target: client.Name}, map[string]any{"client_id": req.ClientID}))
 	})
 	if err != nil {
 		return "", err

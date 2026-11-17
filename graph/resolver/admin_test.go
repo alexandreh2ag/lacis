@@ -210,9 +210,9 @@ func TestTokenMutations(t *testing.T) {
 	f.agents.EXPECT().Revoke(gomock.Any(), id(6)).Return(nil, service.ErrNotFound)
 	assert.Contains(t, f.errors(t, `mutation { revokeAgent(id:"`+id(6).String()+`") { revokedAt } }`), `"code":"NOT_FOUND"`)
 
-	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(7)).Return(nil)
+	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(7)).Return(&model.Host{Hostname: "web-1"}, nil)
 	assert.JSONEq(t, `{"deleteAgent":true}`, f.post(t, `mutation { deleteAgent(id:"`+id(7).String()+`") }`))
-	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(8)).Return(service.ErrNotFound)
+	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(8)).Return(nil, service.ErrNotFound)
 	assert.Contains(t, f.errors(t, `mutation { deleteAgent(id:"`+id(8).String()+`") }`), `"code":"NOT_FOUND"`)
 }
 

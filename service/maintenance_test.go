@@ -105,6 +105,15 @@ func TestMaintenanceService(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, events, "0 keeps all")
 
+	appCtx.Config.Workers.Params.PurgeAuditEventsAfter = 90 * 24 * time.Hour
+	m.audit.EXPECT().PurgeBefore(ctx, now.Add(-90*24*time.Hour)).Return(int64(4), nil)
+	events, err = svc.PurgeAuditEvents(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 4, events)
+	m.audit.EXPECT().PurgeBefore(ctx, gomock.Any()).Return(int64(0), errDB)
+	_, err = svc.PurgeAuditEvents(ctx)
+	assert.ErrorIs(t, err, errDB)
+
 	m.host.EXPECT().FindSeenBefore(ctx, now.Add(-180*24*time.Hour)).Return([]repository.HostRef{
 		{ID: gone, Namespace: "acme"}, {ID: back, Namespace: "acme"}, {ID: active, Namespace: "acme"},
 	}, nil)

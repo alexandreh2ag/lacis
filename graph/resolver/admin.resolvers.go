@@ -88,6 +88,11 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id uuid.UUID) (bool, 
 	if err != nil {
 		return false, err
 	}
+	if r.AuditService != nil {
+		if u, err := r.UserService.Get(ctx, id); err == nil {
+			auditTarget(ctx, u.Username)
+		}
+	}
 	if err := r.UserService.Delete(ctx, p, id); err != nil {
 		return false, r.userError(ctx, err)
 	}
@@ -126,6 +131,11 @@ func (r *mutationResolver) DeleteRole(ctx context.Context, id uuid.UUID) (bool, 
 	if err != nil {
 		return false, err
 	}
+	if r.AuditService != nil {
+		if role, err := r.RoleService.Get(ctx, id); err == nil {
+			auditTarget(ctx, role.Code)
+		}
+	}
 	if err := r.RoleService.Delete(ctx, p, id); err != nil {
 		return false, r.userError(ctx, err)
 	}
@@ -161,8 +171,12 @@ func (r *mutationResolver) RevokeAgent(ctx context.Context, id uuid.UUID) (*repo
 
 // DeleteAgent is the resolver for the deleteAgent field.
 func (r *mutationResolver) DeleteAgent(ctx context.Context, id uuid.UUID) (bool, error) {
-	if err := r.MetadataService.DeleteAgent(ctx, id); err != nil {
+	h, err := r.MetadataService.DeleteAgent(ctx, id)
+	if err != nil {
 		return false, r.userError(ctx, err)
+	}
+	if h != nil {
+		auditTarget(ctx, h.Hostname)
 	}
 	r.forgetAll(ctx)
 	return true, nil
@@ -200,7 +214,7 @@ func (r *queryResolver) Access(ctx context.Context) (*graph.Access, error) {
 		return &graph.Rights{Read: p.CanGlobal(resource, model.ActionRead), Write: p.CanGlobal(resource, model.ActionWrite)}
 	}
 	return &graph.Access{Users: rights(model.ResourceUsers), Roles: rights(model.ResourceRoles), Tokens: rights(model.ResourceTokens),
-		Icons: rights(model.ResourceIcons), Tasks: rights(model.ResourceTasks)}, nil
+		Icons: rights(model.ResourceIcons), Tasks: rights(model.ResourceTasks), Audit: rights(model.ResourceAudit)}, nil
 }
 
 // Users is the resolver for the users field.

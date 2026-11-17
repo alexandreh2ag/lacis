@@ -115,6 +115,17 @@ models:
     model: github.com/alexandreh2ag/lacis/graph/union.Component
   ChangeEvent:
     model: github.com/alexandreh2ag/lacis/repository.ChangeEventRow
+  AuditEvent:
+    model: github.com/alexandreh2ag/lacis/model.AuditEvent
+  AuditSource:
+    model: github.com/alexandreh2ag/lacis/model.AuditSource
+    enum_values:
+      MCP:
+        value: github.com/alexandreh2ag/lacis/model.AuditMCP
+      UI:
+        value: github.com/alexandreh2ag/lacis/model.AuditUI
+      AUTH:
+        value: github.com/alexandreh2ag/lacis/model.AuditAuth
 
   Account:
     model: github.com/alexandreh2ag/lacis/service.Account
@@ -157,6 +168,8 @@ models:
         value: github.com/alexandreh2ag/lacis/model.ResourceIcons
       TASKS:
         value: github.com/alexandreh2ag/lacis/model.ResourceTasks
+      AUDIT:
+        value: github.com/alexandreh2ag/lacis/model.ResourceAudit
       ALL:
         value: github.com/alexandreh2ag/lacis/model.ResourceAll
   GrantAction:

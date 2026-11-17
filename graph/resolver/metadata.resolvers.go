@@ -117,9 +117,11 @@ func (r *mutationResolver) DeleteNetwork(ctx context.Context, namespace string, 
 
 // DeleteHost is the resolver for the deleteHost field.
 func (r *mutationResolver) DeleteHost(ctx context.Context, namespace string, id uuid.UUID) (bool, error) {
-	if err := r.MetadataService.DeleteHost(ctx, namespace, id); err != nil {
+	h, err := r.MetadataService.DeleteHost(ctx, namespace, id)
+	if err != nil {
 		return false, r.userError(ctx, err)
 	}
+	auditTarget(ctx, h.Hostname)
 	r.forgetAll(ctx)
 	return true, nil
 }

@@ -31,6 +31,7 @@ type mocks struct {
 	events    *mockRepository.MockChangeEventRepository
 	project   *mockRepository.MockProjectRepository
 	env       *mockRepository.MockEnvironmentRepository
+	audit     *mockRepository.MockAuditRepository
 }
 
 func newMocks(t *testing.T) *mocks {
@@ -51,6 +52,7 @@ func newMocks(t *testing.T) *mocks {
 		events:    mockRepository.NewMockChangeEventRepository(ctrl),
 		project:   mockRepository.NewMockProjectRepository(ctrl),
 		env:       mockRepository.NewMockEnvironmentRepository(ctrl),
+		audit:     mockRepository.NewMockAuditRepository(ctrl),
 	}
 	repos := &repository.Repositories{
 		Namespace:       m.namespace,
@@ -67,6 +69,7 @@ func newMocks(t *testing.T) *mocks {
 		ChangeEvent:     m.events,
 		Project:         m.project,
 		Environment:     m.env,
+		Audit:           m.audit,
 	}
 	m.tx.EXPECT().InTx(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 		func(_ context.Context, fn func(*repository.Repositories) error) error { return fn(repos) })

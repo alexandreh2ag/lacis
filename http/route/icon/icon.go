@@ -26,14 +26,29 @@ const multipartOverhead = 64 << 10
 // svgPolicy stops a logo opened by itself from running or loading anything.
 const svgPolicy = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox"
 
+// The actions of the audit.
+const (
+	AuditSetIcon   = "setTechIcon"
+	AuditResetIcon = "resetTechIcon"
+)
+
 type Handler struct {
 	logger *slog.Logger
 	cfg    config.IconsConfig
 	icons  service.TechIconService
+	// audit records the logos changed; nil records none.
+	audit service.AuditService
 }
 
-func NewHandler(logger *slog.Logger, cfg config.IconsConfig, icons service.TechIconService) *Handler {
-	return &Handler{logger: logger, cfg: cfg, icons: icons}
+func NewHandler(logger *slog.Logger, cfg config.IconsConfig, icons service.TechIconService, audit service.AuditService) *Handler {
+	return &Handler{logger: logger, cfg: cfg, icons: icons, audit: audit}
+}
+
+// record records that p did action on the logo of tech.
+func (h *Handler) record(c *echo.Context, p *lacisAuth.Principal, action, tech string) {
+	if h.audit != nil {
+		h.audit.Record(c.Request().Context(), p.User, model.AuditUI, action, service.AuditAbout{Target: tech}, map[string]string{"tech": tech})
+	}
 }
 
 // Register adds the routes to the group reading the session: GET, PUT and
@@ -120,17 +135,20 @@ func (h *Handler) Put(c *echo.Context) error {
 	if err != nil {
 		return h.refused(c, err)
 	}
+	h.record(c, p, AuditSetIcon, i.Tech)
 	return c.JSON(http.StatusOK, map[string]string{"tech": i.Tech, "url": icon.URL(i.Tech, i.UpdatedAt)})
 }
 
 // Delete removes the logo uploaded: the front shows its own again.
 func (h *Handler) Delete(c *echo.Context) error {
-	if p, err := h.authorize(c); p == nil {
+	p, err := h.authorize(c)
+	if p == nil {
 		return err
 	}
 	if err := h.icons.Reset(c.Request().Context(), c.Param("tech")); err != nil {
 		return h.refused(c, err)
 	}
+	h.record(c, p, AuditResetIcon, c.Param("tech"))
 	return c.NoContent(http.StatusNoContent)
 }
 

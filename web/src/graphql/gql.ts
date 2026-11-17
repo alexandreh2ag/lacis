@@ -44,6 +44,9 @@ type Documents = {
     "\n  mutation SplitNetwork($ns: String!, $slug: String!, $name: String!, $hosts: [ID!]!) {\n    splitNetwork(namespace: $ns, slug: $slug, name: $name, hosts: $hosts) { id slug }\n  }\n": typeof types.SplitNetworkDocument,
     "\n  mutation MoveHostsToNetwork($ns: String!, $slug: String!, $hosts: [ID!]!) {\n    moveHostsToNetwork(namespace: $ns, slug: $slug, hosts: $hosts) { id slug }\n  }\n": typeof types.MoveHostsToNetworkDocument,
     "\n  mutation DeleteNetwork($ns: String!, $slug: String!) {\n    deleteNetwork(namespace: $ns, slug: $slug)\n  }\n": typeof types.DeleteNetworkDocument,
+    "\n  query AuditEvents($filter: AuditFilter, $sort: AuditSort, $page: PageInput) {\n    auditEvents(filter: $filter, sort: $sort, page: $page) {\n      total\n      items { id at username source action namespace project target details }\n    }\n  }\n": typeof types.AuditEventsDocument,
+    "\n  query AuditUsers($search: String) { auditUsers(search: $search) }\n": typeof types.AuditUsersDocument,
+    "\n  query AuditActions($search: String) { auditActions(search: $search) }\n": typeof types.AuditActionsDocument,
     "\n  query AdminIcons {\n    technologies\n    techIcons { tech url updatedAt updatedBy }\n  }\n": typeof types.AdminIconsDocument,
     "\n  query AdminRoles {\n    roles {\n      id code description builtin users oidcGroups\n      permissions { namespace { id slug } resource action }\n      globalPermissions { resource action }\n    }\n    namespaceChoices { id slug name }\n  }\n": typeof types.AdminRolesDocument,
     "\n  mutation CreateRole($input: RoleInput!) {\n    createRole(input: $input) { id }\n  }\n": typeof types.CreateRoleDocument,
@@ -69,7 +72,7 @@ type Documents = {
     "\n  query Hostnames($ns: String!) {\n    namespace(slug: $ns) { id hosts(page: { limit: 500 }) { items { id hostname } } }\n  }\n": typeof types.HostnamesDocument,
     "\n  query ZoneHosts($ns: String!, $one: Boolean!, $id: ID!, $filter: HostFilter) {\n    namespace(slug: $ns) {\n      id\n      host(id: $id) @include(if: $one) { id hostname lastSeenAt agentVersion os { pretty } ips { address defaultRoute } }\n      hosts(filter: $filter, page: { limit: 500 }) @skip(if: $one) { items { id lastSeenAt } }\n    }\n  }\n": typeof types.ZoneHostsDocument,
     "\n  query GraphImpact($ns: String!, $level: GraphLevel!, $filter: GraphFilter, $node: String!, $direction: ImpactDirection!) {\n    namespace(slug: $ns) {\n      id\n      impact(level: $level, filter: $filter, node: $node, direction: $direction) { nodes { id level } edges }\n    }\n  }\n": typeof types.GraphImpactDocument,
-    "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } }\n    techIcons { tech url }\n  }\n": typeof types.SessionDocument,
+    "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } audit { read write } }\n    techIcons { tech url }\n  }\n": typeof types.SessionDocument,
 };
 const documents: Documents = {
     "\n  fragment UsedByHost on Host { id hostname project { slug } environment { slug } }\n  fragment LinkEndRef on LinkEnd {\n    __typename\n    ... on App { id name framework project { slug } environment { slug } host { ...UsedByHost } }\n    ... on Service { id type instance version host { ...UsedByHost } }\n    ... on Webserver { id type host { ...UsedByHost } }\n    ... on Host { ...UsedByHost }\n    ... on External { target reason }\n  }\n  fragment AppLink on AppLink {\n    id key confidence deadEnd resolvedBy via\n    from { ...LinkEndRef }\n    to { ...LinkEndRef }\n  }\n": types.UsedByHostFragmentDoc,
@@ -102,6 +105,9 @@ const documents: Documents = {
     "\n  mutation SplitNetwork($ns: String!, $slug: String!, $name: String!, $hosts: [ID!]!) {\n    splitNetwork(namespace: $ns, slug: $slug, name: $name, hosts: $hosts) { id slug }\n  }\n": types.SplitNetworkDocument,
     "\n  mutation MoveHostsToNetwork($ns: String!, $slug: String!, $hosts: [ID!]!) {\n    moveHostsToNetwork(namespace: $ns, slug: $slug, hosts: $hosts) { id slug }\n  }\n": types.MoveHostsToNetworkDocument,
     "\n  mutation DeleteNetwork($ns: String!, $slug: String!) {\n    deleteNetwork(namespace: $ns, slug: $slug)\n  }\n": types.DeleteNetworkDocument,
+    "\n  query AuditEvents($filter: AuditFilter, $sort: AuditSort, $page: PageInput) {\n    auditEvents(filter: $filter, sort: $sort, page: $page) {\n      total\n      items { id at username source action namespace project target details }\n    }\n  }\n": types.AuditEventsDocument,
+    "\n  query AuditUsers($search: String) { auditUsers(search: $search) }\n": types.AuditUsersDocument,
+    "\n  query AuditActions($search: String) { auditActions(search: $search) }\n": types.AuditActionsDocument,
     "\n  query AdminIcons {\n    technologies\n    techIcons { tech url updatedAt updatedBy }\n  }\n": types.AdminIconsDocument,
     "\n  query AdminRoles {\n    roles {\n      id code description builtin users oidcGroups\n      permissions { namespace { id slug } resource action }\n      globalPermissions { resource action }\n    }\n    namespaceChoices { id slug name }\n  }\n": types.AdminRolesDocument,
     "\n  mutation CreateRole($input: RoleInput!) {\n    createRole(input: $input) { id }\n  }\n": types.CreateRoleDocument,
@@ -127,7 +133,7 @@ const documents: Documents = {
     "\n  query Hostnames($ns: String!) {\n    namespace(slug: $ns) { id hosts(page: { limit: 500 }) { items { id hostname } } }\n  }\n": types.HostnamesDocument,
     "\n  query ZoneHosts($ns: String!, $one: Boolean!, $id: ID!, $filter: HostFilter) {\n    namespace(slug: $ns) {\n      id\n      host(id: $id) @include(if: $one) { id hostname lastSeenAt agentVersion os { pretty } ips { address defaultRoute } }\n      hosts(filter: $filter, page: { limit: 500 }) @skip(if: $one) { items { id lastSeenAt } }\n    }\n  }\n": types.ZoneHostsDocument,
     "\n  query GraphImpact($ns: String!, $level: GraphLevel!, $filter: GraphFilter, $node: String!, $direction: ImpactDirection!) {\n    namespace(slug: $ns) {\n      id\n      impact(level: $level, filter: $filter, node: $node, direction: $direction) { nodes { id level } edges }\n    }\n  }\n": types.GraphImpactDocument,
-    "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } }\n    techIcons { tech url }\n  }\n": types.SessionDocument,
+    "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } audit { read write } }\n    techIcons { tech url }\n  }\n": types.SessionDocument,
 };
 
 /**
@@ -267,6 +273,18 @@ export function graphql(source: "\n  mutation DeleteNetwork($ns: String!, $slug:
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
+export function graphql(source: "\n  query AuditEvents($filter: AuditFilter, $sort: AuditSort, $page: PageInput) {\n    auditEvents(filter: $filter, sort: $sort, page: $page) {\n      total\n      items { id at username source action namespace project target details }\n    }\n  }\n"): (typeof documents)["\n  query AuditEvents($filter: AuditFilter, $sort: AuditSort, $page: PageInput) {\n    auditEvents(filter: $filter, sort: $sort, page: $page) {\n      total\n      items { id at username source action namespace project target details }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query AuditUsers($search: String) { auditUsers(search: $search) }\n"): (typeof documents)["\n  query AuditUsers($search: String) { auditUsers(search: $search) }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query AuditActions($search: String) { auditActions(search: $search) }\n"): (typeof documents)["\n  query AuditActions($search: String) { auditActions(search: $search) }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
 export function graphql(source: "\n  query AdminIcons {\n    technologies\n    techIcons { tech url updatedAt updatedBy }\n  }\n"): (typeof documents)["\n  query AdminIcons {\n    technologies\n    techIcons { tech url updatedAt updatedBy }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -367,7 +385,7 @@ export function graphql(source: "\n  query GraphImpact($ns: String!, $level: Gra
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } }\n    techIcons { tech url }\n  }\n"): (typeof documents)["\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } }\n    techIcons { tech url }\n  }\n"];
+export function graphql(source: "\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } audit { read write } }\n    techIcons { tech url }\n  }\n"): (typeof documents)["\n  query Session {\n    me { id username firstName lastName isAdmin local oidc }\n    namespaces { id slug name canEdit }\n    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } audit { read write } }\n    techIcons { tech url }\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

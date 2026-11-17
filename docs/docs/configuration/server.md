@@ -132,6 +132,7 @@ workers:
     purge_inactive_hosts: ""
     purge_unused_projects: ""
     purge_unused_environments: ""
+    purge_audit_events: "50 3 * * *"
   retention:
     completed: 24h
     cancelled: 24h
@@ -139,6 +140,7 @@ workers:
   params:
     purge_removed_entities_after: 90d
     purge_inactive_hosts_after: 180d
+    purge_audit_events_after: 90d
 mcp:
   enabled: false
   access_token_ttl: 1h
@@ -264,6 +266,7 @@ on [River](https://riverqueue.com/), in the Lacis database.
 | `workers.retention.discarded` | duration | `7d`  | How long River keeps discarded jobs (failed for good). At least `1m`. |
 | `workers.params.purge_removed_entities_after` | duration | `90d`  | Age of removal after which `purge_removed_entities` deletes an entity. At least `1h`. |
 | `workers.params.purge_inactive_hosts_after`   | duration | `180d` | Time without snapshot after which `purge_inactive_hosts` deletes a host. At least `1h`. |
+| `workers.params.purge_audit_events_after`     | duration | `90d`  | How long `purge_audit_events` keeps the events of the users. At least `1h`. |
 
 The scheduled tasks:
 
@@ -277,6 +280,7 @@ The scheduled tasks:
 | `purge_inactive_hosts`   | `""` (manual)    | Deletes the hosts not seen for longer than `purge_inactive_hosts_after`, as a deletion by hand would, but keeps their agent: a snapshot brings the host back. |
 | `purge_unused_projects`  | `""` (manual)    | Deletes the projects no host and no app (removed apps aside) names any more, as a deletion by hand in the namespace settings would. Their name and description are lost; an agent naming one again creates it anew. |
 | `purge_unused_environments` | `""` (manual) | Same for the environments: their name and place in the order are lost. |
+| `purge_audit_events`     | `50 3 * * *`     | Deletes the events of the users (MCP calls, actions, sign-ins) older than `purge_audit_events_after`. |
 
 A scheduled task runs once across all the processes, for 15 minutes at most; River
 tries it 5 times with a growing backoff before giving up.

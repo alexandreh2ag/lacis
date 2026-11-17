@@ -5,6 +5,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -50,6 +51,8 @@ type Services struct {
 	Namespace service.NamespaceService
 	Graph     service.GraphService
 	History   service.HistoryService
+	// Audit records the calls that succeeded; nil records none.
+	Audit service.AuditService
 }
 
 type server struct {
@@ -71,15 +74,19 @@ func (e *internalError) Unwrap() error { return e.err }
 
 func internal(err error) error { return &internalError{err: err} }
 
-// add adds a tool whose calls are logged with their user, and whose
-// internal errors are hidden.
+// add adds a tool whose calls are logged with their user, the successful
+// ones recorded in the audit, and whose internal errors are hidden.
 func add[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
 	mcp.AddTool(srv, t, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		start := time.Now()
 		res, out, err := h(ctx, req, in)
 		user := ""
-		if p, perr := principal(req); perr == nil {
+		p, perr := principal(req)
+		if perr == nil {
 			user = p.User.Username
+		}
+		if err == nil && perr == nil && s.services.Audit != nil {
+			s.services.Audit.Record(ctx, p.User, model.AuditMCP, t.Name, auditAbout(in), in)
 		}
 		attrs := []any{"tool", t.Name, "user", user, "duration", time.Since(start)}
 		var ie *internalError
@@ -653,4 +660,41 @@ func icons(listen config.ListenConfig) []mcp.Icon {
 		{Source: base + "/icon-512.png", MIMEType: "image/png", Sizes: []string{"512x512"}},
 		{Source: base + "/favicon.svg", MIMEType: "image/svg+xml", Sizes: []string{"any"}},
 	}
+}
+
+// auditAbout reads, in the arguments of a tool, the namespace, the project
+// and what the call is about: an app, a host, a target, a technology or
+// the text searched.
+func auditAbout(in any) service.AuditAbout {
+	raw, err := json.Marshal(in)
+	if err != nil {
+		return service.AuditAbout{}
+	}
+	var args map[string]any
+	if json.Unmarshal(raw, &args) != nil {
+		return service.AuditAbout{}
+	}
+	str := func(keys ...string) string {
+		for _, k := range keys {
+			switch v := args[k].(type) {
+			case string:
+				if v != "" {
+					return v
+				}
+			case []any:
+				var parts []string
+				for _, x := range v {
+					if s, ok := x.(string); ok && s != "" {
+						parts = append(parts, s)
+					}
+				}
+				if len(parts) > 0 {
+					return strings.Join(parts, ", ")
+				}
+			}
+		}
+		return ""
+	}
+	return service.AuditAbout{Namespace: str("namespace"), Project: str("project", "projects"),
+		Target: str("app", "host", "target", "technology", "hosts", "query")}
 }

@@ -88,12 +88,12 @@ type MetadataService interface {
 	DeleteNetwork(ctx context.Context, namespace, slug string) error
 	// DeleteHost removes a host, active or not, with its agent, its content
 	// and its snapshots, records it in the history and enqueues the
-	// recomputation of the links. An agent still running stops: its token
-	// is unknown from now on.
-	DeleteHost(ctx context.Context, namespace string, id uuid.UUID) error
+	// recomputation of the links, and returns it. An agent still running
+	// stops: its token is unknown from now on.
+	DeleteHost(ctx context.Context, namespace string, id uuid.UUID) (*model.Host, error)
 	// DeleteAgent removes an agent and, once it sent a snapshot, its host
-	// as DeleteHost does.
-	DeleteAgent(ctx context.Context, id uuid.UUID) error
+	// as DeleteHost does; it returns the host, nil without.
+	DeleteAgent(ctx context.Context, id uuid.UUID) (*model.Host, error)
 	// PurgeHost removes a stale or inactive host as DeleteHost does but
 	// keeps its agent, which brings the host back if it sends a snapshot
 	// again; ErrHostActive for a host seen within staleAfter.
@@ -416,8 +416,9 @@ func slugify(name string) string {
 	return strings.Trim(separators.ReplaceAllString(strings.ToLower(plain), "-"), "-")
 }
 
-func (s *metadataService) DeleteHost(ctx context.Context, namespace string, id uuid.UUID) error {
-	return s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
+func (s *metadataService) DeleteHost(ctx context.Context, namespace string, id uuid.UUID) (*model.Host, error) {
+	var deleted *model.Host
+	err := s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
 		h, err := s.hostIn(ctx, repos, ns, id)
 		if err != nil {
 			return err
@@ -425,14 +426,22 @@ func (s *metadataService) DeleteHost(ctx context.Context, namespace string, id u
 		if err := repos.Agent.Delete(ctx, h.AgentID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		deleted = h
 		return s.removed(ctx, repos, h)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return deleted, nil
 }
 
-func (s *metadataService) DeleteAgent(ctx context.Context, id uuid.UUID) error {
-	return s.tx.InTx(ctx, func(repos *repository.Repositories) error {
+func (s *metadataService) DeleteAgent(ctx context.Context, id uuid.UUID) (*model.Host, error) {
+	var deleted *model.Host
+	err := s.tx.InTx(ctx, func(repos *repository.Repositories) error {
 		h, err := repos.Host.FindByAgentID(ctx, id)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			h = nil
+		} else if err != nil {
 			return err
 		}
 		if err := repos.Agent.Delete(ctx, id); err != nil {
@@ -445,8 +454,13 @@ func (s *metadataService) DeleteAgent(ctx context.Context, id uuid.UUID) error {
 		if h == nil {
 			return nil
 		}
+		deleted = h
 		return s.removed(ctx, repos, h)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return deleted, nil
 }
 
 func (s *metadataService) PurgeHost(ctx context.Context, namespace string, id uuid.UUID) error {

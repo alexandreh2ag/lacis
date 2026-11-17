@@ -34,6 +34,7 @@ type Repositories struct {
 	OAuth           OAuthRepository
 	TechIcon        TechIconRepository
 	Lock            LockRepository
+	Audit           AuditRepository
 }
 
 func NewRepositories(db *gorm.DB) *Repositories {
@@ -64,5 +65,6 @@ func NewRepositories(db *gorm.DB) *Repositories {
 		OAuth:           NewOAuthRepository(db),
 		TechIcon:        NewTechIconRepository(db),
 		Lock:            NewLockRepository(db),
+		Audit:           NewAuditRepository(db),
 	}
 }

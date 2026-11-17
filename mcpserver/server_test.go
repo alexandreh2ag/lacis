@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,6 +91,36 @@ type fixture struct {
 	logger  *slog.Logger
 	// principal is the user of the access token.
 	principal *auth.Principal
+	audit     *auditRecorder
+}
+
+// audited is a call recorded in the audit.
+type audited struct {
+	user    string
+	source  model.AuditSource
+	action  string
+	about   service.AuditAbout
+	details string
+}
+
+// auditRecorder keeps the calls recorded.
+type auditRecorder struct {
+	service.AuditService
+	mu     sync.Mutex
+	events []audited
+}
+
+func (r *auditRecorder) Record(_ context.Context, user model.User, source model.AuditSource, action string, about service.AuditAbout, details any) {
+	raw, _ := json.Marshal(details)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, audited{user: user.Username, source: source, action: action, about: about, details: string(raw)})
+}
+
+func (r *auditRecorder) recorded() []audited {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]audited(nil), r.events...)
 }
 
 type bearer struct{ token string }
@@ -119,7 +150,8 @@ func newFixture(t *testing.T) *fixture {
 	cfg := config.DefaultConfig()
 	cfg.Graph.MaxNodes = 3
 	cfg.Listen.PublicURL = "https://lacis.acme.example/lacis/"
-	server := mcpserver.New(mcpserver.Services{Namespace: f.ns, Graph: f.graph, History: f.history}, clk, f.logger, cfg, "1.2.3")
+	f.audit = &auditRecorder{}
+	server := mcpserver.New(mcpserver.Services{Namespace: f.ns, Graph: f.graph, History: f.history, Audit: f.audit}, clk, f.logger, cfg, "1.2.3")
 	listen := config.ListenConfig{BasePath: "/", PublicURL: "https://lacis.acme.example"}
 	srv := httptest.NewServer(mcpRoute.Handler(appContext.TestContext(nil).Logger, listen, f.oauth, server))
 	t.Cleanup(srv.Close)
@@ -620,4 +652,25 @@ func TestServer_History(t *testing.T) {
 	require.Empty(t, f.call(t, "history", map[string]any{"namespace": "acme", "since": "2026-10-01"}, &out))
 	assert.Empty(t, out.Changes)
 	assert.Contains(t, f.call(t, "history", map[string]any{"namespace": "acme", "since": "last week"}, &out), "a date (2026-10-01) or a duration")
+}
+
+func TestServer_Audit(t *testing.T) {
+	f := newFixture(t)
+	f.inventories()
+	var host mcpserver.HostOut
+	f.call(t, "get_host", map[string]any{"host": "web-1"}, &host)
+	assert.Empty(t, f.audit.recorded(), "a refused call is not recorded")
+
+	require.Empty(t, f.call(t, "get_host", map[string]any{"host": "web-1", "namespace": "acme"}, &host))
+	var apps mcpserver.ListAppsOutput
+	require.Empty(t, f.call(t, "list_apps", map[string]any{"project": "Boutique", "env": "production"}, &apps))
+	var versions mcpserver.FindByVersionOutput
+	require.Empty(t, f.call(t, "find_by_version", map[string]any{"technology": "php", "op": "lt", "version": "8.2"}, &versions))
+	events := f.audit.recorded()
+	require.Len(t, events, 3)
+	assert.Equal(t, audited{user: "alice", source: model.AuditMCP, action: "get_host",
+		about: service.AuditAbout{Namespace: "acme", Target: "web-1"}, details: `{"host":"web-1","namespace":"acme"}`}, events[0])
+	assert.Equal(t, service.AuditAbout{Project: "Boutique"}, events[1].about)
+	assert.Equal(t, "list_apps", events[1].action)
+	assert.Equal(t, service.AuditAbout{Target: "php"}, events[2].about)
 }

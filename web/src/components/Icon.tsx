@@ -67,6 +67,16 @@ export function Funnel() {
   )
 }
 
+// Eye is the icon of the buttons showing the whole of a row.
+export function Eye() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" />
+      <circle cx="8" cy="8" r="2" />
+    </svg>
+  )
+}
+
 export function Chevron({ dir }: { dir: 'left' | 'right' | 'down' | 'up' }) {
   const d = { left: 'M10 3.5 5.5 8l4.5 4.5', right: 'M6 3.5 10.5 8 6 12.5', down: 'M3.5 6 8 10.5 12.5 6', up: 'M3.5 10 8 5.5l4.5 4.5' }[dir]
   return (

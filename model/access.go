@@ -89,6 +89,7 @@ const (
 	ResourceRoles      Resource = "roles"
 	ResourceIcons      Resource = "icons" // the logos of the technologies
 	ResourceTasks      Resource = "tasks" // the scheduled tasks and their runs
+	ResourceAudit      Resource = "audit" // the events of what the users did
 
 	ResourceAll Resource = "*"
 

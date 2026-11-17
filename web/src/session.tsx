@@ -12,7 +12,7 @@ const SessionDoc = graphql(`
   query Session {
     me { id username firstName lastName isAdmin local oidc }
     namespaces { id slug name canEdit }
-    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } }
+    access { users { read write } roles { read write } tokens { read write } icons { read write } tasks { read write } audit { read write } }
     techIcons { tech url }
   }
 `)

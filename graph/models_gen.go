@@ -22,6 +22,7 @@ type Access struct {
 	Tokens *Rights `json:"tokens"`
 	Icons  *Rights `json:"icons"`
 	Tasks  *Rights `json:"tasks"`
+	Audit  *Rights `json:"audit"`
 }
 
 type AgentHost struct {
@@ -73,6 +74,30 @@ type AppRuntime struct {
 type AppSort struct {
 	By   AppSortField `json:"by"`
 	Desc *bool        `json:"desc,omitempty"`
+}
+
+type AuditEventPage struct {
+	Total int                `json:"total"`
+	Items []model.AuditEvent `json:"items"`
+}
+
+type AuditFilter struct {
+	// From this time on, included.
+	From *time.Time `json:"from,omitempty"`
+	// Before this time, excluded.
+	To *time.Time `json:"to,omitempty"`
+	// Text the username contains, case-insensitive.
+	User *string `json:"user,omitempty"`
+	// Text the action contains, case-insensitive.
+	Action  *string             `json:"action,omitempty"`
+	Sources []model.AuditSource `json:"sources,omitempty"`
+	// Text the action, namespace, project, target or details contain.
+	Search *string `json:"search,omitempty"`
+}
+
+type AuditSort struct {
+	By   AuditSortField `json:"by"`
+	Desc *bool          `json:"desc,omitempty"`
 }
 
 // The hosts and the apps (removed ones aside) naming a project or an env.
@@ -514,6 +539,69 @@ func (e AppSortField) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type AuditSortField string
+
+const (
+	AuditSortFieldAt        AuditSortField = "AT"
+	AuditSortFieldUser      AuditSortField = "USER"
+	AuditSortFieldSource    AuditSortField = "SOURCE"
+	AuditSortFieldAction    AuditSortField = "ACTION"
+	AuditSortFieldNamespace AuditSortField = "NAMESPACE"
+	AuditSortFieldTarget    AuditSortField = "TARGET"
+)
+
+var AllAuditSortField = []AuditSortField{
+	AuditSortFieldAt,
+	AuditSortFieldUser,
+	AuditSortFieldSource,
+	AuditSortFieldAction,
+	AuditSortFieldNamespace,
+	AuditSortFieldTarget,
+}
+
+func (e AuditSortField) IsValid() bool {
+	switch e {
+	case AuditSortFieldAt, AuditSortFieldUser, AuditSortFieldSource, AuditSortFieldAction, AuditSortFieldNamespace, AuditSortFieldTarget:
+		return true
+	}
+	return false
+}
+
+func (e AuditSortField) String() string {
+	return string(e)
+}
+
+func (e *AuditSortField) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AuditSortField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AuditSortField", str)
+	}
+	return nil
+}
+
+func (e AuditSortField) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AuditSortField) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AuditSortField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type ComponentKind string
 
 const (
@@ -583,6 +671,8 @@ const (
 	GlobalResourceIcons GlobalResource = "ICONS"
 	// The scheduled tasks and their runs.
 	GlobalResourceTasks GlobalResource = "TASKS"
+	// The events of what the users did.
+	GlobalResourceAudit GlobalResource = "AUDIT"
 )
 
 var AllGlobalResource = []GlobalResource{
@@ -592,11 +682,12 @@ var AllGlobalResource = []GlobalResource{
 	GlobalResourceRoles,
 	GlobalResourceIcons,
 	GlobalResourceTasks,
+	GlobalResourceAudit,
 }
 
 func (e GlobalResource) IsValid() bool {
 	switch e {
-	case GlobalResourceNamespaces, GlobalResourceTokens, GlobalResourceUsers, GlobalResourceRoles, GlobalResourceIcons, GlobalResourceTasks:
+	case GlobalResourceNamespaces, GlobalResourceTokens, GlobalResourceUsers, GlobalResourceRoles, GlobalResourceIcons, GlobalResourceTasks, GlobalResourceAudit:
 		return true
 	}
 	return false

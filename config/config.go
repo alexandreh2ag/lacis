@@ -188,7 +188,7 @@ type DefaultsConfig struct {
 // TaskNames are the scheduled tasks workers.schedules gives a schedule
 // to; the queue package runs them.
 var TaskNames = []string{"purge_snapshots", "purge_removed_entities", "purge_expired_tokens", "detect_token_conflicts", "purge_history", "purge_inactive_hosts",
-	"purge_unused_projects", "purge_unused_environments"}
+	"purge_unused_projects", "purge_unused_environments", "purge_audit_events"}
 
 type WorkersConfig struct {
 	// Enabled runs the workers and the scheduler in the start process;
@@ -212,6 +212,9 @@ type RetentionConfig struct {
 type WorkersParams struct {
 	PurgeRemovedEntitiesAfter time.Duration `mapstructure:"purge_removed_entities_after" validate:"min=1h"`
 	PurgeInactiveHostsAfter   time.Duration `mapstructure:"purge_inactive_hosts_after" validate:"min=1h"`
+	// PurgeAuditEventsAfter is how long the events of what the users did
+	// are kept.
+	PurgeAuditEventsAfter time.Duration `mapstructure:"purge_audit_events_after" validate:"min=1h"`
 }
 
 // MCPConfig is the MCP endpoint, through which an assistant such as Claude
@@ -294,6 +297,7 @@ func DefaultConfig() *Config {
 				"purge_inactive_hosts":      "",
 				"purge_unused_projects":     "",
 				"purge_unused_environments": "",
+				"purge_audit_events":        "50 3 * * *",
 			},
 			Retention: RetentionConfig{
 				Completed: 24 * time.Hour,
@@ -303,6 +307,7 @@ func DefaultConfig() *Config {
 			Params: WorkersParams{
 				PurgeRemovedEntitiesAfter: 90 * day,
 				PurgeInactiveHostsAfter:   180 * day,
+				PurgeAuditEventsAfter:     90 * day,
 			},
 		},
 		MCP: MCPConfig{AccessTokenTTL: time.Hour, GrantLifetime: 30 * day},

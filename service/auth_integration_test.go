@@ -65,6 +65,7 @@ func TestAuth_LoginAndAuthenticate(t *testing.T) {
 	require.NotNil(t, admin.LastLoginAt)
 	assert.True(t, f.clock.now.Equal(*admin.LastLoginAt))
 	assert.Equal(t, model.LoginPassword, *admin.LastLoginMethod)
+	assertLoginAudited(t, f, "admin", model.LoginPassword)
 
 	p, err := f.svc.Authenticate(ctx, login.Token)
 	require.NoError(t, err)
@@ -215,6 +216,7 @@ func TestAuth_LoginOIDC(t *testing.T) {
 	require.NotNil(t, p.User.LastLoginAt)
 	assert.True(t, f.clock.now.Equal(*p.User.LastLoginAt))
 	assert.Equal(t, model.LoginSSO, *p.User.LastLoginMethod)
+	assertLoginAudited(t, f, "jane", model.LoginSSO)
 	first := p.User.ID
 
 	// The same subject finds the user and follows the provider; a name the
@@ -250,4 +252,17 @@ func TestAuth_LoginOIDC(t *testing.T) {
 	f.svc.appCtx.Config.Auth.OIDC.Enabled = false
 	_, err = f.svc.LoginOIDC(ctx, jane)
 	assert.ErrorIs(t, err, ErrOIDCDisabled)
+}
+
+// assertLoginAudited checks that the last sign-in of username, with method,
+// is in the audit.
+func assertLoginAudited(t *testing.T, f *authFixture, username string, method model.LoginMethod) {
+	t.Helper()
+	events, _, err := f.repos.Audit.List(ctx, repository.AuditFilter{Username: username, Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, events, 1, "the sign-in is recorded")
+	assert.Equal(t, model.AuditAuth, events[0].Source)
+	assert.Equal(t, AuditLogin, events[0].Action)
+	assert.JSONEq(t, `{"method":"`+string(method)+`"}`, string(events[0].Details))
+	assert.True(t, f.clock.now.Equal(events[0].At))
 }

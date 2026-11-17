@@ -6,12 +6,13 @@ import { useSession } from '@/session'
 import { Icons } from './Icons'
 import { Roles } from './Roles'
 import { Tasks } from './Tasks'
+import { Events } from './Events'
 import { Agents, Tokens } from './Tokens'
 import { Users } from './Users'
 
 // Admin administers what belongs to no namespace: users, roles, enrollment
-// tokens, agents, the logos of the technologies and the scheduled tasks, a
-// tab each the user may read.
+// tokens, agents, the logos of the technologies, the scheduled tasks and
+// the events of the users, a tab each the user may read.
 export function Admin() {
   const { access } = useSession()
   const t = useT()
@@ -22,6 +23,7 @@ export function Admin() {
     ...(access.tokens.read ? [{ id: 'tokens', label: l.tokens }, { id: 'agents', label: l.agents }] : []),
     ...(access.icons.read ? [{ id: 'icons', label: l.icons }] : []),
     ...(access.tasks.read ? [{ id: 'tasks', label: l.tasks }] : []),
+    ...(access.audit.read ? [{ id: 'events', label: l.events }] : []),
   ]
   const [tab, setTab] = useTab(tabs, tabs[0]?.id ?? '')
   if (!tabs.length) return <Navigate to="/" replace />
@@ -34,12 +36,15 @@ export function Admin() {
         {tab === 'agents' ? <Agents write={access.tokens.write} /> : null}
         {tab === 'icons' ? <Icons write={access.icons.write} /> : null}
         {tab === 'tasks' ? <Tasks write={access.tasks.write} /> : null}
+        {tab === 'events' ? <Events /> : null}
       </Tabs>
     </Page>
   )
 }
 
 // canAdminister tells whether the user may open the administration.
-export function canAdminister(access: { users: { read: boolean }; roles: { read: boolean }; tokens: { read: boolean }; icons: { read: boolean }; tasks: { read: boolean } }): boolean {
-  return access.users.read || access.roles.read || access.tokens.read || access.icons.read || access.tasks.read
+type Rights = { read: boolean }
+
+export function canAdminister(access: { users: Rights; roles: Rights; tokens: Rights; icons: Rights; tasks: Rights; audit: Rights }): boolean {
+  return access.users.read || access.roles.read || access.tokens.read || access.icons.read || access.tasks.read || access.audit.read
 }

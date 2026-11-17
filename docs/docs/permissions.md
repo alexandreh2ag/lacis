@@ -41,6 +41,7 @@ Granted out of the namespaces.
 | `tokens`     | list the enrollment tokens and the agents | create and revoke tokens, revoke and delete agents (with their host) |
 | `icons`      | list the technologies of the inventory | upload and reset technology logos (`PUT`/`DELETE icons/{tech}`) |
 | `tasks`      | list the scheduled tasks, their runs and the failed jobs | run a task now, run a failed job again |
+| `audit`      | list the events of the users (Administration › Events) | (none) |
 | `namespaces` | (reserved) | (reserved) |
 | `*`          | all | all |
 

@@ -45,6 +45,7 @@ func NewServer(cfg config.GraphQLConfig, r *resolver.Resolver) *handler.Server {
 	srv.Use(graph.DepthLimit{Max: cfg.MaxDepth})
 	srv.Use(extension.FixedComplexityLimit(cfg.MaxComplexity))
 	srv.AroundOperations(resolver.AroundOperations)
+	srv.AroundFields(r.AuditMutations)
 	return srv
 }
 

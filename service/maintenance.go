@@ -38,8 +38,8 @@ type MaintenanceService interface {
 	// history.max_events latest, none when 0.
 	PurgeHistory(ctx context.Context) (int64, error)
 	// PurgeInactiveHosts deletes the hosts not seen for longer than
-	// workers.params.purge_inactive_hosts_after, as a deletion by hand
-	// does, and returns how many.
+	// workers.params.purge_inactive_hosts_after, keeping their agent (see
+	// MetadataService.PurgeHost), and returns how many.
 	PurgeInactiveHosts(ctx context.Context) (int, error)
 	// PurgeUnusedProjects deletes the projects no host and no app (removed
 	// ones aside) names any more, as a deletion by hand, and returns how
@@ -47,6 +47,9 @@ type MaintenanceService interface {
 	PurgeUnusedProjects(ctx context.Context) (int, error)
 	// PurgeUnusedEnvironments does the same with the envs.
 	PurgeUnusedEnvironments(ctx context.Context) (int, error)
+	// PurgeAuditEvents deletes the events of what the users did older than
+	// workers.params.purge_audit_events_after.
+	PurgeAuditEvents(ctx context.Context) (int64, error)
 }
 
 type maintenanceService struct {
@@ -225,4 +228,15 @@ func (s *maintenanceService) PurgeUnusedEnvironments(ctx context.Context) (int, 
 		s.appCtx.Logger.Info("unused environment purged", "environment", e.Slug, "namespace_id", e.NamespaceID)
 	}
 	return len(deleted), nil
+}
+
+func (s *maintenanceService) PurgeAuditEvents(ctx context.Context) (int64, error) {
+	before := s.appCtx.Clock.Now().Add(-s.appCtx.Config.Workers.Params.PurgeAuditEventsAfter)
+	var n int64
+	err := s.tx.InTx(ctx, func(repos *repository.Repositories) error {
+		var err error
+		n, err = repos.Audit.PurgeBefore(ctx, before)
+		return err
+	})
+	return n, err
 }

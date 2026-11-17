@@ -63,6 +63,7 @@ var NewServices = func(stdCtx stdContext.Context, ctx *context.Context) (*lacisH
 		TechIcon:  service.NewTechIconService(ctx, repository.NewTransactor(db)),
 		Task:      service.NewTaskService(ctx, jobs),
 		Graph:     service.NewGraphService(ctx, repository.NewTransactor(db)),
+		Audit:     service.NewAuditService(ctx, repos.Audit),
 		UI:        web.Dist(),
 	}
 	if ctx.Config.MCP.Enabled {

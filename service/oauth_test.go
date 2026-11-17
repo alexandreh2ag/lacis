@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -211,9 +212,11 @@ func TestOAuthService_Authorize(t *testing.T) {
 				tt.setup(m)
 			}
 			var stored *model.OAuthCode
+			var audited *model.AuditEvent
 			if tt.wantErr == nil {
 				m.oauth.EXPECT().MarkClientAuthorized(ctx, "client-1", now).Return(nil)
 				m.oauth.EXPECT().CreateCode(ctx, gomock.Any()).DoAndReturn(func(_ any, c *model.OAuthCode) error { stored = c; return nil })
+				m.audit.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(func(_ any, e *model.AuditEvent) error { audited = e; return nil })
 			}
 			code, err := NewOAuthService(oauthContext(t), m.tx).Authorize(ctx, tt.principal, validAuthorize())
 			if tt.wantErr != nil {
@@ -224,6 +227,8 @@ func TestOAuthService_Authorize(t *testing.T) {
 			assert.True(t, strings.HasPrefix(code, OAuthCodePrefix))
 			assert.Equal(t, &model.OAuthCode{ID: hash.Token(code), ClientID: "client-1", UserID: user.ID, OIDCGroups: tt.wantGroups,
 				RedirectURI: testRedirectURI, CodeChallenge: testChallenge(), Scope: OAuthScopeRead, ExpiresAt: now.Add(OAuthCodeTTL)}, stored)
+			assert.Equal(t, &model.AuditEvent{At: now, UserID: &user.ID, Username: "alice", Source: model.AuditAuth, Action: AuditMCPAuthorize,
+				Target: new("Claude"), Details: json.RawMessage(`{"client_id":"client-1"}`)}, audited, "the authorization is recorded")
 		})
 	}
 }

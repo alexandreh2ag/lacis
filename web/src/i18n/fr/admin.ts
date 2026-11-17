@@ -16,7 +16,7 @@ export const admin = {
   createdOn: 'Créé le',
   name: 'Nom',
   description: 'Description',
-  tabs: { users: 'Utilisateurs', roles: 'Rôles', tokens: 'Tokens d\'enrôlement', agents: 'Agents', icons: 'Logos des technos', tasks: 'Tâches planifiées' },
+  tabs: { users: 'Utilisateurs', roles: 'Rôles', tokens: 'Tokens d\'enrôlement', agents: 'Agents', icons: 'Logos des technos', tasks: 'Tâches planifiées', events: 'Events' },
 
   users: {
     loadError: 'Les utilisateurs n\'ont pas pu être chargés : ',
@@ -78,7 +78,7 @@ export const admin = {
     namespaceGrants: { INVENTORY: 'Inventaire', METADATA: 'Métadonnées', ALL: 'Tout' } as Record<string, string>,
     globalGrants: {
       NAMESPACES: 'Namespaces', TOKENS: 'Tokens et agents', USERS: 'Utilisateurs', ROLES: 'Rôles', ICONS: 'Logos des technos',
-      TASKS: 'Tâches planifiées', ALL: 'Tout',
+      TASKS: 'Tâches planifiées', AUDIT: 'Events des utilisateurs', ALL: 'Tout',
     } as Record<string, string>,
     actions: { READ: 'lecture', WRITE: 'écriture', ALL: 'tout' } as Record<string, string>,
     global: 'global',
@@ -209,6 +209,7 @@ export const admin = {
       purge_inactive_hosts: { label: 'Purge des hosts inactifs', detail: 'Supprime les hosts sans snapshot depuis plus de la durée configurée (180 jours par défaut), comme une suppression à la main, mais garde leur agent : un snapshot fait revenir le host. Désactivée par défaut.' },
       purge_unused_projects: { label: 'Purge des projets inutilisés', detail: 'Supprime les projets qu\'aucun host ni aucune app (hors apps retirées) ne nomme plus, comme une suppression à la main. Désactivée par défaut.' },
       purge_unused_environments: { label: 'Purge des environnements inutilisés', detail: 'Supprime les environnements qu\'aucun host ni aucune app (hors apps retirées) ne nomme plus, comme une suppression à la main. Désactivée par défaut.' },
+      purge_audit_events: { label: 'Purge des events', detail: 'Supprime les events des utilisateurs (appels MCP, actions, connexions) plus anciens que la durée configurée (90 jours par défaut).' },
       normalize_snapshot: { label: 'Normalisation d\'un snapshot', detail: '' },
       recompute_links: { label: 'Calcul des liens', detail: '' },
     } as Record<string, { label: string; detail: string }>,
@@ -245,6 +246,39 @@ export const admin = {
     state: 'État',
     lastError: 'Dernière erreur',
     retry: 'Relancer',
+  },
+
+  events: {
+    loadError: 'Les events n\'ont pas pu être chargés : ',
+    intro: 'Ce que les utilisateurs ont fait : leurs appels au MCP, leurs actions dans Lacis (modifications, suppressions, tâches lancées à la main) '
+      + 'et leurs connexions. Seul ce qui a abouti est enregistré ; les events sont gardés 90 jours par défaut.',
+    search: 'Chercher une action, un namespace, une cible',
+    period: 'Période',
+    from: 'Du',
+    to: 'Au',
+    fromTo: (from: string, to: string) => from && to ? `${from} → ${to}` : from ? `depuis le ${from}` : `jusqu'au ${to}`,
+    who: 'Qui',
+    whoPlaceholder: 'Nom d\'utilisateur',
+    type: 'Type d\'action',
+    sources: { MCP: 'MCP', UI: 'Interface', AUTH: 'Authentification' } as Record<string, string>,
+    at: 'Date',
+    action: 'Action',
+    where: 'Namespace / projet',
+    target: 'Cible',
+    source: 'Source',
+    details: 'Paramètres',
+    detailsHint: 'Les paramètres de l\'appel ou de l\'action (texte cherché, filtres, valeurs saisies), hors namespace et cible déjà affichés ; mots de passe et secrets masqués.',
+    actionPlaceholder: 'get_host, deleteHost…',
+    show: 'Voir l\'event',
+    eventTitle: (id: number) => `Event n° ${id}`,
+    namespace: 'Namespace',
+    project: 'Projet',
+    // actions names the actions known; the others show as they are.
+    actions: { login: 'Connexion', mcp_authorize: 'Autorisation d\'un client MCP', setTechIcon: 'Logo envoyé', resetTechIcon: 'Logo réinitialisé' } as Record<string, string>,
+    methods: { password: 'mot de passe', sso: 'SSO' } as Record<string, string>,
+    count: (n: number) => `${n} event${s(n)}`,
+    noun: 'events',
+    none: 'Aucun event ne correspond.',
   },
 
   settings: {

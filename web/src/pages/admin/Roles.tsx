@@ -42,7 +42,7 @@ type Namespace = AdminRolesQuery['namespaceChoices'][number]
 const refetch = { refetchQueries: ['AdminRoles', 'AdminUsers'] }
 
 const namespaceGrants: NamespaceGrant[] = ['INVENTORY', 'METADATA', 'ALL']
-const globalGrants: GlobalGrant[] = ['NAMESPACES', 'TOKENS', 'USERS', 'ROLES', 'ICONS', 'TASKS', 'ALL']
+const globalGrants: GlobalGrant[] = ['NAMESPACES', 'TOKENS', 'USERS', 'ROLES', 'ICONS', 'TASKS', 'AUDIT', 'ALL']
 
 // grantText says a permission in a few words: « acme · Inventaire lecture ».
 export function grantText(p: { namespace?: { slug: string } | null; resource: string; action: GrantAction }, global = false): string {

@@ -275,6 +275,7 @@ workers:
     purge_inactive_hosts: ""          # hosts not seen for longer than below; their agent stays
     purge_unused_projects: ""         # projects no host and no app (removed ones aside) names any more
     purge_unused_environments: ""     # environments no host and no app (removed ones aside) names any more
+    purge_audit_events: "50 3 * * *"  # events of the users older than below
   retention:                          # how long River keeps the finished jobs
     completed: 24h
     cancelled: 24h
@@ -282,6 +283,7 @@ workers:
   params:
     purge_removed_entities_after: 90d
     purge_inactive_hosts_after: 180d
+    purge_audit_events_after: 90d
 log:
   level: info
   format: text                        # or json
@@ -353,6 +355,12 @@ running stops: it must be enrolled again. A refusal carries a code in its extens
 `FORBIDDEN`, `BAD_USER_INPUT` or `CONFLICT`. A refusal a client can tell
 in its own words also carries its `reason` (`PASSWORD_TOO_SHORT`, `HOST_NOT_IN_RANGE`…) and the
 values it names in `args`; the front translates by them, never by the message.
+
+Each mutation that succeeds, each call to an MCP tool that succeeds, each sign-in and each MCP
+client authorized is recorded with its user in the audit (`audit_events`): the administration lists
+it in its Events tab, which needs the global `audit` `read` permission (`auditEvents`,
+`auditUsers`, `auditActions`). Passwords and secrets are left out of the arguments; a refused or failed call is not
+recorded. The task `purge_audit_events` keeps `workers.params.purge_audit_events_after` (90 days).
 
 The network of an IP is the one whose CIDR holds it, so two private networks on the same range are
 one. `splitNetwork` moves hosts into a new network sharing the range, and the links are computed

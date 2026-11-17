@@ -34,11 +34,13 @@ func reader() *lacisAuth.Principal { return &lacisAuth.Principal{User: model.Use
 
 type fixture struct {
 	icons *mockService.MockTechIconService
+	audit *mockService.MockAuditService
 	e     *echo.Echo
 }
 
 func newFixture(t *testing.T, p *lacisAuth.Principal) *fixture {
-	f := &fixture{icons: mockService.NewMockTechIconService(gomock.NewController(t)), e: echo.New()}
+	ctrl := gomock.NewController(t)
+	f := &fixture{icons: mockService.NewMockTechIconService(ctrl), audit: mockService.NewMockAuditService(ctrl), e: echo.New()}
 	g := f.e.Group("/lacis", func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			if p != nil {
@@ -47,7 +49,7 @@ func newFixture(t *testing.T, p *lacisAuth.Principal) *fixture {
 			return next(c)
 		}
 	})
-	NewHandler(nil, config.IconsConfig{MaxSize: 1024, MinSide: 16, MaxSide: 512}, f.icons).Register(g)
+	NewHandler(nil, config.IconsConfig{MaxSize: 1024, MinSide: 16, MaxSide: 512}, f.icons, f.audit).Register(g)
 	return f
 }
 
@@ -111,6 +113,7 @@ func TestPut(t *testing.T) {
 	f := newFixture(t, p)
 	f.icons.EXPECT().Set(gomock.Any(), p, "traefik", "traefik.svg", []byte("<svg/>")).
 		Return(&service.TechIconInfo{TechIcon: model.TechIcon{Tech: "traefik", UpdatedAt: at}}, nil)
+	f.audit.EXPECT().Record(gomock.Any(), p.User, model.AuditUI, AuditSetIcon, service.AuditAbout{Target: "traefik"}, map[string]string{"tech": "traefik"})
 	rec := f.do(upload(t, "/lacis/icons/traefik", FormField, "traefik.svg", []byte("<svg/>")))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.JSONEq(t, `{"tech":"traefik","url":"icons/traefik?v=`+icon.Version(at)+`"}`, rec.Body.String())
@@ -145,6 +148,7 @@ func TestPut(t *testing.T) {
 func TestDeleteAndAccess(t *testing.T) {
 	f := newFixture(t, iconWriter())
 	f.icons.EXPECT().Reset(gomock.Any(), "traefik").Return(nil)
+	f.audit.EXPECT().Record(gomock.Any(), iconWriter().User, model.AuditUI, AuditResetIcon, service.AuditAbout{Target: "traefik"}, map[string]string{"tech": "traefik"})
 	assert.Equal(t, http.StatusNoContent, f.do(httptest.NewRequest(http.MethodDelete, "/lacis/icons/traefik", nil)).Code)
 	f.icons.EXPECT().Reset(gomock.Any(), "a b").Return(fmt.Errorf("%w: technology", service.ErrInvalid))
 	assert.Equal(t, http.StatusBadRequest, f.do(httptest.NewRequest(http.MethodDelete, "/lacis/icons/a%20b", nil)).Code)

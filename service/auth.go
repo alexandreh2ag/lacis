@@ -159,6 +159,10 @@ func (s *authService) open(ctx context.Context, repos *repository.Repositories, 
 	if err := repos.User.SetLastLogin(ctx, user.ID, now, method); err != nil {
 		return nil, err
 	}
+	login := newAuditEvent(now, *user, model.AuditAuth, AuditLogin, AuditAbout{}, map[string]any{"method": method})
+	if err := repos.Audit.Create(ctx, login); err != nil {
+		return nil, err
+	}
 	return &Login{Token: token, ExpiresAt: expires}, nil
 }
 

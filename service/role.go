@@ -330,7 +330,7 @@ func checkPermissions(ctx context.Context, repos *repository.Repositories, perms
 	}
 	global := make([]model.GlobalPermission, 0, len(perms.Global))
 	for _, p := range perms.Global {
-		if !slices.Contains([]model.Resource{model.ResourceNamespaces, model.ResourceTokens, model.ResourceUsers, model.ResourceRoles, model.ResourceIcons, model.ResourceTasks, model.ResourceAll}, p.Resource) {
+		if !slices.Contains([]model.Resource{model.ResourceNamespaces, model.ResourceTokens, model.ResourceUsers, model.ResourceRoles, model.ResourceIcons, model.ResourceTasks, model.ResourceAudit, model.ResourceAll}, p.Resource) {
 			return fmt.Errorf("%w: %q is no global resource", ErrInvalid, p.Resource)
 		}
 		if !slices.Contains(actions, p.Action) {

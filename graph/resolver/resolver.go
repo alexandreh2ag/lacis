@@ -42,6 +42,9 @@ type Resolver struct {
 	// OAuthService lists and revokes the MCP authorizations; nil when mcp
 	// is off.
 	OAuthService service.OAuthService
+	// AuditService records the mutations that succeeded, and reads the
+	// events back; nil records none.
+	AuditService service.AuditService
 
 	// Logger logs the errors hidden from the clients; nil discards them.
 	Logger *slog.Logger

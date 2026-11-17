@@ -66,6 +66,7 @@ type Services struct {
 	TechIcon  service.TechIconService
 	Task      service.TaskService
 	Graph     service.GraphService
+	Audit     service.AuditService
 	// OAuth serves the MCP endpoint and its authorization; nil when mcp
 	// is off.
 	OAuth service.OAuthService
@@ -99,11 +100,11 @@ func CreateServerHTTP(ctx *context.Context, services *Services) *echo.Echo {
 		Clock: ctx.Clock, NamespaceService: services.Namespace, HistoryService: services.History,
 		MetadataService: services.Metadata, UserService: services.User, RoleService: services.Role,
 		EnrollmentTokenService: services.Token, AgentService: services.Agent, TechIconService: services.TechIcon,
-		TaskService: services.Task, OAuthService: services.OAuth, Logger: ctx.Logger, MaxNodes: ctx.Config.Graph.MaxNodes}))
-	iconRoute.NewHandler(ctx.Logger, ctx.Config.Icons, services.TechIcon).Register(front)
+		TaskService: services.Task, OAuthService: services.OAuth, AuditService: services.Audit, Logger: ctx.Logger, MaxNodes: ctx.Config.Graph.MaxNodes}))
+	iconRoute.NewHandler(ctx.Logger, ctx.Config.Icons, services.TechIcon, services.Audit).Register(front)
 	if services.OAuth != nil {
 		oauth.NewHandler(ctx.Logger, ctx.Config.Listen, ctx.Config.Auth.Session.Secret, ctx.Clock, services.OAuth).Register(e, front)
-		server := mcpserver.New(mcpserver.Services{Namespace: services.Namespace, Graph: services.Graph, History: services.History},
+		server := mcpserver.New(mcpserver.Services{Namespace: services.Namespace, Graph: services.Graph, History: services.History, Audit: services.Audit},
 			ctx.Clock, ctx.Logger, ctx.Config, version.Version)
 		mcpRoute.Register(g, mcpRoute.Handler(ctx.Logger, ctx.Config.Listen, services.OAuth, server))
 	}

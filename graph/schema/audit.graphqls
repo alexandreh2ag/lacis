@@ -1,0 +1,67 @@
+"Where a user did what an audit event records."
+enum AuditSource {
+  "A call to a tool of the MCP server."
+  MCP
+  "An action in the front: a change, a deletion, a task run by hand, a logo sent."
+  UI
+  "A sign-in, or an MCP client authorized."
+  AUTH
+}
+
+"What a user did; only what succeeded is recorded."
+type AuditEvent {
+  id: Int!
+  at: Time!
+  username: String!
+  source: AuditSource!
+  "The MCP tool, the mutation, login or mcp_authorize."
+  action: String!
+  "The namespace, project and target (host, app, user, role, task…) it was done to, when known."
+  namespace: String
+  project: String
+  target: String
+  "The arguments of the call, passwords left out."
+  details: JSON!
+}
+
+type AuditEventPage {
+  total: Int!
+  items: [AuditEvent!]!
+}
+
+input AuditFilter {
+  "From this time on, included."
+  from: Time
+  "Before this time, excluded."
+  to: Time
+  "Text the username contains, case-insensitive."
+  user: String
+  "Text the action contains, case-insensitive."
+  action: String
+  sources: [AuditSource!]
+  "Text the action, namespace, project, target or details contain."
+  search: String
+}
+
+input AuditSort {
+  by: AuditSortField!
+  desc: Boolean = false
+}
+
+enum AuditSortField {
+  AT
+  USER
+  SOURCE
+  ACTION
+  NAMESPACE
+  TARGET
+}
+
+extend type Query {
+  "The events of what the users did, newest first unless sort says otherwise."
+  auditEvents(filter: AuditFilter, sort: AuditSort, page: PageInput): AuditEventPage! @canGlobal(resource: AUDIT, action: READ)
+  "The usernames the events hold that contain search, to pick one."
+  auditUsers(search: String): [String!]! @canGlobal(resource: AUDIT, action: READ)
+  "The actions the events hold that contain search, to pick one."
+  auditActions(search: String): [String!]! @canGlobal(resource: AUDIT, action: READ)
+}

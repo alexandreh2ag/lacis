@@ -15,6 +15,8 @@ enum GlobalResource {
   ICONS
   "The scheduled tasks and their runs."
   TASKS
+  "The events of what the users did."
+  AUDIT
 }
 
 "A resource a role grants on namespaces; ALL is every one."
@@ -32,6 +34,7 @@ enum GlobalGrant {
   ROLES
   ICONS
   TASKS
+  AUDIT
   ALL
 }
 
@@ -109,6 +112,7 @@ type Access {
   tokens: Rights!
   icons: Rights!
   tasks: Rights!
+  audit: Rights!
 }
 
 type Rights {

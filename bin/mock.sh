@@ -14,10 +14,10 @@ rm -rf mocks agent/mocks
 mockgen -destination=mocks/common/clock/mock.go -package=mockClock github.com/alexandreh2ag/lacis/common/clock Clock
 mockgen -destination=mocks/database/mock.go -package=mockDatabase github.com/alexandreh2ag/lacis/database Migrator
 mockgen -destination=mocks/repository/mock.go -package=mockRepository github.com/alexandreh2ag/lacis/repository \
-  NamespaceRepository,NetworkRepository,EnrollmentTokenRepository,AgentRepository,HostRepository,SnapshotRepository,UserRepository,RoleRepository,ProjectRepository,EnvironmentRepository,HostIPRepository,RuntimeRepository,ContainerRepository,ServiceRepository,EndpointRepository,WebserverRepository,AppRepository,AppDependencyRepository,InventoryRepository,LinkRepository,ChangeEventRepository,SessionRepository,OAuthRepository,TechIconRepository,LockRepository,Transactor
+  NamespaceRepository,NetworkRepository,EnrollmentTokenRepository,AgentRepository,HostRepository,SnapshotRepository,UserRepository,RoleRepository,ProjectRepository,EnvironmentRepository,HostIPRepository,RuntimeRepository,ContainerRepository,ServiceRepository,EndpointRepository,WebserverRepository,AppRepository,AppDependencyRepository,InventoryRepository,LinkRepository,ChangeEventRepository,SessionRepository,OAuthRepository,TechIconRepository,LockRepository,AuditRepository,Transactor
 
 mockgen -destination=mocks/service/mock.go -package=mockService github.com/alexandreh2ag/lacis/service \
-  UserService,EnrollmentTokenService,AgentService,SnapshotService,ImportService,NormalizeService,LinkService,GraphService,HistoryService,AuthService,NamespaceService,MetadataService,RoleService,TechIconService,TaskService,MaintenanceService,OAuthService
+  UserService,EnrollmentTokenService,AgentService,AuditService,SnapshotService,ImportService,NormalizeService,LinkService,GraphService,HistoryService,AuthService,NamespaceService,MetadataService,RoleService,TechIconService,TaskService,MaintenanceService,OAuthService
 mockgen -destination=mocks/queue/mock.go -package=mockQueue github.com/alexandreh2ag/lacis/queue Queue,Admin
 mockgen -destination=mocks/auth/openid/mock.go -package=mockOpenid github.com/alexandreh2ag/lacis/auth/openid Provider
 

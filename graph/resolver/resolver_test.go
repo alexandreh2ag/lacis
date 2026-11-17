@@ -657,10 +657,10 @@ func TestMutations_Metadata(t *testing.T) {
 func TestMutations_DeleteHost(t *testing.T) {
 	f := newFixture(t, admin())
 	f.namespaces.EXPECT().BySlug(gomock.Any(), "acme").Return(acme, nil).AnyTimes()
-	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(12)).Return(nil)
+	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(12)).Return(&model.Host{Hostname: "web-1"}, nil)
 	assert.JSONEq(t, `{"deleteHost":true}`, f.post(t, `mutation { deleteHost(namespace:"acme", id:"`+id(12).String()+`") }`))
 
-	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(10)).Return(service.ErrNotFound)
+	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(10)).Return(nil, service.ErrNotFound)
 	assert.Contains(t, f.errors(t, `mutation { deleteHost(namespace:"acme", id:"`+id(10).String()+`") }`), `"code":"NOT_FOUND"`)
 }
 

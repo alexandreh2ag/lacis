@@ -4,7 +4,7 @@ import { errorMessage } from '@/lib/errors'
 
 // Dialog is a modal form: it opens when mounted, Escape or Annuler close
 // it, the submit button runs onSubmit.
-export function Dialog({ title, onClose, onSubmit, submit, busy, disabled, danger, wide, error, children }: {
+export function Dialog({ title, onClose, onSubmit, submit, busy, disabled, danger, wide, closeOutside, error, children }: {
   title: string
   onClose: () => void
   // onSubmit is left out by a dialog that only shows something.
@@ -15,6 +15,9 @@ export function Dialog({ title, onClose, onSubmit, submit, busy, disabled, dange
   disabled?: boolean
   danger?: boolean
   wide?: boolean
+  // closeOutside closes the dialog on a click outside it: for a dialog
+  // that only shows something, nothing typed is lost.
+  closeOutside?: boolean
   error?: string | null
   children: React.ReactNode
 }) {
@@ -27,7 +30,13 @@ export function Dialog({ title, onClose, onSubmit, submit, busy, disabled, dange
   }, [])
   return (
     <dialog ref={ref} className={'lc-dialog' + (wide ? ' lc-dialog--wide' : '')} aria-labelledby={id}
-      onCancel={(e) => { e.preventDefault(); onClose() }}>
+      onCancel={(e) => { e.preventDefault(); onClose() }}
+      onClick={closeOutside ? (e) => {
+        // A click on the backdrop targets the dialog itself, out of its box.
+        const box = e.currentTarget.getBoundingClientRect()
+        const inside = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom
+        if (e.target === e.currentTarget && !inside) onClose()
+      } : undefined}>
       <form onSubmit={(e) => { e.preventDefault(); if (!busy && !disabled) onSubmit?.() }}>
         <div className="lc-dialog__head">
           <h2 id={id} className="lc-dialog__title">{title}</h2>

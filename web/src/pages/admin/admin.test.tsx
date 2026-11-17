@@ -14,10 +14,11 @@ const passwordMismatch = t().admin.users.passwordMismatch
 const none = { read: false, write: false }
 
 test('canAdminister needs a read right', () => {
-  expect(canAdminister({ users: none, roles: none, tokens: none, icons: none, tasks: none })).toBe(false)
-  expect(canAdminister({ users: none, roles: none, tokens: { read: true }, icons: none, tasks: none })).toBe(true)
-  expect(canAdminister({ users: none, roles: none, tokens: none, icons: { read: true }, tasks: none })).toBe(true)
-  expect(canAdminister({ users: none, roles: none, tokens: none, icons: none, tasks: { read: true } })).toBe(true)
+  expect(canAdminister({ users: none, roles: none, tokens: none, icons: none, tasks: none, audit: none })).toBe(false)
+  expect(canAdminister({ users: none, roles: none, tokens: { read: true }, icons: none, tasks: none, audit: none })).toBe(true)
+  expect(canAdminister({ users: none, roles: none, tokens: none, icons: { read: true }, tasks: none, audit: none })).toBe(true)
+  expect(canAdminister({ users: none, roles: none, tokens: none, icons: none, tasks: { read: true }, audit: none })).toBe(true)
+  expect(canAdminister({ users: none, roles: none, tokens: none, icons: none, tasks: none, audit: { read: true } })).toBe(true)
 })
 
 test('tokenState', () => {
@@ -151,4 +152,18 @@ test('agentDrift tells how an agent stands to the server', () => {
   expect(agentDrift('0.0.6', 'dev')).toBe('other')
   expect(agentDrift('dev', 'dev')).toBe('same')
   expect(agentDrift(null, '0.0.6')).toBe('unknown')
+})
+
+test.each([
+  { name: 'closes on a click outside it when asked', closeOutside: true, x: 5, closed: 1 },
+  { name: 'stays open on a click inside its box', closeOutside: true, x: 50, closed: 0 },
+  { name: 'stays open on a click outside it by default', closeOutside: false, x: 5, closed: 0 },
+])('Dialog $name', ({ closeOutside, x, closed }) => {
+  const close = vi.fn()
+  render(<Dialog title="Event" onClose={close} closeOutside={closeOutside}><p>contenu</p></Dialog>)
+  const dialog = screen.getByRole('dialog', { hidden: true })
+  dialog.getBoundingClientRect = () => ({ left: 10, right: 100, top: 10, bottom: 100, x: 10, y: 10, width: 90, height: 90, toJSON: () => ({}) })
+  fireEvent.click(dialog, { clientX: x, clientY: 50 })
+  fireEvent.click(screen.getByText('contenu'), { clientX: 5, clientY: 50 })
+  expect(close).toHaveBeenCalledTimes(closed)
 })
