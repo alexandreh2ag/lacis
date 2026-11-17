@@ -660,10 +660,8 @@ func TestMutations_DeleteHost(t *testing.T) {
 	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(12)).Return(nil)
 	assert.JSONEq(t, `{"deleteHost":true}`, f.post(t, `mutation { deleteHost(namespace:"acme", id:"`+id(12).String()+`") }`))
 
-	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(10)).Return(service.ErrHostActive)
-	got := f.errors(t, `mutation { deleteHost(namespace:"acme", id:"`+id(10).String()+`") }`)
-	assert.Contains(t, got, `"code":"CONFLICT"`)
-	assert.Contains(t, got, "its next snapshot would bring it back")
+	f.metadata.EXPECT().DeleteHost(gomock.Any(), "acme", id(10)).Return(service.ErrNotFound)
+	assert.Contains(t, f.errors(t, `mutation { deleteHost(namespace:"acme", id:"`+id(10).String()+`") }`), `"code":"NOT_FOUND"`)
 }
 
 func TestNamespace_CatalogUsage(t *testing.T) {

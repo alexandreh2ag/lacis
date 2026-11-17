@@ -4,13 +4,15 @@ import { errorMessage } from '@/lib/errors'
 
 // Dialog is a modal form: it opens when mounted, Escape or Annuler close
 // it, the submit button runs onSubmit.
-export function Dialog({ title, onClose, onSubmit, submit, busy, danger, wide, error, children }: {
+export function Dialog({ title, onClose, onSubmit, submit, busy, disabled, danger, wide, error, children }: {
   title: string
   onClose: () => void
   // onSubmit is left out by a dialog that only shows something.
   onSubmit?: () => void
   submit?: string
   busy?: boolean
+  // disabled holds the submit back, as an unconfirmed deletion.
+  disabled?: boolean
   danger?: boolean
   wide?: boolean
   error?: string | null
@@ -26,7 +28,7 @@ export function Dialog({ title, onClose, onSubmit, submit, busy, danger, wide, e
   return (
     <dialog ref={ref} className={'lc-dialog' + (wide ? ' lc-dialog--wide' : '')} aria-labelledby={id}
       onCancel={(e) => { e.preventDefault(); onClose() }}>
-      <form onSubmit={(e) => { e.preventDefault(); if (!busy) onSubmit?.() }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (!busy && !disabled) onSubmit?.() }}>
         <div className="lc-dialog__head">
           <h2 id={id} className="lc-dialog__title">{title}</h2>
           <button type="button" className="lc-btn lc-btn--ghost lc-btn--icon" aria-label={t.close} onClick={onClose}>×</button>
@@ -38,7 +40,7 @@ export function Dialog({ title, onClose, onSubmit, submit, busy, danger, wide, e
         <div className="lc-dialog__foot">
           <button type="button" className="lc-btn" onClick={onClose}>{onSubmit ? t.cancel : t.close}</button>
           {onSubmit ? (
-            <button type="submit" className={'lc-btn lc-btn--primary' + (danger ? ' lc-btn--danger' : '')} disabled={busy}>
+            <button type="submit" className={'lc-btn lc-btn--primary' + (danger ? ' lc-btn--danger' : '')} disabled={busy || disabled}>
               {busy ? t.saving : submit ?? t.save}
             </button>
           ) : null}

@@ -181,7 +181,7 @@ func (s *maintenanceService) PurgeInactiveHosts(ctx context.Context) (int, error
 	}
 	n := 0
 	for _, h := range hosts {
-		err := s.metadata.DeleteHost(ctx, h.Namespace, h.ID)
+		err := s.metadata.PurgeHost(ctx, h.Namespace, h.ID)
 		switch {
 		case errors.Is(err, ErrNotFound), errors.Is(err, ErrHostActive):
 			// Deleted meanwhile, or a snapshot came back: left alone.

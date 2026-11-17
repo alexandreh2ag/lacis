@@ -31,14 +31,14 @@ func TestAlternating(t *testing.T) {
 	}
 }
 
-// hostDeleter records the hosts deleted, and refuses those of errs.
+// hostDeleter records the hosts purged, and refuses those of errs.
 type hostDeleter struct {
 	MetadataService
 	deleted []uuid.UUID
 	errs    map[uuid.UUID]error
 }
 
-func (d *hostDeleter) DeleteHost(_ context.Context, _ string, id uuid.UUID) error {
+func (d *hostDeleter) PurgeHost(_ context.Context, _ string, id uuid.UUID) error {
 	if err := d.errs[id]; err != nil {
 		return err
 	}

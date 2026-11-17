@@ -159,6 +159,15 @@ func (r *mutationResolver) RevokeAgent(ctx context.Context, id uuid.UUID) (*repo
 	return agent, nil
 }
 
+// DeleteAgent is the resolver for the deleteAgent field.
+func (r *mutationResolver) DeleteAgent(ctx context.Context, id uuid.UUID) (bool, error) {
+	if err := r.MetadataService.DeleteAgent(ctx, id); err != nil {
+		return false, r.userError(ctx, err)
+	}
+	r.forgetAll(ctx)
+	return true, nil
+}
+
 // RunTask is the resolver for the runTask field.
 func (r *mutationResolver) RunTask(ctx context.Context, kind string) (*service.TaskRun, error) {
 	run, err := r.TaskService.Run(ctx, kind)

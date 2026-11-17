@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrHostActive refuses to delete a host still sending snapshots: the next
+// ErrHostActive refuses to purge a host still sending snapshots: the next
 // one would bring it back.
 var ErrHostActive = errors.New("the host is active")
 
@@ -86,10 +86,18 @@ type MetadataService interface {
 	// DeleteNetwork removes a network split by hand: its hosts go back to
 	// the network it was split from.
 	DeleteNetwork(ctx context.Context, namespace, slug string) error
-	// DeleteHost removes a stale or inactive host, its content and its
-	// snapshots, records it in the history and enqueues the recomputation
-	// of the links; ErrHostActive for a host seen within staleAfter.
+	// DeleteHost removes a host, active or not, with its agent, its content
+	// and its snapshots, records it in the history and enqueues the
+	// recomputation of the links. An agent still running stops: its token
+	// is unknown from now on.
 	DeleteHost(ctx context.Context, namespace string, id uuid.UUID) error
+	// DeleteAgent removes an agent and, once it sent a snapshot, its host
+	// as DeleteHost does.
+	DeleteAgent(ctx context.Context, id uuid.UUID) error
+	// PurgeHost removes a stale or inactive host as DeleteHost does but
+	// keeps its agent, which brings the host back if it sends a snapshot
+	// again; ErrHostActive for a host seen within staleAfter.
+	PurgeHost(ctx context.Context, namespace string, id uuid.UUID) error
 }
 
 type metadataService struct {
@@ -409,28 +417,75 @@ func slugify(name string) string {
 }
 
 func (s *metadataService) DeleteHost(ctx context.Context, namespace string, id uuid.UUID) error {
-	now := s.appCtx.Clock.Now()
 	return s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
-		h, err := found(repos.Host.FindByID(ctx, id))
+		h, err := s.hostIn(ctx, repos, ns, id)
 		if err != nil {
 			return err
 		}
-		if h.NamespaceID != ns.ID {
-			return ErrNotFound
+		if err := repos.Agent.Delete(ctx, h.AgentID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
-		if now.Sub(h.LastSeenAt) <= ns.StaleAfter.Duration() {
+		return s.removed(ctx, repos, h)
+	})
+}
+
+func (s *metadataService) DeleteAgent(ctx context.Context, id uuid.UUID) error {
+	return s.tx.InTx(ctx, func(repos *repository.Repositories) error {
+		h, err := repos.Host.FindByAgentID(ctx, id)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := repos.Agent.Delete(ctx, id); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: agent %s", ErrNotFound, id)
+			}
+			return err
+		}
+		s.appCtx.Logger.Info("agent deleted", "agent_id", id)
+		if h == nil {
+			return nil
+		}
+		return s.removed(ctx, repos, h)
+	})
+}
+
+func (s *metadataService) PurgeHost(ctx context.Context, namespace string, id uuid.UUID) error {
+	return s.inNamespace(ctx, namespace, func(repos *repository.Repositories, ns *model.Namespace) error {
+		h, err := s.hostIn(ctx, repos, ns, id)
+		if err != nil {
+			return err
+		}
+		if s.appCtx.Clock.Now().Sub(h.LastSeenAt) <= ns.StaleAfter.Duration() {
 			return ErrHostActive
 		}
 		if err := repos.Host.Delete(ctx, h.ID); err != nil {
 			return err
 		}
-		rec := history.NewRecorder(ns.ID, now)
-		rec.Removed(model.ChangeEntityHost, h.ID, &h.ID, history.State{"hostname": h.Hostname, "last_seen_at": h.LastSeenAt})
-		if err := repos.ChangeEvent.Create(ctx, rec.Events()); err != nil {
-			return err
-		}
-		return s.queue.InsertRecomputeLinks(ctx, repos.DB, ns.ID)
+		return s.removed(ctx, repos, h)
 	})
+}
+
+// hostIn finds the host id of the namespace ns.
+func (s *metadataService) hostIn(ctx context.Context, repos *repository.Repositories, ns *model.Namespace, id uuid.UUID) (*model.Host, error) {
+	h, err := found(repos.Host.FindByID(ctx, id))
+	if err != nil {
+		return nil, err
+	}
+	if h.NamespaceID != ns.ID {
+		return nil, ErrNotFound
+	}
+	return h, nil
+}
+
+// removed records the host h deleted in the history of its namespace and
+// enqueues the recomputation of its links.
+func (s *metadataService) removed(ctx context.Context, repos *repository.Repositories, h *model.Host) error {
+	rec := history.NewRecorder(h.NamespaceID, s.appCtx.Clock.Now())
+	rec.Removed(model.ChangeEntityHost, h.ID, &h.ID, history.State{"hostname": h.Hostname, "last_seen_at": h.LastSeenAt})
+	if err := repos.ChangeEvent.Create(ctx, rec.Events()); err != nil {
+		return err
+	}
+	return s.queue.InsertRecomputeLinks(ctx, repos.DB, h.NamespaceID)
 }
 
 // found turns a missing row into ErrNotFound.

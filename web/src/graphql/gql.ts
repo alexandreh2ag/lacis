@@ -57,6 +57,7 @@ type Documents = {
     "\n  mutation RevokeEnrollmentToken($id: ID!) {\n    revokeEnrollmentToken(id: $id) { id revokedAt }\n  }\n": typeof types.RevokeEnrollmentTokenDocument,
     "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n": typeof types.AdminAgentsDocument,
     "\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n": typeof types.RevokeAgentDocument,
+    "\n  mutation DeleteAgent($id: ID!) { deleteAgent(id: $id) }\n": typeof types.DeleteAgentDocument,
     "\n  query AdminUsers {\n    users { id username firstName lastName local oidc createdAt lastLoginAt lastLoginMethod roles { id code } }\n    roleChoices { id code description }\n  }\n": typeof types.AdminUsersDocument,
     "\n  mutation CreateUser($input: CreateUserInput!) {\n    createUser(input: $input) { id }\n  }\n": typeof types.CreateUserDocument,
     "\n  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {\n    updateUser(id: $id, input: $input) { id firstName lastName }\n  }\n": typeof types.UpdateUserDocument,
@@ -114,6 +115,7 @@ const documents: Documents = {
     "\n  mutation RevokeEnrollmentToken($id: ID!) {\n    revokeEnrollmentToken(id: $id) { id revokedAt }\n  }\n": types.RevokeEnrollmentTokenDocument,
     "\n  query AdminAgents {\n    agents { id createdAt lastSeenAt revokedAt tokenLabel conflictAt conflictHostnames host { id hostname namespace agentVersion } }\n  }\n": types.AdminAgentsDocument,
     "\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n": types.RevokeAgentDocument,
+    "\n  mutation DeleteAgent($id: ID!) { deleteAgent(id: $id) }\n": types.DeleteAgentDocument,
     "\n  query AdminUsers {\n    users { id username firstName lastName local oidc createdAt lastLoginAt lastLoginMethod roles { id code } }\n    roleChoices { id code description }\n  }\n": types.AdminUsersDocument,
     "\n  mutation CreateUser($input: CreateUserInput!) {\n    createUser(input: $input) { id }\n  }\n": types.CreateUserDocument,
     "\n  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {\n    updateUser(id: $id, input: $input) { id firstName lastName }\n  }\n": types.UpdateUserDocument,
@@ -314,6 +316,10 @@ export function graphql(source: "\n  query AdminAgents {\n    agents { id create
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n"): (typeof documents)["\n  mutation RevokeAgent($id: ID!) {\n    revokeAgent(id: $id) { id revokedAt }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteAgent($id: ID!) { deleteAgent(id: $id) }\n"): (typeof documents)["\n  mutation DeleteAgent($id: ID!) { deleteAgent(id: $id) }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

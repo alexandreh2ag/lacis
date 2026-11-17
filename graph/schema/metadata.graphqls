@@ -50,8 +50,8 @@ type Mutation {
   "Removes a network split by hand: its hosts go back to the network it was split from."
   deleteNetwork(namespace: String!, slug: String!): Boolean! @can(resource: METADATA, action: WRITE)
   """
-  Removes a stale or inactive host with its content and snapshots, and computes the links
-  again; an active host is refused, its next snapshot would bring it back.
+  Removes a host, active or not, with its agent, its content and its snapshots, and computes
+  the links again. An agent still running stops: it must be enrolled again.
   """
   deleteHost(namespace: String!, id: ID!): Boolean! @can(resource: INVENTORY, action: WRITE)
 }

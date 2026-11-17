@@ -272,7 +272,7 @@ workers:
     purge_expired_tokens: "45 3 * * *"    # enrollment tokens expired that enrolled no agent, sessions and OAuth expired
     detect_token_conflicts: "0 * * * *"   # agents whose snapshots alternate between hostnames: a cloned host
     purge_history: "20 * * * *"       # change events beyond history.max_events of each namespace
-    purge_inactive_hosts: ""          # hosts not seen for longer than below, as a deletion by hand
+    purge_inactive_hosts: ""          # hosts not seen for longer than below; their agent stays
     purge_unused_projects: ""         # projects no host and no app (removed ones aside) names any more
     purge_unused_environments: ""     # environments no host and no app (removed ones aside) names any more
   retention:                          # how long River keeps the finished jobs
@@ -347,9 +347,10 @@ The mutations change the metadata, never what the agents collect: `updateNamespa
 description, freshness thresholds), `updateProject`, `updateEnvironment`,
 `reorderEnvironments`, `updateNetwork`, `splitNetwork`, `moveHostsToNetwork`, `deleteNetwork` need
 the `metadata` `write` permission on the namespace;
-`deleteHost` removes a stale or inactive host gone for good, with its content, and needs `inventory`
-`write`. A refusal carries a code in its extensions: `NOT_FOUND`, `FORBIDDEN`, `BAD_USER_INPUT` or
-`CONFLICT` (an active host, which its next snapshot would bring back). A refusal a client can tell
+`deleteHost` removes a host, active or not, with its agent and its content, and needs `inventory`
+`write`; `deleteAgent` removes an agent with its host and needs `tokens` `write`. An agent still
+running stops: it must be enrolled again. A refusal carries a code in its extensions: `NOT_FOUND`,
+`FORBIDDEN`, `BAD_USER_INPUT` or `CONFLICT`. A refusal a client can tell
 in its own words also carries its `reason` (`PASSWORD_TOO_SHORT`, `HOST_NOT_IN_RANGE`…) and the
 values it names in `args`; the front translates by them, never by the message.
 

@@ -240,6 +240,8 @@ extend type Mutation {
   revokeEnrollmentToken(id: ID!): EnrollmentToken! @canGlobal(resource: TOKENS, action: WRITE)
   "Its snapshots are refused from now on, and it stops; its host stays until deleted."
   revokeAgent(id: ID!): Agent! @canGlobal(resource: TOKENS, action: WRITE)
+  "Removes the agent and its host with its content; still running, it stops and must be enrolled again."
+  deleteAgent(id: ID!): Boolean! @canGlobal(resource: TOKENS, action: WRITE)
 
   "Runs the scheduled task now; a run waiting or running already is returned instead."
   runTask(kind: String!): TaskRun! @canGlobal(resource: TASKS, action: WRITE)

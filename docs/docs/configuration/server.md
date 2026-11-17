@@ -274,7 +274,7 @@ The scheduled tasks:
 | `purge_expired_tokens`   | `45 3 * * *`     | Deletes the expired enrollment tokens that enrolled no agent, the expired sessions, the expired OAuth codes and authorizations, and the OAuth clients nobody authorized within a day. |
 | `detect_token_conflicts` | `0 * * * *`      | Finds the agents whose snapshots alternate between hostnames: a cloned host sharing one identity. |
 | `purge_history`          | `20 * * * *`     | Deletes the change events beyond `history.max_events` in each namespace. |
-| `purge_inactive_hosts`   | `""` (manual)    | Deletes the hosts not seen for longer than `purge_inactive_hosts_after`, as a deletion by hand would. |
+| `purge_inactive_hosts`   | `""` (manual)    | Deletes the hosts not seen for longer than `purge_inactive_hosts_after`, as a deletion by hand would, but keeps their agent: a snapshot brings the host back. |
 | `purge_unused_projects`  | `""` (manual)    | Deletes the projects no host and no app (removed apps aside) names any more, as a deletion by hand in the namespace settings would. Their name and description are lost; an agent naming one again creates it anew. |
 | `purge_unused_environments` | `""` (manual) | Same for the environments: their name and place in the order are lost. |
 

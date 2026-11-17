@@ -23,7 +23,7 @@ Granted on one namespace, or on **all namespaces** (including those created late
 
 | Resource    | `read` | `write` |
 | ----------- | ------ | ------- |
-| `inventory` | see the namespace: hosts, apps, services, graph, history | delete a host gone for good (`deleteHost`) |
+| `inventory` | see the namespace: hosts, apps, services, graph, history | delete a host with its agent (`deleteHost`) |
 | `metadata`  | - | edit the namespace (name, description, freshness thresholds), projects, envs and their order, delete the unused projects and envs, networks (update, split, move hosts, delete) |
 | `*`         | both | both |
 
@@ -38,7 +38,7 @@ Granted out of the namespaces.
 | ------------ | ------ | ------- |
 | `users`      | list the users | create, update, delete users, set their roles |
 | `roles`      | list the roles | create, update, delete roles |
-| `tokens`     | list the enrollment tokens and the agents | create and revoke tokens, revoke agents |
+| `tokens`     | list the enrollment tokens and the agents | create and revoke tokens, revoke and delete agents (with their host) |
 | `icons`      | list the technologies of the inventory | upload and reset technology logos (`PUT`/`DELETE icons/{tech}`) |
 | `tasks`      | list the scheduled tasks, their runs and the failed jobs | run a task now, run a failed job again |
 | `namespaces` | (reserved) | (reserved) |
@@ -112,7 +112,7 @@ A refused GraphQL operation carries a code in its `extensions`:
 | `NOT_FOUND`      | unknown namespace or entity, or a namespace the user cannot read |
 | `FORBIDDEN`      | the permission is missing; the message names it (`forbidden: metadata write is needed`) |
 | `BAD_USER_INPUT` | invalid input |
-| `CONFLICT`       | the operation conflicts with the state, e.g. deleting an active host (its next snapshot would bring it back), or removing the last admin |
+| `CONFLICT`       | the operation conflicts with the state, e.g. removing the last admin |
 | `UNAUTHENTICATED` | no valid session |
 | `GRAPH_TOO_LARGE` | the graph asked holds more nodes than [`graph.max_nodes`](./configuration/server.md#graph): filter it |
 

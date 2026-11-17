@@ -108,7 +108,25 @@ func TestMetadata_Catalogs(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalid)
 }
 
-func TestMetadata_DeleteHost(t *testing.T) {
+// assertHostRemoved checks that the host is gone with its content, recorded
+// in the history, and that the links of its namespace are computed again.
+func assertHostRemoved(t *testing.T, f *normalizeFixture, q *recomputes, host *model.Host) {
+	t.Helper()
+	_, err := f.repos.Host.FindByID(ctx, host.ID)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	var apps int64
+	require.NoError(t, f.db.Model(&model.App{}).Where("host_id = ?", host.ID).Count(&apps).Error)
+	assert.Zero(t, apps, "its content goes with it")
+	assert.Equal(t, []uuid.UUID{host.NamespaceID}, q.namespaces, "the links are computed again")
+
+	rows, err := f.repos.ChangeEvent.List(ctx, repository.ChangeEventFilter{NamespaceID: host.NamespaceID, HostID: &host.ID, EntityType: model.ChangeEntityHost})
+	require.NoError(t, err)
+	require.NotEmpty(t, rows)
+	assert.Equal(t, model.ChangeRemoved, rows[0].Kind)
+	assert.Contains(t, compact(t, rows[0].Before), `"hostname":"`+host.Hostname+`"`)
+}
+
+func TestMetadata_PurgeHost(t *testing.T) {
 	f, svc, clock, q := newMetadataFixture(t)
 	host := f.ingest(load(t, "acme-crm-prod-1", nil))
 	f.ingest(load(t, "acme-redis-prod-1", nil))
@@ -116,30 +134,63 @@ func TestMetadata_DeleteHost(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.now = host.LastSeenAt.Add(time.Hour)
-	assert.ErrorIs(t, svc.DeleteHost(ctx, "acme", host.ID), ErrHostActive, "seen within staleAfter, it would come back")
+	assert.ErrorIs(t, svc.PurgeHost(ctx, "acme", host.ID), ErrHostActive, "seen within staleAfter, it would come back")
 	assert.Empty(t, q.namespaces)
 
 	clock.now = host.LastSeenAt.Add(ns.StaleAfter.Duration() + time.Minute)
-	require.NoError(t, svc.DeleteHost(ctx, "acme", host.ID))
-	_, err = f.repos.Host.FindByID(ctx, host.ID)
-	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
-	var apps int64
-	require.NoError(t, f.db.Model(&model.App{}).Where("host_id = ?", host.ID).Count(&apps).Error)
-	assert.Zero(t, apps, "its content goes with it")
-	assert.Equal(t, []uuid.UUID{ns.ID}, q.namespaces, "the links are computed again")
+	require.NoError(t, svc.PurgeHost(ctx, "acme", host.ID))
+	assertHostRemoved(t, f, q, host)
+	_, err = f.repos.Agent.FindByID(ctx, host.AgentID)
+	assert.NoError(t, err, "its agent stays: it brings the host back if it sends a snapshot again")
 
-	rows, err := f.repos.ChangeEvent.List(ctx, repository.ChangeEventFilter{NamespaceID: ns.ID, HostID: &host.ID, EntityType: model.ChangeEntityHost})
-	require.NoError(t, err)
-	require.NotEmpty(t, rows)
-	assert.Equal(t, model.ChangeRemoved, rows[0].Kind)
-	assert.Contains(t, compact(t, rows[0].Before), `"hostname":"acme-crm-prod-1"`)
-
-	assert.ErrorIs(t, svc.DeleteHost(ctx, "acme", host.ID), ErrNotFound)
+	assert.ErrorIs(t, svc.PurgeHost(ctx, "acme", host.ID), ErrNotFound)
 	other := &model.Namespace{Slug: "other", Name: "Other"}
 	require.NoError(t, f.repos.Namespace.Create(ctx, other))
 	redis, err := f.repos.Host.FindByHostname(ctx, ns.ID, "acme-redis-prod-1")
 	require.NoError(t, err)
+	assert.ErrorIs(t, svc.PurgeHost(ctx, "other", redis.ID), ErrNotFound, "a host of another namespace")
+}
+
+func TestMetadata_DeleteHost(t *testing.T) {
+	f, svc, clock, q := newMetadataFixture(t)
+	host := f.ingest(load(t, "acme-crm-prod-1", nil))
+	redis := f.ingest(load(t, "acme-redis-prod-1", nil))
+
+	clock.now = host.LastSeenAt.Add(time.Minute)
+	require.NoError(t, svc.DeleteHost(ctx, "acme", host.ID), "an active host is deleted too")
+	assertHostRemoved(t, f, q, host)
+	_, err := f.repos.Agent.FindByID(ctx, host.AgentID)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound, "its agent goes with it")
+	_, err = f.repos.Agent.FindByID(ctx, redis.AgentID)
+	assert.NoError(t, err, "the other agents stay")
+
+	assert.ErrorIs(t, svc.DeleteHost(ctx, "acme", host.ID), ErrNotFound)
+	other := &model.Namespace{Slug: "other", Name: "Other"}
+	require.NoError(t, f.repos.Namespace.Create(ctx, other))
 	assert.ErrorIs(t, svc.DeleteHost(ctx, "other", redis.ID), ErrNotFound, "a host of another namespace")
+	assert.ErrorIs(t, svc.DeleteHost(ctx, "nope", redis.ID), ErrNamespaceNotFound)
+}
+
+func TestMetadata_DeleteAgent(t *testing.T) {
+	f, svc, clock, q := newMetadataFixture(t)
+	host := f.ingest(load(t, "acme-crm-prod-1", nil))
+	clock.now = host.LastSeenAt.Add(time.Minute)
+	agent, err := f.repos.Agent.FindByID(ctx, host.AgentID)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.DeleteAgent(ctx, host.AgentID))
+	_, err = f.repos.Agent.FindByID(ctx, host.AgentID)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	assertHostRemoved(t, f, q, host)
+
+	// An agent enrolled but silent has no host: nothing to recompute.
+	silent := &model.Agent{TokenHash: "silent", EnrollmentTokenID: agent.EnrollmentTokenID}
+	require.NoError(t, f.repos.Agent.Create(ctx, silent))
+	q.namespaces = nil
+	require.NoError(t, svc.DeleteAgent(ctx, silent.ID))
+	assert.Empty(t, q.namespaces)
+
+	assert.ErrorIs(t, svc.DeleteAgent(ctx, silent.ID), ErrNotFound)
 }
 
 // networksOf returns the network of each host of the namespace, by

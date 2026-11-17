@@ -41,6 +41,7 @@ func TestAdmin_Forbidden(t *testing.T) {
 		`mutation { deleteUser(id:"` + id(1).String() + `") }`,
 		`mutation { deleteRole(id:"` + id(1).String() + `") }`,
 		`mutation { revokeAgent(id:"` + id(1).String() + `") { id } }`,
+		`mutation { deleteAgent(id:"` + id(1).String() + `") }`,
 		`mutation { createEnrollmentToken(ttl:0) { secret } }`,
 	} {
 		assert.Contains(t, f.errors(t, q), `"code":"FORBIDDEN"`, q)
@@ -208,6 +209,11 @@ func TestTokenMutations(t *testing.T) {
 	assert.JSONEq(t, `{"revokeAgent":{"revokedAt":"2026-10-28T12:00:00Z"}}`, f.post(t, `mutation { revokeAgent(id:"`+id(5).String()+`") { revokedAt } }`))
 	f.agents.EXPECT().Revoke(gomock.Any(), id(6)).Return(nil, service.ErrNotFound)
 	assert.Contains(t, f.errors(t, `mutation { revokeAgent(id:"`+id(6).String()+`") { revokedAt } }`), `"code":"NOT_FOUND"`)
+
+	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(7)).Return(nil)
+	assert.JSONEq(t, `{"deleteAgent":true}`, f.post(t, `mutation { deleteAgent(id:"`+id(7).String()+`") }`))
+	f.metadata.EXPECT().DeleteAgent(gomock.Any(), id(8)).Return(service.ErrNotFound)
+	assert.Contains(t, f.errors(t, `mutation { deleteAgent(id:"`+id(8).String()+`") }`), `"code":"NOT_FOUND"`)
 }
 
 func TestTechIcons(t *testing.T) {

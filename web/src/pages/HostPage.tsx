@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { PackageVersion } from '@/components/PackageVersion'
 import { Copyable, CopyButton, Ips } from '@/components/Copy'
+import { Dialog, Field, useAction } from '@/components/Dialog'
 import { HistoryEvent } from '@/components/HistoryEvents'
 import { TechLogo } from '@/components/Icon'
 import { Page } from '@/components/Layout'
@@ -79,7 +80,7 @@ export function HostPage() {
         <span className="flex-1" />
         <Link className="lc-btn no-underline" to={`/${ns}/graph?${new URLSearchParams({ lens: 'infra', host: h.hostname, open: `host:${h.id}` })}`}>{ts.seeInGraph}</Link>
         <CopyLink />
-        {data?.namespace?.canEdit && h.status !== 'ACTIVE' ? <DeleteHost ns={ns} host={h} /> : null}
+        {data?.namespace?.canEdit ? <DeleteHost ns={ns} host={h} /> : null}
       </>}
     >
       <HostTabs ns={ns} host={h} />
@@ -134,22 +135,33 @@ function CopyLink() {
   )
 }
 
-// DeleteHost asks before deleting the host; a refusal shows from the
-// error of the mutation.
-function DeleteHost({ ns, host }: { ns: string; host: Host }) {
+// DeleteHost asks in a dialog before deleting the host and its agent; an
+// active host, whose agent stops, asks to type its hostname.
+export function DeleteHost({ ns, host }: { ns: string; host: Pick<Host, 'id' | 'hostname' | 'status'> }) {
   const navigate = useNavigate()
-  const [confirm, setConfirm] = useState(false)
-  const [remove, { loading, error }] = useMutation(DeleteHostDoc)
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [remove] = useMutation(DeleteHostDoc)
+  const a = useAction()
   const th = useT().pages.host
-  if (!confirm) return <button className="lc-btn" type="button" onClick={() => setConfirm(true)}>{th.delete}</button>
+  const active = host.status === 'ACTIVE'
+  const close = () => { setOpen(false); setTyped(''); a.setError(null) }
   return (
-    <span className="flex items-center gap-2" role="group" aria-label={th.confirmDelete}>
-      <span className="text-[13px] text-ink">{th.deleteQuestion(host.hostname)}</span>
-      <button className="lc-btn lc-btn--primary" type="button" disabled={loading}
-        onClick={() => void remove({ variables: { ns, id: host.id } }).then(() => navigate(`/${ns}/hosts`), () => {})}>{th.remove}</button>
-      <button className="lc-btn" type="button" onClick={() => setConfirm(false)}>{th.cancel}</button>
-      {error ? <span role="alert" className="text-danger">{error.message}</span> : null}
-    </span>
+    <>
+      <button className="lc-btn" type="button" onClick={() => setOpen(true)}>{th.delete}</button>
+      {open ? (
+        <Dialog title={th.deleteTitle(host.hostname)} submit={th.remove} danger busy={a.busy} error={a.error} onClose={close}
+          disabled={active && typed.trim() !== host.hostname}
+          onSubmit={() => void a.run(() => remove({ variables: { ns, id: host.id } }), () => navigate(`/${ns}/hosts`))}>
+          <p className="m-0">{th.deleteText}{active ? th.deleteActive : ''}</p>
+          {active ? (
+            <Field label={th.typeHostname}>
+              {(id) => <input id={id} className="lc-input lc-mono" placeholder={host.hostname} value={typed} onChange={(e) => setTyped(e.target.value)} />}
+            </Field>
+          ) : null}
+        </Dialog>
+      ) : null}
+    </>
   )
 }
 

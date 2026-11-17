@@ -43,6 +43,10 @@ const RevokeAgentDoc = graphql(`
   }
 `)
 
+const DeleteAgentDoc = graphql(`
+  mutation DeleteAgent($id: ID!) { deleteAgent(id: $id) }
+`)
+
 type Token = AdminTokensQuery['enrollmentTokens'][number]
 type Agent = AdminAgentsQuery['agents'][number]
 
@@ -291,6 +295,7 @@ export function Agents({ write, server = config.version }: { write: boolean; ser
   const [version, setVersion] = useState<VersionPick | null>(null)
   const [differs, setDiffers] = useState(false)
   const [revoking, setRevoking] = useState<Agent | null>(null)
+  const [deleting, setDeleting] = useState<Agent | null>(null)
   const t = useT()
   const g = t.admin.agents
   const all = data?.agents ?? []
@@ -347,9 +352,10 @@ export function Agents({ write, server = config.version }: { write: boolean; ser
                   ) : null}
                 </span></td>
                 {write ? (
-                  <td className="lc-num">
+                  <td className="lc-num"><span className="inline-flex gap-1.5">
                     <button type="button" className="lc-btn lc-btn--small lc-btn--danger" disabled={!!x.revokedAt} onClick={() => setRevoking(x)}>{t.admin.revoke}</button>
-                  </td>
+                    <button type="button" className="lc-btn lc-btn--small lc-btn--danger" onClick={() => setDeleting(x)}>{t.admin.delete}</button>
+                  </span></td>
                 ) : null}
               </tr>
             ))}
@@ -358,6 +364,7 @@ export function Agents({ write, server = config.version }: { write: boolean; ser
       </div>
       <Pager page={tbl.page} size={tbl.size} total={tbl.list.length} noun={g.noun} onPage={tbl.setPage} onSize={tbl.setSize} />
       {revoking ? <RevokeAgent agent={revoking} onClose={() => setRevoking(null)} /> : null}
+      {deleting ? <DeleteAgent agent={deleting} onClose={() => setDeleting(null)} /> : null}
     </>
   )
 }
@@ -372,6 +379,29 @@ function RevokeAgent({ agent, onClose }: { agent: Agent; onClose: () => void }) 
     <Dialog title={g.revokeTitle(name)} submit={t.admin.revoke} danger busy={a.busy} error={a.error} onClose={onClose}
       onSubmit={() => void a.run(() => revoke({ variables: { id: agent.id } }), onClose)}>
       <p className="m-0">{g.revokeText}{agent.host ? g.revokeHost : ''}</p>
+    </Dialog>
+  )
+}
+
+// DeleteAgent asks before deleting the agent and its host; with a host, its
+// hostname must be typed.
+export function DeleteAgent({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+  const [remove] = useMutation(DeleteAgentDoc, { refetchQueries: ['AdminAgents'] })
+  const [typed, setTyped] = useState('')
+  const a = useAction()
+  const t = useT()
+  const g = t.admin.agents
+  const host = agent.host?.hostname
+  return (
+    <Dialog title={g.deleteTitle(host ?? g.thisAgent)} submit={t.admin.delete} danger busy={a.busy} error={a.error} onClose={onClose}
+      disabled={!!host && typed.trim() !== host}
+      onSubmit={() => void a.run(() => remove({ variables: { id: agent.id } }), onClose)}>
+      <p className="m-0">{host ? g.deleteHost(host) : g.deleteText}</p>
+      {host ? (
+        <Field label={g.typeHostname}>
+          {(id) => <input id={id} className="lc-input lc-mono" placeholder={host} value={typed} onChange={(e) => setTyped(e.target.value)} />}
+        </Field>
+      ) : null}
     </Dialog>
   )
 }

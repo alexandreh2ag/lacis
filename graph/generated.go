@@ -396,6 +396,7 @@ type ComplexityRoot struct {
 		CreateEnrollmentToken func(childComplexity int, label *string, ttl int) int
 		CreateRole            func(childComplexity int, input RoleInput) int
 		CreateUser            func(childComplexity int, input CreateUserInput) int
+		DeleteAgent           func(childComplexity int, id uuid.UUID) int
 		DeleteEnvironment     func(childComplexity int, namespace string, slug string) int
 		DeleteHost            func(childComplexity int, namespace string, id uuid.UUID) int
 		DeleteNetwork         func(childComplexity int, namespace string, slug string) int
@@ -747,6 +748,7 @@ type MutationResolver interface {
 	CreateEnrollmentToken(ctx context.Context, label *string, ttl int) (*CreatedEnrollmentToken, error)
 	RevokeEnrollmentToken(ctx context.Context, id uuid.UUID) (*service.EnrollmentTokenDetail, error)
 	RevokeAgent(ctx context.Context, id uuid.UUID) (*repository.AgentRow, error)
+	DeleteAgent(ctx context.Context, id uuid.UUID) (bool, error)
 	RunTask(ctx context.Context, kind string) (*service.TaskRun, error)
 	RetryTaskRun(ctx context.Context, id string) (*service.TaskRun, error)
 	UpdateProfile(ctx context.Context, input ProfileInput) (*model.User, error)
@@ -2235,6 +2237,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(CreateUserInput)), true
+	case "Mutation.deleteAgent":
+		if e.complexity.Mutation.DeleteAgent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteAgent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteAgent(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.deleteEnvironment":
 		if e.complexity.Mutation.DeleteEnvironment == nil {
 			break
@@ -3817,6 +3830,17 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteAgent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2githubᚗcomᚋgoogleᚋuuidᚐUUID)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -13241,6 +13265,70 @@ func (ec *executionContext) fieldContext_Mutation_revokeAgent(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_revokeAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAgent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteAgent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteAgent(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				resource, err := ec.unmarshalNGlobalResource2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐGlobalResource(ctx, "TOKENS")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				action, err := ec.unmarshalNPermissionAction2githubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐPermissionAction(ctx, "WRITE")
+				if err != nil {
+					var zeroVal bool
+					return zeroVal, err
+				}
+				if ec.directives.CanGlobal == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive canGlobal is not implemented")
+				}
+				return ec.directives.CanGlobal(ctx, nil, directive0, resource, action)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteAgent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -26081,6 +26169,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "revokeAgent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_revokeAgent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAgent":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAgent(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

@@ -15,6 +15,9 @@ type AgentRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Agent, error)
 	FindByTokenHash(ctx context.Context, hash string) (*model.Agent, error)
 	Revoke(ctx context.Context, id uuid.UUID, at time.Time) error
+	// Delete removes the agent, and its host with the content of the host.
+	// It returns gorm.ErrRecordNotFound when the agent does not exist.
+	Delete(ctx context.Context, id uuid.UUID) error
 	// Touch sets last_seen_at.
 	Touch(ctx context.Context, id uuid.UUID, at time.Time) error
 	// FindAll returns the agents with their host and enrollment token, the
@@ -67,6 +70,17 @@ func (r *agentRepository) FindByTokenHash(ctx context.Context, hash string) (*mo
 // date. It returns gorm.ErrRecordNotFound when the agent does not exist.
 func (r *agentRepository) Revoke(ctx context.Context, id uuid.UUID, at time.Time) error {
 	return revoke[model.Agent](ctx, r.db, id, at)
+}
+
+func (r *agentRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	res := r.db.WithContext(ctx).Delete(&model.Agent{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *agentRepository) Touch(ctx context.Context, id uuid.UUID, at time.Time) error {
