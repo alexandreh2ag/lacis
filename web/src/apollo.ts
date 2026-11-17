@@ -32,6 +32,11 @@ export const client = new ApolloClient({
       Graph: { keyFields: false },
       GraphNode: { keyFields: false },
       GraphEdge: { keyFields: false },
+      GraphGroup: { keyFields: false },
+      GraphImpactNode: { keyFields: false },
+      // The id of an OS is its distribution ("debian"), shared by hosts of
+      // other versions: keep it with its host.
+      OS: { keyFields: false },
     },
   }),
   defaultOptions: { watchQuery: { fetchPolicy: 'cache-and-network' } },
