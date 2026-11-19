@@ -21,7 +21,7 @@ func TestMigrator_Idempotent(t *testing.T) {
 
 	err := database.NewMigrator(dbtest.DSN(t, "database"), slog.New(slog.NewTextHandler(logs, nil))).Migrate(context.Background())
 	require.NoError(t, err)
-	assert.Contains(t, logs.String(), `msg="lacis migrations applied" version=20261117100000 changed=false`)
+	assert.Contains(t, logs.String(), `msg="lacis migrations applied" version=20261119100000 changed=false`)
 	assert.Contains(t, logs.String(), `msg="river migrations applied" versions=[]`)
 
 	var tables []string
