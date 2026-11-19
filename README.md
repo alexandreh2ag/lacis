@@ -140,6 +140,10 @@ collectors:                           # optional, defaults shown
           - { path: .env, format: env }
           - { path: ".env.${NODE_ENV}", format: env } # a variable read so far (NODE_ENV defaults to production)
           - { path: "config/*.yaml", format: yaml }    # also php, ini, json: nested keys flattened (see below)
+    distributions:                    # products built on a framework, which keeps its version; a name of a
+      - name: statamic                # built-in one (sulu, akeneo on symfony) replaces it
+        framework: laravel            # only the apps of that framework; any app when empty
+        detect: { composer_package: statamic/cms }  # or npm_package, file
     extra_config:                     # files added to the apps whose path (as seen or resolved) matches the glob,
       - app: "/var/www/*/current"     # read after those of their framework, the launcher environment still last
         config:

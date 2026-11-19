@@ -47,8 +47,11 @@ func TestFacets(t *testing.T) {
 		}
 		return a
 	}
+	sulu := app("symfony", "6.4.12", `{"type":"php","version":"8.3.14"}`)
+	sulu.Distribution, sulu.DistributionVersion = new("sulu"), new("2.6.4")
 	got := facets(&model.Inventory{
 		Apps: []model.App{
+			sulu,
 			app("symfony", "7.2.6", `{"type":"php","version":"8.3.14"}`),
 			app("laravel", "10.48.2", `{"type":"php","version":"7.4.33"}`),
 			app("symfony", "6.4.1", `{"type":"php","version":"8.10.0"}`),
@@ -59,8 +62,9 @@ func TestFacets(t *testing.T) {
 		Webservers: []model.Webserver{{Type: "traefik"}, {Type: "nginx", Version: new("1.24.0")}, {Type: "traefik", Version: new("3.1.2")}},
 	})
 	assert.Equal(t, &graph.Facets{
-		Frameworks: []graph.VersionFacet{{Name: "laravel", Versions: []string{"10.48"}}, {Name: "symfony", Versions: []string{"6.4", "7.2"}}},
-		Runtimes:   []graph.VersionFacet{{Name: "node", Versions: []string{"20.11"}}, {Name: "php", Versions: []string{"7.4", "8.3", "8.10"}}},
+		Frameworks:    []graph.VersionFacet{{Name: "laravel", Versions: []string{"10.48"}}, {Name: "symfony", Versions: []string{"6.4", "7.2"}}},
+		Distributions: []graph.VersionFacet{{Name: "sulu", Versions: []string{"2.6"}}},
+		Runtimes:      []graph.VersionFacet{{Name: "node", Versions: []string{"20.11"}}, {Name: "php", Versions: []string{"7.4", "8.3", "8.10"}}},
 		Components: []graph.VersionFacet{{Name: "mariadb", Versions: []string{"10.11"}}, {Name: "nginx", Versions: []string{"1.24"}},
 			{Name: "redis", Versions: []string{"6.0", "7.2"}}, {Name: "traefik", Versions: []string{"3.1"}}},
 		ServiceTypes: []string{"mariadb", "redis"}, WebserverTypes: []string{"nginx", "traefik"},

@@ -18,6 +18,7 @@ import { ago } from '@/lib/format'
 import { field, resourcesOf, str } from '@/lib/json'
 import { refresh } from '@/config'
 import { Ago } from '@/components/Ago'
+import { appTech, stackText } from '../lib/stack'
 
 const HostPageDoc = graphql(`
   query HostPage($ns: String!, $id: ID!) {
@@ -34,7 +35,7 @@ const HostPageDoc = graphql(`
         services { id type instance version packageVersion details firstSeenAt usedBy { ...AppLink } }
         webservers { id type version domains firstSeenAt usedBy { ...AppLink } relays { ...AppLink } }
         apps {
-          id name path role framework frameworkVersion firstSeenAt
+          id name path role framework frameworkVersion distribution distributionVersion firstSeenAt
           project { slug name } environment { slug name }
           code { version commit branch deployedAt }
           runtime { type version packageVersion source }
@@ -96,7 +97,7 @@ function HostTabs({ ns, host: h }: { ns: string; host: Host }) {
     ...usedByRows(h.usedBy, { name: h.hostname, tech: 'host' }),
     ...h.services.flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type })),
     ...h.webservers.flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type })),
-    ...h.apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' })),
+    ...h.apps.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: appTech(a) })),
   ], (r) => hostOf(r.link.from)?.id === h.id), [h])
   const t = useT()
   const tabs = [
@@ -172,7 +173,7 @@ function AppCard({ app }: { app: App }) {
     <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-surface-raised p-3.5">
       <div className="flex items-center gap-2.5">
         <span className="lc-node__icon" style={{ ['--node-ink' as string]: 'var(--kind-app)', ['--node-tint' as string]: 'var(--kind-app-tint)' }}>
-          <TechLogo tech={app.framework ?? app.runtime?.type ?? 'app'} />
+          <TechLogo tech={appTech(app, app.runtime?.type ?? 'app')} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
           <Link className="heading" to={`/${ns}/apps/${app.id}`}>{app.name}</Link>
@@ -183,6 +184,7 @@ function AppCard({ app }: { app: App }) {
       <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
         {app.code?.commit ? <><dt>{ts.commit}</dt><dd><Copyable value={app.code.commit} shown={app.code.commit.slice(0, 7) + (app.code.branch ? ` · ${app.code.branch}` : '')} /></dd></> : null}
         {app.code?.deployedAt ? <><dt>{ts.deployed}</dt><dd><Ago at={app.code.deployedAt} /></dd></> : null}
+        {app.distribution ? <><dt>{ts.distribution}</dt><dd>{app.distribution} {app.distributionVersion}</dd></> : null}
         {app.framework ? <><dt>{ts.framework}</dt><dd>{app.framework} {app.frameworkVersion}</dd></> : null}
         {app.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{app.runtime.type} {app.runtime.version}{app.runtime.source ? ` · ${app.runtime.source}` : ''}<PackageVersion version={app.runtime.version} packageVersion={app.runtime.packageVersion} /></span></dd></> : null}
         <dt>{ts.project}</dt><dd><AppProject ns={ns} app={app} /></dd>
@@ -215,7 +217,7 @@ function Apps({ apps }: { apps: App[] }) {
   const [sort, setSort] = useState<{ by: string; desc: boolean }>({ by: 'name', desc: false })
   const sorted = useMemo(() => {
     const value = (a: App) => sort.by === 'version' ? a.code?.version ?? '' : sort.by === 'framework' ? a.framework ?? '' : sort.by === 'project' ? a.project?.slug ?? '' : sort.by === 'env' ? a.environment?.slug ?? '' : a.name
-    return apps.filter((a) => !q || [a.name, a.path, a.code?.version, a.framework, a.project?.slug, a.project?.name, a.environment?.slug].some((x) => x?.toLowerCase().includes(q.toLowerCase())))
+    return apps.filter((a) => !q || [a.name, a.path, a.code?.version, a.framework, a.distribution, a.project?.slug, a.project?.name, a.environment?.slug].some((x) => x?.toLowerCase().includes(q.toLowerCase())))
       .sort((a, b) => value(a).localeCompare(value(b), 'fr', { numeric: true }) * (sort.desc ? -1 : 1))
   }, [apps, q, sort])
   if (apps.length === 0) return <p className="lc-muted m-0">{t.pages.host.noApp}</p>
@@ -237,12 +239,12 @@ function Apps({ apps }: { apps: App[] }) {
           <tbody>
             {sorted.slice((page - 1) * size, page * size).map((a) => (
               <tr key={a.id}>
-                <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
+                <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={appTech(a)} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
                 <td><AppProject ns={ns} app={a} noEnv /></td>
                 <td className="text-ink-muted">{a.environment?.slug}</td>
                 <td className="max-w-[240px]"><Copyable value={a.path} className="text-[12px] text-ink-muted" /></td>
                 <td className="lc-mono">{a.code?.version}</td>
-                <td className="text-ink-muted">{[a.framework, a.frameworkVersion].filter(Boolean).join(' ')}</td>
+                <td className="text-ink-muted">{stackText(a)}</td>
               </tr>
             ))}
           </tbody>

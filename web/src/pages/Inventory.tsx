@@ -10,6 +10,7 @@ import { envOptions, Pager, SearchInput, SortHeader, useListParams } from '@/com
 import { graphql } from '@/graphql'
 import type { AppSortField, ComponentKind, ServiceSortField } from '@/graphql/graphql'
 import { useT } from '@/i18n'
+import { appTech, stackText } from '../lib/stack'
 
 const AppsDoc = graphql(`
   query Apps($ns: String!, $filter: AppFilter, $sort: AppSort, $page: PageInput) {
@@ -17,10 +18,10 @@ const AppsDoc = graphql(`
       id
       environments { id slug sortOrder }
       projects { id slug }
-      facets { frameworks { name versions } runtimes { name versions } }
+      facets { frameworks { name versions } distributions { name versions } runtimes { name versions } }
       apps(filter: $filter, sort: $sort, page: $page, merge: true) {
         total
-        items { id name path framework frameworkVersion vhosts project { slug } environment { slug } code { version commit } runtime { type version } deployments { id code { version } } }
+        items { id name path framework frameworkVersion distribution distributionVersion vhosts project { slug } environment { slug } code { version commit } runtime { type version } deployments { id code { version } } }
       }
     }
   }
@@ -72,9 +73,10 @@ export function Apps() {
   const envs = l.list('env')
   const projects = l.list('project')
   const framework = versionParam(l.get, 'fw')
+  const distribution = versionParam(l.get, 'dist')
   const runtime = versionParam(l.get, 'rt')
   const { data, error } = useQuery(AppsDoc, {
-    variables: { ns, filter: { search: l.q, envs, projects, framework: constraintOf(framework), runtime: constraintOf(runtime) }, sort: { by: l.sort as AppSortField, desc: l.desc }, page: { offset: (l.page - 1) * l.size, limit: l.size } },
+    variables: { ns, filter: { search: l.q, envs, projects, framework: constraintOf(framework), distribution: constraintOf(distribution), runtime: constraintOf(runtime) }, sort: { by: l.sort as AppSortField, desc: l.desc }, page: { offset: (l.page - 1) * l.size, limit: l.size } },
   })
   const list = data?.namespace?.apps
   const onSort = (by: string) => l.toggleSort(by, l.sort, l.desc)
@@ -87,9 +89,10 @@ export function Apps() {
           chipsField({ label: ts.environment, short: ts.env, options: envOptions(data?.namespace?.environments), selected: envs, onChange: (v) => l.set({ env: v }) }),
           pickerField({ label: ts.project, choose: ts.chooseProject, options: (data?.namespace?.projects ?? []).map((x) => x.slug), selected: projects, onChange: (v) => l.set({ project: v }) }),
           versionField({ label: ts.framework, facets: data?.namespace?.facets.frameworks ?? [], value: framework, onChange: (v) => l.set(versionParamChanges('fw', v)) }),
+          versionField({ label: ts.distribution, facets: data?.namespace?.facets.distributions ?? [], value: distribution, onChange: (v) => l.set(versionParamChanges('dist', v)) }),
           versionField({ label: ts.runtime, facets: data?.namespace?.facets.runtimes ?? [], value: runtime, onChange: (v) => l.set(versionParamChanges('rt', v)) }),
         ]}
-        onClearAll={() => l.set({ env: null, project: null, ...versionParamChanges('fw', null), ...versionParamChanges('rt', null) })}
+        onClearAll={() => l.set({ env: null, project: null, ...versionParamChanges('fw', null), ...versionParamChanges('dist', null), ...versionParamChanges('rt', null) })}
         count={list ? ts.apps(list.total) : ''}
       />
 
@@ -98,11 +101,11 @@ export function Apps() {
         <thead><tr>{head(ts.app, 'NAME')}{head(ts.project, 'PROJECT')}{head(ts.env, 'ENV')}{head(ts.version, 'VERSION')}{head(ts.framework, 'FRAMEWORK')}<th>{ts.domain}</th></tr></thead>
         <tbody>{(list?.items ?? []).map((a) => (
           <tr key={a.id}>
-            <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
+            <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={appTech(a)} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
             <td>{a.project ? <Link to={`/${ns}/projects/${a.project.slug}`}>{a.project.slug}</Link> : '—'}</td>
             <td>{a.environment?.slug}</td>
             <td><Versions versions={a.deployments.map((d) => d.code?.version)} /></td>
-            <td className="text-ink-muted">{[a.framework, a.frameworkVersion].filter(Boolean).join(' ')}</td>
+            <td className="text-ink-muted">{stackText(a)}</td>
             <td>{a.vhosts[0] ? <Copyable value={a.vhosts[0]} /> : null}</td>
           </tr>
         ))}</tbody>

@@ -521,9 +521,17 @@ func (b *builder) nodes() {
 	for i := range b.inv.Apps {
 		a := &b.inv.Apps[i]
 		n := Node{Label: a.Name, Detail: a.Role, Version: codeOf(a).Version}
+		var stack []string
+		if a.Distribution != nil {
+			stack = append(stack, strings.TrimSpace(*a.Distribution+" "+deref(a.DistributionVersion)))
+			n.Techs = append(n.Techs, *a.Distribution)
+		}
 		if a.Framework != nil {
-			n.Detail = strings.TrimSpace(*a.Framework + " " + deref(a.FrameworkVersion))
+			stack = append(stack, strings.TrimSpace(*a.Framework+" "+deref(a.FrameworkVersion)))
 			n.Techs = append(n.Techs, *a.Framework)
+		}
+		if len(stack) > 0 {
+			n.Detail = strings.Join(stack, " · ")
 		}
 		if rt := runtimeOf(a); rt != "" {
 			n.Techs = append(n.Techs, rt)
@@ -1197,6 +1205,7 @@ func (b *builder) aggregate(hosts []string, zone string) Node {
 				continue
 			}
 			n.Apps++
+			add(&frameworks, deref(a.Distribution))
 			add(&frameworks, deref(a.Framework))
 			add(&runtimes, runtimeOf(a))
 			add(&names, a.Name)

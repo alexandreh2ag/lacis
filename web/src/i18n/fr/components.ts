@@ -87,7 +87,7 @@ export const components = {
     entities: { host: 'Host', runtime: 'Runtime', service: 'Service', webserver: 'Webserver', app: 'App', link: 'Lien' } as Record<string, string>,
     fields: {
       version: 'version', 'code.version': 'version', 'code.commit': 'commit', 'code.branch': 'branche', 'code.tag': 'tag',
-      kernel: 'noyau', 'os.pretty': 'OS', framework_version: 'framework', 'runtime.version': 'runtime', arch: 'arch',
+      kernel: 'noyau', 'os.pretty': 'OS', framework_version: 'framework', distribution_version: 'distribution', 'runtime.version': 'runtime', arch: 'arch',
       'resources.cpu.effective_cores': 'CPU', 'resources.memory_mb.effective': 'mémoire', role: 'rôle', path: 'chemin',
     } as Record<string, string>,
   },

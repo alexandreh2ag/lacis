@@ -12,12 +12,14 @@ input AppFilter {
   search: String
   "A framework, as collected (symfony, laravel…), and its version."
   framework: VersionConstraint
+  "A distribution, the product an app is built on over its framework (sulu, akeneo…), and its version."
+  distribution: VersionConstraint
   "A runtime (php, node…) and its version."
   runtime: VersionConstraint
 }
 
 """
-A framework or a runtime, and a version it compares to, part by part: 7.10 is above 7.9. The
+A framework, a distribution or a runtime, and a version it compares to, part by part: 7.10 is above 7.9. The
 version of an app is cut to the parts given, so that EQ 7.4 takes 7.4.33 and GT 7.4 starts at
 7.5. No version takes every version.
 """
@@ -38,6 +40,7 @@ enum VersionOp {
 "What the inventory of a namespace holds, to filter by."
 type Facets {
   frameworks: [VersionFacet!]!
+  distributions: [VersionFacet!]!
   runtimes: [VersionFacet!]!
   serviceTypes: [String!]!
   webserverTypes: [String!]!
@@ -45,7 +48,7 @@ type Facets {
   components: [VersionFacet!]!
 }
 
-"A framework or a runtime the apps use, or a type of service or webserver."
+"A framework, a distribution or a runtime the apps use, or a type of service or webserver."
 type VersionFacet {
   name: String!
   "The versions in use, as major.minor, in order."
@@ -245,6 +248,9 @@ type App {
   environment: Environment
   framework: String
   frameworkVersion: String
+  "The product the app is built on, over its framework: sulu or akeneo on symfony."
+  distribution: String
+  distributionVersion: String
   runtime: AppRuntime
   code: AppCode
   vhosts: [String!]!

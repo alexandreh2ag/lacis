@@ -57,6 +57,11 @@ collectors:
         config:
           - { path: ".env", format: env }
           - { path: ".env.local", format: env }
+    distributions:
+      - name: statamic
+        framework: laravel
+        detect:
+          composer_package: statamic/cms
   envfiles:
     allow_keys: ["*_URL"]
     deny_keys: ["*SECRET*"]
@@ -144,6 +149,8 @@ func TestLoad_File(t *testing.T) {
 		Detect: FrameworkDetect{ComposerPackage: "laravel/framework"},
 		Config: []FrameworkSource{{Path: ".env", Format: "env"}, {Path: ".env.local", Format: "env"}},
 	}, cfg.Collectors.Apps.Frameworks[0])
+	assert.Equal(t, []DistributionDetector{{Name: "statamic", Framework: "laravel", Detect: FrameworkDetect{ComposerPackage: "statamic/cms"}}},
+		cfg.Collectors.Apps.Distributions)
 	assert.Equal(t, []string{"*_URL"}, cfg.Collectors.Envfiles.AllowKeys)
 	assert.Equal(t, TraefikConfig{APIURL: "https://127.0.0.1:8080", Username: "lacis", Password: "change-me", CAFile: "/etc/lacis/traefik-ca.pem"}, cfg.Collectors.Traefik)
 	// Keys absent from the file keep their default.

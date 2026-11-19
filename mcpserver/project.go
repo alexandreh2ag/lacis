@@ -38,8 +38,11 @@ type ProjectApp struct {
 	Env              string `json:"env,omitempty"`
 	Framework        string `json:"framework,omitempty"`
 	FrameworkVersion string `json:"framework_version,omitempty"`
-	Runtime          string `json:"runtime,omitempty"`
-	RuntimeVersion   string `json:"runtime_version,omitempty"`
+	// Distribution is the product the app is built on, over its framework.
+	Distribution        string `json:"distribution,omitempty" jsonschema:"product the app is built on, over its framework: sulu or akeneo on symfony"`
+	DistributionVersion string `json:"distribution_version,omitempty"`
+	Runtime             string `json:"runtime,omitempty"`
+	RuntimeVersion      string `json:"runtime_version,omitempty"`
 	// Versions are the versions of the code deployed, several when the
 	// deployments differ.
 	Versions []string `json:"versions,omitempty" jsonschema:"versions of the code deployed; several when the deployments differ"`
@@ -181,7 +184,8 @@ func (x *index) mergedApps(keep func(project, env string) bool) []AppItem {
 		if item == nil {
 			rt, rtv, _ := appRuntime(a)
 			item = &AppItem{Namespace: x.inv.Namespace.Slug, Project: project, ProjectApp: ProjectApp{Name: a.Name, Env: env,
-				Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion), Runtime: rt, RuntimeVersion: rtv}}
+				Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion),
+				Distribution: deref(a.Distribution), DistributionVersion: deref(a.DistributionVersion), Runtime: rt, RuntimeVersion: rtv}}
 			apps[key] = item
 			order = append(order, key)
 		}

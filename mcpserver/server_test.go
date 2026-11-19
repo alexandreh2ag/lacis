@@ -47,7 +47,8 @@ var (
 	web2  = model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "web-2", ProjectID: &shop.ID, EnvironmentID: &staging.ID}
 	db1   = model.Host{Base: model.Base{ID: uuid.New()}, Hostname: "db-1", ProjectID: &shop.ID, EnvironmentID: &prod.ID}
 	front = model.App{Base: model.Base{ID: uuid.New()}, HostID: web1.ID, Name: "shop-front", Path: "/srv/shop", Role: "web",
-		Framework: new("symfony"), FrameworkVersion: new("6.4.12"), Runtime: json.RawMessage(`{"type":"php","version":"8.1.27","package_version":"8.1.27-9+deb.sury.org+1"}`), Vhosts: model.StringArray{"shop.acme.example"}}
+		Framework: new("symfony"), FrameworkVersion: new("6.4.12"), Distribution: new("sulu"), DistributionVersion: new("2.6.4"),
+		Runtime: json.RawMessage(`{"type":"php","version":"8.1.27","package_version":"8.1.27-9+deb.sury.org+1"}`), Vhosts: model.StringArray{"shop.acme.example"}}
 	legacy = model.App{Base: model.Base{ID: uuid.New()}, HostID: web2.ID, Name: "legacy", Path: "/srv/legacy",
 		Framework: new("laravel"), FrameworkVersion: new("8.83.1"), Runtime: json.RawMessage(`{"type":"php","version":"7.4.33"}`)}
 	mysql = model.Service{Base: model.Base{ID: uuid.New()}, HostID: db1.ID, Type: "mysql", Instance: "default", Version: new("8.0.36")}
@@ -308,6 +309,9 @@ func TestServer_GetApp(t *testing.T) {
 	require.Empty(t, f.call(t, "get_app", map[string]any{"app": "shop-front", "namespace": "acme"}, &out))
 	assert.Equal(t, "web-1", out.Host)
 	assert.Equal(t, "symfony", out.Framework)
+	assert.Equal(t, "6.4.12", out.FrameworkVersion, "the version of the framework is kept under its distribution")
+	assert.Equal(t, "sulu", out.Distribution)
+	assert.Equal(t, "2.6.4", out.DistributionVersion)
 	assert.Equal(t, "shop", out.Project, "the place of its host")
 	require.Len(t, out.Dependencies, 1)
 	assert.Equal(t, mcpserver.Dependency{Key: "DATABASE_URL", Scheme: "mysql", Port: 3306, Target: map[string]any{"host": "db-1"}, Source: map[string]any{"file": ".env"}}, out.Dependencies[0])
@@ -428,6 +432,10 @@ func TestServer_Lists(t *testing.T) {
 	assert.Equal(t, "shop", apps.Apps[0].Project)
 	require.Empty(t, f.call(t, "list_apps", map[string]any{"query": "laravel"}, &apps))
 	assert.Equal(t, "legacy", apps.Apps[0].Name)
+	require.Empty(t, f.call(t, "list_apps", map[string]any{"query": "sulu"}, &apps))
+	require.Len(t, apps.Apps, 1)
+	assert.Equal(t, []string{"shop-front", "symfony", "6.4.12", "sulu", "2.6.4"}, []string{apps.Apps[0].Name,
+		apps.Apps[0].Framework, apps.Apps[0].FrameworkVersion, apps.Apps[0].Distribution, apps.Apps[0].DistributionVersion})
 	require.Empty(t, f.call(t, "list_apps", map[string]any{"limit": 1}, &apps))
 	assert.True(t, apps.Truncated)
 
@@ -550,7 +558,11 @@ func TestServer_FindByVersion(t *testing.T) {
 	describe := func(out mcpserver.FindByVersionOutput) []string {
 		var got []string
 		for _, u := range out.Usages {
-			got = append(got, u.Kind+" "+u.Version+" "+u.Host+" "+u.App)
+			d := u.Kind + " " + u.Version + " " + u.Host + " " + u.App
+			if u.On != "" {
+				d += " on " + u.On + " " + u.OnVersion
+			}
+			got = append(got, d)
 		}
 		return got
 	}
@@ -564,7 +576,10 @@ func TestServer_FindByVersion(t *testing.T) {
 			"runtime 7.4.33 web-2 ", "runtime 8.1.2-1ubuntu2.18 web-1 "}},
 		{name: "php below 8.1", args: map[string]any{"technology": "php", "op": "lt", "version": "8.1"}, want: []string{"app_runtime 7.4.33 web-2 legacy", "runtime 7.4.33 web-2 "}},
 		{name: "php 8.1 exactly", args: map[string]any{"technology": "php", "op": "eq", "version": "8.1"}, want: []string{"app_runtime 8.1.27 web-1 shop-front", "runtime 8.1.2-1ubuntu2.18 web-1 "}},
-		{name: "framework", args: map[string]any{"technology": "symfony", "version": "6"}, want: []string{"framework 6.4.12 web-1 shop-front"}},
+		{name: "framework, with its distribution", args: map[string]any{"technology": "symfony", "version": "6"}, want: []string{"framework 6.4.12 web-1 shop-front on sulu 2.6.4"}},
+		{name: "framework without distribution", args: map[string]any{"technology": "laravel"}, want: []string{"framework 8.83.1 web-2 legacy"}},
+		{name: "distribution, with its framework", args: map[string]any{"technology": "sulu", "op": "lt", "version": "3"}, want: []string{"distribution 2.6.4 web-1 shop-front on symfony 6.4.12"}},
+		{name: "distribution in another version", args: map[string]any{"technology": "sulu", "op": "gte", "version": "3"}},
 		{name: "service", args: map[string]any{"technology": "mysql", "op": "lte", "version": "8.0"}, want: []string{"service 8.0.36 db-1 "}},
 		{name: "image of a container", args: map[string]any{"technology": "redis"}, want: []string{"container 7.2.4 web-2 cache"}},
 		{name: "nobody", args: map[string]any{"technology": "ruby"}},
@@ -607,7 +622,8 @@ func TestServer_ListVersions(t *testing.T) {
 		{Technology: "php", Kind: "runtime", Versions: []mcpserver.VersionCount{{Version: "7.4", Count: 1}, {Version: "8.1", Count: 1}}},
 	}, out.Technologies)
 	require.Empty(t, f.call(t, "list_versions", nil, &out))
-	assert.Len(t, out.Technologies, 7)
+	assert.Len(t, out.Technologies, 8)
+	assert.Contains(t, out.Technologies, mcpserver.TechnologyVersions{Technology: "sulu", Kind: "distribution", Versions: []mcpserver.VersionCount{{Version: "2.6", Count: 1}}})
 }
 
 func TestServer_Graph(t *testing.T) {

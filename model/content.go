@@ -88,13 +88,17 @@ type App struct {
 	Role             string
 	Framework        *string
 	FrameworkVersion *string
-	Runtime          json.RawMessage `gorm:"type:jsonb;serializer:json"`
-	Code             json.RawMessage `gorm:"type:jsonb;serializer:json"`
-	Launchers        json.RawMessage `gorm:"type:jsonb;serializer:json;not null"`
-	Vhosts           StringArray     `gorm:"type:text[];not null"`
-	Info             json.RawMessage `gorm:"type:jsonb;serializer:json"`
-	FirstSeenAt      time.Time
-	RemovedAt        *time.Time
+	// Distribution is the product the app is built on, over its framework,
+	// such as Sulu on Symfony.
+	Distribution        *string
+	DistributionVersion *string
+	Runtime             json.RawMessage `gorm:"type:jsonb;serializer:json"`
+	Code                json.RawMessage `gorm:"type:jsonb;serializer:json"`
+	Launchers           json.RawMessage `gorm:"type:jsonb;serializer:json;not null"`
+	Vhosts              StringArray     `gorm:"type:text[];not null"`
+	Info                json.RawMessage `gorm:"type:jsonb;serializer:json"`
+	FirstSeenAt         time.Time
+	RemovedAt           *time.Time
 }
 
 func (App) TableName() string { return "apps" }

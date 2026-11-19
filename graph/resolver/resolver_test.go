@@ -87,6 +87,7 @@ func inventory(t *testing.T) *model.Inventory {
 		Webservers: []model.Webserver{{Base: model.Base{ID: nginx}, NamespaceID: acmeID, HostID: web, Type: "nginx", Version: ptr("1.22.1")}},
 		Apps: []model.App{{Base: model.Base{ID: app}, NamespaceID: acmeID, HostID: web, Path: "/srv/api", Name: "api", Role: "web",
 			ProjectID: &shop, EnvironmentID: &prod, Framework: ptr("symfony"), FrameworkVersion: ptr("7.2"),
+			Distribution: ptr("sulu"), DistributionVersion: ptr("3.0.1"),
 			Runtime: json.RawMessage(`{"type":"php","version":"8.3.14","source":"fpm_pool"}`),
 			Code:    json.RawMessage(`{"source":"git","version":"v2.4.0","commit":"3f2a9c1","deployed_at":"2026-10-20T09:12:00Z"}`),
 			Vhosts:  model.StringArray{"api.example"}}},
@@ -276,7 +277,7 @@ func TestNamespace_Entities(t *testing.T) {
 		noProject: host(id:"`+id(12).String()+`") { project { slug } }
 		unknown: host(id:"`+id(99).String()+`") { hostname }
 		app(id:"`+id(20).String()+`") {
-			name project { slug } environment { slug } framework frameworkVersion vhosts
+			name project { slug } environment { slug } framework frameworkVersion distribution distributionVersion vhosts
 			runtime { type version path source } code { source version commit deployedAt branch }
 			host { hostname }
 			dependencies { key scheme port }
@@ -305,7 +306,7 @@ func TestNamespace_Entities(t *testing.T) {
 		"noProject":{"project":null},
 		"unknown":null,
 		"app":{"name":"api","project":{"slug":"shop"},"environment":{"slug":"production"},"framework":"symfony","frameworkVersion":"7.2",
-			"vhosts":["api.example"],
+			"distribution":"sulu","distributionVersion":"3.0.1","vhosts":["api.example"],
 			"runtime":{"type":"php","version":"8.3.14","path":null,"source":"fpm_pool"},
 			"code":{"source":"git","version":"v2.4.0","commit":"3f2a9c1","deployedAt":"2026-10-20T09:12:00Z","branch":null},
 			"host":{"hostname":"web-1"},
@@ -560,7 +561,7 @@ func TestNamespace_Graph(t *testing.T) {
 			"level":"PROJECT",
 			"nodes":[
 				{"apps":0,"count":1,"entity":null,"hosts":[{"hostname":"db-1"}],"id":"project:infra@production","kind":"PROJECT","label":"infra","members":["db-1"],"role":"service","selected":true,"status":"ACTIVE","techs":["postgresql"]},
-				{"apps":1,"count":1,"entity":null,"hosts":[{"hostname":"web-1"}],"id":"project:shop@production","kind":"PROJECT","label":"shop","members":["web-1"],"role":"app","selected":true,"status":"STALE","techs":["symfony","nginx","php"]},
+				{"apps":1,"count":1,"entity":null,"hosts":[{"hostname":"web-1"}],"id":"project:shop@production","kind":"PROJECT","label":"shop","members":["web-1"],"role":"app","selected":true,"status":"STALE","techs":["sulu","symfony","nginx","php"]},
 				{"apps":0,"count":1,"entity":null,"hosts":[],"id":"externals:production","kind":"EXTERNAL","label":"externals","members":["s3.example"],"role":null,"selected":true,"status":null,"techs":[]}]},
 		"apps":{
 			"edges":[
@@ -574,7 +575,7 @@ func TestNamespace_Graph(t *testing.T) {
 				{"entity":null,"hostname":null,"id":"external:s3.example","kind":"EXTERNAL","label":"s3.example","selected":false,"status":null,"techs":[],"version":null},
 				{"entity":{"hostname":"db-1"},"hostname":"db-1","id":"host:019a2400-0000-7000-8000-000000000011","kind":"HOST","label":"db-1","selected":false,"status":"ACTIVE","techs":["postgresql"],"version":null},
 				{"entity":{"type":"postgresql"},"hostname":"db-1","id":"service:019a2400-0000-7000-8000-000000000021","kind":"SERVICE","label":"postgresql 16/main","selected":false,"status":"ACTIVE","techs":["postgresql"],"version":null},
-				{"entity":{"name":"api"},"hostname":"web-1","id":"app:019a2400-0000-7000-8000-000000000020","kind":"APP","label":"api","selected":true,"status":"STALE","techs":["symfony","php","nginx"],"version":"v2.4.0"}]},
+				{"entity":{"name":"api"},"hostname":"web-1","id":"app:019a2400-0000-7000-8000-000000000020","kind":"APP","label":"api","selected":true,"status":"STALE","techs":["sulu","symfony","php","nginx"],"version":"v2.4.0"}]},
 		"all":{
 			"edges":[
 				{"from":"host:019a2400-0000-7000-8000-000000000010","labels":["DATABASE_URL"],"to":"host:019a2400-0000-7000-8000-000000000011"}],
@@ -783,17 +784,24 @@ func TestNamespace_AppFilters(t *testing.T) {
 	f.namespaces.EXPECT().Inventory(gomock.Any(), acmeID).Return(inventory(t), nil).Times(1)
 
 	got := f.post(t, `{ namespace(slug:"acme") {
-		facets { frameworks { name versions } runtimes { name versions } serviceTypes }
+		facets { frameworks { name versions } distributions { name versions } runtimes { name versions } serviceTypes }
 		recent: apps(filter: {runtime: {name: "php", op: GTE, version: "8.3"}}) { total }
 		old: apps(filter: {runtime: {name: "php", op: LT, version: "8"}}) { total }
 		symfony7: apps(filter: {framework: {name: "symfony", op: EQ, version: "7"}}) { total }
 		symfony6: apps(filter: {framework: {name: "symfony", op: LT, version: "7"}}) { total }
 		laravel: apps(filter: {framework: {name: "laravel"}}) { total }
 		searched: apps(filter: {search: "Symfony 7.2"}) { total }
+		sulu3: apps(filter: {distribution: {name: "sulu", op: GTE, version: "3"}}) { total }
+		sulu2: apps(filter: {distribution: {name: "sulu", op: LT, version: "3"}}) { total }
+		suluOnSymfony7: apps(filter: {framework: {name: "symfony", op: EQ, version: "7"}, distribution: {name: "sulu"}}) { total }
+		akeneo: apps(filter: {framework: {name: "symfony"}, distribution: {name: "akeneo"}}) { total }
+		searchedSulu: apps(filter: {search: "sulu 3.0"}) { total }
 	} }`)
 	assert.JSONEq(t, `{"namespace":{
-		"facets":{"frameworks":[{"name":"symfony","versions":["7.2"]}],"runtimes":[{"name":"php","versions":["8.3"]}],"serviceTypes":["postgresql"]},
-		"recent":{"total":1},"old":{"total":0},"symfony7":{"total":1},"symfony6":{"total":0},"laravel":{"total":0},"searched":{"total":1}}}`, got)
+		"facets":{"frameworks":[{"name":"symfony","versions":["7.2"]}],"distributions":[{"name":"sulu","versions":["3.0"]}],
+			"runtimes":[{"name":"php","versions":["8.3"]}],"serviceTypes":["postgresql"]},
+		"recent":{"total":1},"old":{"total":0},"symfony7":{"total":1},"symfony6":{"total":0},"laravel":{"total":0},"searched":{"total":1},
+		"sulu3":{"total":1},"sulu2":{"total":0},"suluOnSymfony7":{"total":1},"akeneo":{"total":0},"searchedSulu":{"total":1}}}`, got)
 }
 
 func TestNamespace_MergedApps(t *testing.T) {

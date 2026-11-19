@@ -14,6 +14,7 @@ export const pages = {
     app: 'App',
     version: 'Version',
     framework: 'Framework',
+    distribution: 'Distribution',
     runtime: 'Runtime',
     packageVersion: 'paquet',
     packageVersionHint: "Version du paquet système, révision incluse : les correctifs d'une version en fin de vie n'apparaissent que là.",
@@ -254,7 +255,7 @@ export const pages = {
   },
   inventory: {
     appsTitle: 'Apps',
-    searchApps: 'Chercher une app, un chemin, une version, un framework, un host',
+    searchApps: 'Chercher une app, un chemin, une version, un framework, une distribution, un host',
     servicesTitle: 'Services',
     searchServices: 'Chercher un type, une version, un host, un domaine',
     chooseType: 'Choisir un type',

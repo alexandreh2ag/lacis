@@ -94,9 +94,12 @@ Deleting a user removes their authorizations too.
 
 `find_by_version` and `list_versions` read the runtimes installed on the hosts
 (`runtime`), the runtime of each app (`app_runtime`), the frameworks, the
-services, the webservers and the images of the containers. Versions compare
-number by number, cut to the parts given: `eq 7.4` takes `7.4.33`, and
-`8.1.2-1ubuntu2.18` is below `8.2`.
+distributions (`distribution`: Sulu or Akeneo on Symfony), the services, the
+webservers and the images of the containers. Versions compare number by number,
+cut to the parts given: `eq 7.4` takes `7.4.33`, and `8.1.2-1ubuntu2.18` is below
+`8.2`. A framework use gives the distribution built on it in `on` and
+`on_version`, a distribution use its framework: `symfony lt 6` lists the Sulu apps
+on a Symfony below 6 with `on: sulu`.
 
 ## Security
 

@@ -213,6 +213,11 @@ For each app:
 - **framework**: Symfony, Laminas, Zend (Framework 2/3, from its `zendframework/zend-mvc`
   package or, before 2.5, its `zendframework/zendframework` one), Zend Framework 1,
   Laravel, Next.js, Nuxt, NestJS, or a [declarative detector](./configuration/agent.md#collectorsapps);
+- **distribution**: the product the app is built on, over its framework, whose
+  version is kept: Sulu (`sulu/sulu`) and Akeneo PIM (`akeneo/pim-enterprise-dev`,
+  else `akeneo/pim-community-dev`) on Symfony, or a
+  [declarative detector](./configuration/agent.md#collectorsapps), such as
+  Statamic on Laravel;
 - **runtime** it really runs on: the PHP-FPM pool its vhost sends to, the binary
   of its Node process, the PHP of its launcher command, or its `.nvmrc`, with the
   package version of that runtime or of its PHP-FPM;

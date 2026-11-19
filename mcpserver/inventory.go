@@ -293,8 +293,11 @@ type AppSummary struct {
 	Env              string `json:"env,omitempty"`
 	Framework        string `json:"framework,omitempty"`
 	FrameworkVersion string `json:"framework_version,omitempty"`
-	Runtime          string `json:"runtime,omitempty"`
-	RuntimeVersion   string `json:"runtime_version,omitempty"`
+	// Distribution is the product the app is built on, over its framework.
+	Distribution        string `json:"distribution,omitempty" jsonschema:"product the app is built on, over its framework: sulu or akeneo on symfony"`
+	DistributionVersion string `json:"distribution_version,omitempty"`
+	Runtime             string `json:"runtime,omitempty"`
+	RuntimeVersion      string `json:"runtime_version,omitempty"`
 	// RuntimePackageVersion is the version of the system package of the
 	// runtime or of its PHP-FPM, revision included.
 	RuntimePackageVersion string   `json:"runtime_package_version,omitempty" jsonschema:"version of the system package of the runtime or of its PHP-FPM, packaging revision included"`
@@ -348,7 +351,8 @@ func (x *index) appSummary(a *model.App) AppSummary {
 	p, e := x.placeOf(a.HostID, a.ProjectID, a.EnvironmentID)
 	rt, rtv, rtp := appRuntime(a)
 	return AppSummary{ID: a.ID.String(), Name: a.Name, Role: a.Role, Path: a.Path, Project: p, Env: e,
-		Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion), Runtime: rt, RuntimeVersion: rtv, RuntimePackageVersion: rtp, Vhosts: a.Vhosts}
+		Framework: deref(a.Framework), FrameworkVersion: deref(a.FrameworkVersion), Distribution: deref(a.Distribution), DistributionVersion: deref(a.DistributionVersion),
+		Runtime: rt, RuntimeVersion: rtv, RuntimePackageVersion: rtp, Vhosts: a.Vhosts}
 }
 
 func (x *index) host(h *model.Host) HostOut {
@@ -571,15 +575,18 @@ const (
 	// KindAppRuntime is the runtime an app runs on.
 	KindAppRuntime = "app_runtime"
 	KindFramework  = "framework"
-	KindService    = "service"
-	KindWebserver  = "webserver"
-	KindContainer  = "container"
+	// KindDistribution is the product an app is built on, over its
+	// framework, e.g. sulu on symfony.
+	KindDistribution = "distribution"
+	KindService      = "service"
+	KindWebserver    = "webserver"
+	KindContainer    = "container"
 )
 
 // Usage is a use of a technology in a version.
 type Usage struct {
 	Namespace  string `json:"namespace"`
-	Kind       string `json:"kind" jsonschema:"runtime (installed on the host), app_runtime (the runtime of an app), framework, service, webserver or container"`
+	Kind       string `json:"kind" jsonschema:"runtime (installed on the host), app_runtime (the runtime of an app), framework, distribution (the product an app is built on over its framework, e.g. sulu on symfony), service, webserver or container"`
 	Technology string `json:"technology"`
 	Version    string `json:"version,omitempty"`
 	// PackageVersion is the version of the system package, revision
@@ -590,6 +597,10 @@ type Usage struct {
 	AppID          string `json:"app_id,omitempty"`
 	Project        string `json:"project,omitempty"`
 	Env            string `json:"env,omitempty"`
+	// On is, for a framework, the distribution of the app built on it, and
+	// for a distribution, the framework it is built on.
+	On        string `json:"on,omitempty" jsonschema:"for a framework, the distribution the app is built on it (sulu on symfony); for a distribution, its framework"`
+	OnVersion string `json:"on_version,omitempty"`
 }
 
 // imageName is the name of a Docker image without registry nor tag:
@@ -628,7 +639,14 @@ func (x *index) usages(technology string) []Usage {
 			out = append(out, u)
 		}
 		if fw := deref(a.Framework); keep(fw) {
+			u := u
 			u.Kind, u.Technology, u.Version = KindFramework, fw, deref(a.FrameworkVersion)
+			u.On, u.OnVersion = deref(a.Distribution), deref(a.DistributionVersion)
+			out = append(out, u)
+		}
+		if d := deref(a.Distribution); keep(d) {
+			u.Kind, u.Technology, u.Version = KindDistribution, d, deref(a.DistributionVersion)
+			u.On, u.OnVersion = deref(a.Framework), deref(a.FrameworkVersion)
 			out = append(out, u)
 		}
 	}

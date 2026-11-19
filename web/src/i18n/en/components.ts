@@ -85,7 +85,7 @@ export const components: Messages['components'] = {
     entities: { host: 'Host', runtime: 'Runtime', service: 'Service', webserver: 'Webserver', app: 'App', link: 'Link' },
     fields: {
       version: 'version', 'code.version': 'version', 'code.commit': 'commit', 'code.branch': 'branch', 'code.tag': 'tag',
-      kernel: 'kernel', 'os.pretty': 'OS', framework_version: 'framework', 'runtime.version': 'runtime', arch: 'arch',
+      kernel: 'kernel', 'os.pretty': 'OS', framework_version: 'framework', distribution_version: 'distribution', 'runtime.version': 'runtime', arch: 'arch',
       'resources.cpu.effective_cores': 'CPU', 'resources.memory_mb.effective': 'memory', role: 'role', path: 'path',
     },
   },

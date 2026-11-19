@@ -171,6 +171,9 @@ type AppsConfig struct {
 	// after those of their framework.
 	ExtraConfig []ExtraConfig       `mapstructure:"extra_config" validate:"dive"`
 	Frameworks  []FrameworkDetector `mapstructure:"frameworks" validate:"dive"`
+	// Distributions detect the products built on a framework, such as Sulu
+	// on Symfony; a detector named like a built-in one replaces it.
+	Distributions []DistributionDetector `mapstructure:"distributions" validate:"dive"`
 }
 
 // ExtraConfig adds configuration files to the apps whose path, as seen
@@ -194,6 +197,14 @@ type FrameworkDetector struct {
 	Name   string            `mapstructure:"name" validate:"required"`
 	Detect FrameworkDetect   `mapstructure:"detect"`
 	Config []FrameworkSource `mapstructure:"config" validate:"dive"`
+}
+
+// DistributionDetector is a declarative detector of a product built on a
+// framework. Framework, when set, limits it to the apps of that framework.
+type DistributionDetector struct {
+	Name      string          `mapstructure:"name" validate:"required"`
+	Framework string          `mapstructure:"framework"`
+	Detect    FrameworkDetect `mapstructure:"detect"`
 }
 
 type FrameworkDetect struct {
@@ -269,6 +280,7 @@ func DefaultConfig() *Config {
 				TrustedLinkTargets: []string{},
 				ExtraConfig:        []ExtraConfig{},
 				Frameworks:         []FrameworkDetector{},
+				Distributions:      []DistributionDetector{},
 			},
 			Envfiles: EnvfilesConfig{
 				AllowKeys: []string{"*_URL", "*_DSN", "*_HOST", "*_PORT", "APP_ENV", "NODE_ENV"},

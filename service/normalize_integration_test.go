@@ -345,6 +345,54 @@ func TestNormalize_AppMoved(t *testing.T) {
 	assert.Equal(t, model.ChangeChanged, events[0].Kind)
 }
 
+func TestNormalize_AppDistribution(t *testing.T) {
+	f := newNormalizeFixture(t)
+	sulu := func(version string) func(s *snapshot.Snapshot) {
+		return func(s *snapshot.Snapshot) {
+			for i := range s.Apps {
+				if s.Apps[i].Name == "shop-api" {
+					s.Apps[i].Distribution = &snapshot.Distribution{Name: "sulu", Version: version}
+				}
+			}
+		}
+	}
+	shop := f.ingest(load(t, "acme-shop-prod-1", sulu("2.6.4")))
+	api := func() model.App {
+		apps, err := f.repos.App.FindByHost(ctx, shop.ID)
+		require.NoError(t, err)
+		for _, a := range apps {
+			if a.Name == "shop-api" {
+				return a
+			}
+		}
+		t.Fatal("no shop-api")
+		return model.App{}
+	}
+	a := api()
+	assert.Equal(t, "symfony", *a.Framework, "the framework stays under its distribution")
+	assert.Equal(t, "7.2.6", *a.FrameworkVersion)
+	assert.Equal(t, "sulu", *a.Distribution)
+	assert.Equal(t, "2.6.4", *a.DistributionVersion)
+
+	// Sulu is upgraded: a change of the app.
+	f.ingest(load(t, "acme-shop-prod-1", func(s *snapshot.Snapshot) {
+		sulu("2.6.5")(s)
+		s.CollectedAt = s.CollectedAt.Add(time.Hour)
+	}))
+	assert.Equal(t, "2.6.5", *api().DistributionVersion)
+	var events []model.ChangeEvent
+	require.NoError(t, f.db.Where("entity_id = ? and kind = ?", a.ID, model.ChangeChanged).Find(&events).Error)
+	require.Len(t, events, 1)
+	var after map[string]any
+	require.NoError(t, json.Unmarshal(events[0].After, &after))
+	assert.Equal(t, "2.6.5", after["distribution_version"])
+
+	// Sulu is gone: the distribution is cleared.
+	f.ingest(load(t, "acme-shop-prod-1", func(s *snapshot.Snapshot) { s.CollectedAt = s.CollectedAt.Add(2 * time.Hour) }))
+	assert.Nil(t, api().Distribution)
+	assert.Nil(t, api().DistributionVersion)
+}
+
 func TestNormalize_ZendApp(t *testing.T) {
 	f := newNormalizeFixture(t)
 	site := f.ingest(load(t, "acme-site-prod-1", nil))

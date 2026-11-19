@@ -53,6 +53,8 @@ type AppFilter struct {
 	Search   *string  `json:"search,omitempty"`
 	// A framework, as collected (symfony, laravel…), and its version.
 	Framework *VersionConstraint `json:"framework,omitempty"`
+	// A distribution, the product an app is built on over its framework (sulu, akeneo…), and its version.
+	Distribution *VersionConstraint `json:"distribution,omitempty"`
 	// A runtime (php, node…) and its version.
 	Runtime *VersionConstraint `json:"runtime,omitempty"`
 }
@@ -158,6 +160,7 @@ func (External) IsLinkEnd() {}
 // What the inventory of a namespace holds, to filter by.
 type Facets struct {
 	Frameworks     []VersionFacet `json:"frameworks"`
+	Distributions  []VersionFacet `json:"distributions"`
 	Runtimes       []VersionFacet `json:"runtimes"`
 	ServiceTypes   []string       `json:"serviceTypes"`
 	WebserverTypes []string       `json:"webserverTypes"`
@@ -459,7 +462,7 @@ type UpdateUserInput struct {
 	CurrentPassword *string `json:"currentPassword,omitempty"`
 }
 
-// A framework or a runtime, and a version it compares to, part by part: 7.10 is above 7.9. The
+// A framework, a distribution or a runtime, and a version it compares to, part by part: 7.10 is above 7.9. The
 // version of an app is cut to the parts given, so that EQ 7.4 takes 7.4.33 and GT 7.4 starts at
 // 7.5. No version takes every version.
 type VersionConstraint struct {
@@ -468,7 +471,7 @@ type VersionConstraint struct {
 	Version *string    `json:"version,omitempty"`
 }
 
-// A framework or a runtime the apps use, or a type of service or webserver.
+// A framework, a distribution or a runtime the apps use, or a type of service or webserver.
 type VersionFacet struct {
 	Name string `json:"name"`
 	// The versions in use, as major.minor, in order.

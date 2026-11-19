@@ -20,13 +20,14 @@ import { repositoryUrl } from '@/lib/git'
 import { field, launchersOf, str, strings, type Launcher } from '@/lib/json'
 import { safeHttpUrl } from '@/lib/url'
 import { refresh } from '@/config'
+import { appTech } from '../lib/stack'
 
 const AppPageDoc = graphql(`
   query AppPage($ns: String!, $id: ID!) {
     namespace(slug: $ns) {
       id
       app(id: $id) {
-        id name path resolvedPath role framework frameworkVersion vhosts launchers firstSeenAt
+        id name path resolvedPath role framework frameworkVersion distribution distributionVersion vhosts launchers firstSeenAt
         runtime { type version packageVersion path source }
         code { source version commit branch tag repository pipelineId pipelineUrl deployedAt deployedBy }
         project { slug name }
@@ -188,6 +189,7 @@ function General({ app: a }: { app: App }) {
             <span className="lc-label">{ts.app}</span>
             <dl className="lc-dl" style={{ gridTemplateColumns: 'max-content minmax(0, 1fr)' }}>
               <dt>{ta.role}</dt><dd>{a.role}</dd>
+              {a.distribution ? <><dt>{ts.distribution}</dt><dd>{a.distribution} {a.distributionVersion}</dd></> : null}
               {a.framework ? <><dt>{ts.framework}</dt><dd>{a.framework} {a.frameworkVersion}</dd></> : null}
               {a.runtime ? <><dt>{ts.runtime}</dt><dd><span className="inline-flex flex-wrap items-center gap-x-2">{a.runtime.type} {a.runtime.version}{a.runtime.source ? ` · ${a.runtime.source}` : ''}<PackageVersion version={a.runtime.version} packageVersion={a.runtime.packageVersion} /></span></dd></> : null}
               <dt>{ts.path}</dt><dd><Copyable value={a.path} /></dd>
@@ -348,7 +350,7 @@ function Uses({ ns, app: a }: { ns: string; app: App }) {
 
 // usedByOf merges the effective links to the app by who makes them.
 function usedByOf(a: App) {
-  return mergeUsedBy(usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app' }))
+  return mergeUsedBy(usedByRows(a.usedBy, { name: a.name, tech: appTech(a) }))
 }
 
 // UsedByTab lists who uses the app, the app itself included, then all

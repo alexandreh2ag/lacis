@@ -120,7 +120,7 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "list_projects", Annotations: readOnly("List the projects"),
 		Description: "Lists the projects, with their envs and how many apps and hosts they have; filtered by namespace, env or a text in their slug, name or description."}, s.listProjects)
 	add(s, srv, &mcp.Tool{Name: "list_apps", Annotations: readOnly("List the apps"),
-		Description: "Lists the apps once per name, project and env, whatever the hosts they are deployed on: framework, runtime, versions of the code, domains, hosts and the ids of the deployments; filtered by namespace, project, env or a text in their name, framework, domain or host."}, s.listApps)
+		Description: "Lists the apps once per name, project and env, whatever the hosts they are deployed on: framework, distribution, runtime, versions of the code, domains, hosts and the ids of the deployments; filtered by namespace, project, env or a text in their name, framework, distribution, domain or host."}, s.listApps)
 	add(s, srv, &mcp.Tool{Name: "list_services", Annotations: readOnly("List the services"),
 		Description: "Lists the services (mysql, redis, elasticsearch…) with their version, host, project and env; filtered by namespace, project, env or a text in their type, instance or host."}, s.listServices)
 	add(s, srv, &mcp.Tool{Name: "list_webservers", Annotations: readOnly("List the webservers"),
@@ -132,11 +132,11 @@ func New(services Services, clk clock.Clock, logger *slog.Logger, cfg *config.Co
 	add(s, srv, &mcp.Tool{Name: "get_host", Annotations: readOnly("Get a host"),
 		Description: "Gives a host by hostname or id: OS, kernel, resources, IPs, runtimes, services, webservers, apps and containers."}, s.getHost)
 	add(s, srv, &mcp.Tool{Name: "get_app", Annotations: readOnly("Get an app"),
-		Description: "Gives an app by id, name or path: project, env, framework, runtime, vhosts, the dependencies of its configuration, what it uses and who uses it."}, s.getApp)
+		Description: "Gives an app by id, name or path: project, env, framework, distribution, runtime, vhosts, the dependencies of its configuration, what it uses and who uses it."}, s.getApp)
 	add(s, srv, &mcp.Tool{Name: "links", Annotations: readOnly("Links of an entity"),
 		Description: "Lists the links of a host (and of everything on it) or of an app, service or webserver: who uses it (dependents), what it uses (dependencies), or both. The links of an app, and to an app or a service, go through the reverse proxies to the app or service at the end, the proxies crossed in via. Use it for impact questions, e.g. what breaks if a database host stops."}, s.links)
 	add(s, srv, &mcp.Tool{Name: "find_by_version", Annotations: readOnly("Find by version"),
-		Description: "Finds who uses a technology (php, node, mysql, nginx, symfony…) as a runtime installed on a host, the runtime of an app, a framework, a service, a webserver or a container image, optionally in a version compared with an operator, e.g. php lt 8.1. Versions compare number by number, cut to the parts given: eq 7.4 takes 7.4.33."}, s.findByVersion)
+		Description: "Finds who uses a technology (php, node, mysql, nginx, symfony, sulu…) as a runtime installed on a host, the runtime of an app, a framework, a distribution (the product an app is built on over its framework, e.g. sulu or akeneo on symfony), a service, a webserver or a container image, optionally in a version compared with an operator, e.g. php lt 8.1. Versions compare number by number, cut to the parts given: eq 7.4 takes 7.4.33. A framework use gives the distribution built on it in on/on_version, a distribution use its framework: symfony lt 6 with on sulu are the Sulu apps on a Symfony below 6."}, s.findByVersion)
 	add(s, srv, &mcp.Tool{Name: "list_versions", Annotations: readOnly("Versions in use"),
 		Description: "Counts the versions in use (as major.minor) of every technology, or of one, by kind of use."}, s.listVersions)
 	add(s, srv, &mcp.Tool{Name: "graph", Annotations: readOnly("Draw the graph"),
@@ -461,7 +461,7 @@ func (s *server) links(ctx context.Context, req *mcp.CallToolRequest, in LinksIn
 }
 
 type FindByVersionInput struct {
-	Technology string `json:"technology" jsonschema:"name of the technology, e.g. php, node, python, mysql, mariadb, redis, nginx, apache, traefik, symfony, laravel"`
+	Technology string `json:"technology" jsonschema:"name of the technology, e.g. php, node, python, mysql, mariadb, redis, nginx, apache, traefik, symfony, laravel, sulu, akeneo"`
 	Op         string `json:"op,omitempty" jsonschema:"lt, lte, eq, gte or gt; gte by default"`
 	Version    string `json:"version,omitempty" jsonschema:"version to compare to, e.g. 8.1; every version when empty"`
 	Namespace  string `json:"namespace,omitempty" jsonschema:"slug of the namespace; every namespace readable when empty"`

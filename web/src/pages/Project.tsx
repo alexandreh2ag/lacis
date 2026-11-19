@@ -14,6 +14,7 @@ import type { ProjectPageQuery } from '@/graphql/graphql'
 import { t as text, useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
 import { refresh } from '@/config'
+import { appTech } from '../lib/stack'
 
 const ProjectPageDoc = graphql(`
   query ProjectPage($ns: String!, $project: String!) {
@@ -23,7 +24,7 @@ const ProjectPageDoc = graphql(`
       environments { id slug sortOrder }
       apps(filter: { projects: [$project] }, page: { limit: 500 }) {
         items {
-          id name framework vhosts
+          id name framework distribution vhosts
           environment { slug }
           host { id hostname }
           code { version commit branch }
@@ -32,7 +33,7 @@ const ProjectPageDoc = graphql(`
       # The links once per app and env, whatever its deployments.
       merged: apps(filter: { projects: [$project] }, page: { limit: 500 }, merge: true) {
         items {
-          id name framework
+          id name framework distribution
           environment { slug }
           host { id hostname }
           uses { ...AppLink }
@@ -157,6 +158,7 @@ interface DeployedApp {
   id: string
   name: string
   framework?: string | null
+  distribution?: string | null
   env: string
   versions: string[]
   commits: string[]
@@ -168,7 +170,7 @@ function deployedApps(apps: App[]): DeployedApp[] {
   for (const a of apps) {
     const env = a.environment?.slug ?? ''
     const key = a.name + '\u0000' + env
-    const d = out.get(key) ?? { key, id: a.id, name: a.name, framework: a.framework, env, versions: [], commits: [], vhosts: [] }
+    const d = out.get(key) ?? { key, id: a.id, name: a.name, framework: a.framework, distribution: a.distribution, env, versions: [], commits: [], vhosts: [] }
     const version = a.code?.version
     if (version && !d.versions.includes(version)) d.versions.push(version)
     if (a.code?.commit && !d.commits.includes(a.code.commit)) d.commits.push(a.code.commit)
@@ -212,7 +214,7 @@ export function ProjectPage() {
       ...h.services.filter((s) => placed(s.places)).flatMap((s) => usedByRows(s.usedBy, { name: s.instance && s.instance !== 'default' ? `${s.type} ${s.instance}` : s.type, tech: s.type, host: h })),
       ...h.webservers.filter((w) => placed(w.places)).flatMap((w) => usedByRows([...w.usedBy, ...w.relays], { name: w.type, tech: w.type, host: h })),
     ]),
-    ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: a.framework ?? 'app', host: a.host })),
+    ...merged.flatMap((a) => usedByRows(a.usedBy, { name: a.name, tech: appTech(a), host: a.host })),
   ], (r) => projectOf(r.link.from) === slug), [linkHosts, merged, slug])
   // An app deployed in several versions in one env diverges.
   const diverging = useMemo(() => {
@@ -283,7 +285,7 @@ export function ProjectPage() {
                 const diverges = a.versions.length > 1 || a.commits.length > 1
                 return (
                   <tr key={a.key}>
-                    <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={a.framework ?? 'app'} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
+                    <td><span className="inline-flex items-center gap-2 font-semibold"><span className="lc-node__techs"><TechLogo tech={appTech(a)} /></span><Link to={`/${ns}/apps/${a.id}`}>{a.name}</Link></span></td>
                     <td>{a.env}</td>
                     <td><span className={'lc-mono' + (diverges ? ' text-status-stale' : '')}>{a.versions.join(', ')}</span>{diverges ? <span className="lc-badge lc-badge--stale ml-1.5 h-[18px] text-[11px]">{tp.differs}</span> : null}</td>
                     <td><span className="flex flex-wrap gap-x-3">{a.commits.map((c) => <Copyable key={c} value={c} shown={c.slice(0, 7)} />)}</span></td>

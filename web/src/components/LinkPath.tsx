@@ -4,6 +4,7 @@ import { Chevron, TechLogo } from './Icon'
 import { graphql } from '@/graphql'
 import { useT } from '@/i18n'
 import { confidenceText } from '@/lib/format'
+import { appTech } from '../lib/stack'
 
 // AppLink is what the listings need of an app link: who uses what through
 // which proxies, whatever the hosts. Its route is read on unfolding only.
@@ -11,7 +12,7 @@ export const AppLinkFragment = graphql(`
   fragment UsedByHost on Host { id hostname project { slug } environment { slug } }
   fragment LinkEndRef on LinkEnd {
     __typename
-    ... on App { id name framework project { slug } environment { slug } host { ...UsedByHost } }
+    ... on App { id name framework distribution project { slug } environment { slug } host { ...UsedByHost } }
     ... on Service { id type instance version host { ...UsedByHost } }
     ... on Webserver { id type host { ...UsedByHost } }
     ... on Host { ...UsedByHost }
@@ -43,7 +44,7 @@ export interface HostRef {
 
 // End is the end of a link, as the pages query it.
 export type End =
-  | { __typename: 'App'; id: string; name: string; framework?: string | null; project?: { slug: string } | null
+  | { __typename: 'App'; id: string; name: string; framework?: string | null; distribution?: string | null; project?: { slug: string } | null
     environment?: { slug: string } | null; host: HostRef }
   | { __typename: 'Service'; id: string; type: string; instance: string; version?: string | null; host: HostRef }
   | { __typename: 'Webserver'; id: string; type: string; host: HostRef }
@@ -94,7 +95,7 @@ export function nameOf(e: End): string {
 
 export function techOf(e: End): string {
   switch (e.__typename) {
-    case 'App': return e.framework ?? 'app'
+    case 'App': return appTech(e)
     case 'Service': case 'Webserver': return e.type
     case 'Host': return 'host'
     default: return 'ext'

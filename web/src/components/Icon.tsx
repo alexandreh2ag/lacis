@@ -35,9 +35,9 @@ export const TechLogo = memo(function TechLogo({ tech, title, builtin }: { tech:
     return <span className="lc-node__logo" title={title ?? tech} aria-hidden={!title}>{initials(tech)}</span>
   }
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" role={title ? 'img' : undefined} aria-hidden={!title} aria-label={title}>
+    <svg viewBox={logo.viewBox ?? '0 0 24 24'} fill="currentColor" role={title ? 'img' : undefined} aria-hidden={!title} aria-label={title}>
       {title ? <title>{title}</title> : null}
-      <path d={logo.path} />
+      {logo.layers ? logo.layers.map((l, i) => <path key={i} d={l.d} fillOpacity={l.opacity} />) : <path d={logo.path} />}
     </svg>
   )
 })

@@ -5,6 +5,11 @@ test('Vault, Varnish, S3, MinIO and Silo have a logo', () => {
   expect(defaultTechs).toEqual(expect.arrayContaining(['minio', 's3', 'silo', 'varnish', 'vault']))
 })
 
+test('Sulu and Akeneo, the distributions built on Symfony, have a logo', () => {
+  for (const tech of ['sulu', 'akeneo', 'Sulu']) expect(logoOf(tech)?.path).toBeTruthy()
+  expect(defaultTechs).toEqual(expect.arrayContaining(['akeneo', 'sulu']))
+})
+
 test.each([
   ['s3.amazonaws.com', 's3'],
   ['acme-assets.s3.amazonaws.com', 's3'],

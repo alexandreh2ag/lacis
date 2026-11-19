@@ -18,6 +18,13 @@ type detector struct {
 	detect func(fsys afero.Fs, root string) (version string, ok bool)
 }
 
+// detection holds the detectors of the frameworks and of the
+// distributions built on them.
+type detection struct {
+	frameworks    []detector
+	distributions []distributionDetector
+}
+
 // builtinDetectors are tried in order; a declarative detector of the agent
 // configuration with the same name replaces one.
 var builtinDetectors = []detector{
@@ -51,18 +58,24 @@ func detectors(declared []config.FrameworkDetector) []detector {
 }
 
 func declarative(d config.FrameworkDetector) detector {
-	return detector{name: d.Name, detect: func(fsys afero.Fs, root string) (string, bool) {
+	return detector{name: d.Name, detect: declaredDetect(d.Detect)}
+}
+
+// declaredDetect is the detection a configuration declares: a composer or
+// npm package, or a file.
+func declaredDetect(d config.FrameworkDetect) func(afero.Fs, string) (string, bool) {
+	return func(fsys afero.Fs, root string) (string, bool) {
 		switch {
-		case d.Detect.ComposerPackage != "":
-			return composerPackage(d.Detect.ComposerPackage)(fsys, root)
-		case d.Detect.NpmPackage != "":
-			return npmPackage(d.Detect.NpmPackage)(fsys, root)
-		case d.Detect.File != "":
-			_, err := fsys.Stat(path.Join(root, d.Detect.File))
+		case d.ComposerPackage != "":
+			return composerPackage(d.ComposerPackage)(fsys, root)
+		case d.NpmPackage != "":
+			return npmPackage(d.NpmPackage)(fsys, root)
+		case d.File != "":
+			_, err := fsys.Stat(path.Join(root, d.File))
 			return "", err == nil
 		}
 		return "", false
-	}}
+	}
 }
 
 // framework returns the framework of root, nil when none is recognized.
@@ -70,6 +83,55 @@ func framework(fsys afero.Fs, root string, detectors []detector) *snapshot.Frame
 	for _, d := range detectors {
 		if version, ok := d.detect(fsys, root); ok {
 			return &snapshot.Framework{Name: d.name, Version: version}
+		}
+	}
+	return nil
+}
+
+// distributionDetector recognizes a product built on a framework.
+type distributionDetector struct {
+	name string
+	// framework limits the detector to the apps of that framework; empty,
+	// it tries every app.
+	framework string
+	detect    func(fsys afero.Fs, root string) (version string, ok bool)
+}
+
+// builtinDistributions are tried in order; a declarative detector of the
+// agent configuration with the same name replaces one.
+var builtinDistributions = []distributionDetector{
+	{name: "sulu", framework: "symfony", detect: composerPackage("sulu/sulu")},
+	// The Enterprise Edition requires the Community one: its own version
+	// comes first.
+	{name: "akeneo", framework: "symfony", detect: composerPackage("akeneo/pim-enterprise-dev", "akeneo/pim-community-dev")},
+}
+
+// distributionDetectors returns the declarative detectors of the
+// configuration, then the built-in ones they do not replace.
+func distributionDetectors(declared []config.DistributionDetector) []distributionDetector {
+	var out []distributionDetector
+	names := map[string]bool{}
+	for _, d := range declared {
+		names[d.Name] = true
+		out = append(out, distributionDetector{name: d.Name, framework: d.Framework, detect: declaredDetect(d.Detect)})
+	}
+	for _, d := range builtinDistributions {
+		if !names[d.name] {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// distribution returns the distribution of root, on its framework fw, nil
+// when none is recognized.
+func distribution(fsys afero.Fs, root string, fw *snapshot.Framework, detectors []distributionDetector) *snapshot.Distribution {
+	for _, d := range detectors {
+		if d.framework != "" && (fw == nil || fw.Name != d.framework) {
+			continue
+		}
+		if version, ok := d.detect(fsys, root); ok {
+			return &snapshot.Distribution{Name: d.name, Version: version}
 		}
 	}
 	return nil

@@ -314,16 +314,19 @@ const (
 type App struct {
 	// Path is the app root as seen by the webserver or launcher, e.g. a
 	// "current" symlink; ResolvedPath is its target.
-	Path         string      `json:"path"`
-	ResolvedPath string      `json:"resolved_path,omitempty"`
-	Name         string      `json:"name"`
-	Role         AppRole     `json:"role"`
-	Project      string      `json:"project"`
-	Env          string      `json:"env"`
-	Framework    *Framework  `json:"framework,omitempty"`
-	Runtime      *AppRuntime `json:"runtime,omitempty"`
-	Code         *Code       `json:"code,omitempty"`
-	Vhosts       []string    `json:"vhosts,omitempty"`
+	Path         string     `json:"path"`
+	ResolvedPath string     `json:"resolved_path,omitempty"`
+	Name         string     `json:"name"`
+	Role         AppRole    `json:"role"`
+	Project      string     `json:"project"`
+	Env          string     `json:"env"`
+	Framework    *Framework `json:"framework,omitempty"`
+	// Distribution is the product the app is built on, over its framework:
+	// Sulu or Akeneo for Symfony.
+	Distribution *Distribution `json:"distribution,omitempty"`
+	Runtime      *AppRuntime   `json:"runtime,omitempty"`
+	Code         *Code         `json:"code,omitempty"`
+	Vhosts       []string      `json:"vhosts,omitempty"`
 	// Listen are the TCP addresses the processes of the app listen on,
 	// such as "0.0.0.0:3000": an app serving requests by itself.
 	Listen []string `json:"listen,omitempty"`
@@ -337,6 +340,13 @@ type App struct {
 }
 
 type Framework struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+}
+
+// Distribution is a product built on a framework, such as Sulu or Akeneo
+// on Symfony, and its version.
+type Distribution struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
 }

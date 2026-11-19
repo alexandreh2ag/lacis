@@ -204,7 +204,7 @@ func webserverState(w *model.Webserver) history.State {
 // appState follows the code deployed: any change of it is a deployment.
 func appState(a *model.App) history.State {
 	return history.State{"path": a.Path, "name": a.Name, "role": a.Role, "framework": a.Framework,
-		"framework_version": a.FrameworkVersion, "runtime": deployedRuntime(a.Runtime), "code": a.Code}
+		"framework_version": a.FrameworkVersion, "distribution": a.Distribution, "distribution_version": a.DistributionVersion, "runtime": deployedRuntime(a.Runtime), "code": a.Code}
 }
 
 // deployedRuntime is the runtime of an app without its package version: a
@@ -638,6 +638,10 @@ func (n *normalizer) apps() error {
 		row.Framework, row.FrameworkVersion = nil, nil
 		if a.Framework != nil {
 			row.Framework, row.FrameworkVersion = optional(a.Framework.Name), optional(a.Framework.Version)
+		}
+		row.Distribution, row.DistributionVersion = nil, nil
+		if a.Distribution != nil {
+			row.Distribution, row.DistributionVersion = optional(a.Distribution.Name), optional(a.Distribution.Version)
 		}
 		row.Runtime, row.Code, row.Info = marshalOrNil(a.Runtime), marshalOrNil(a.Code), marshalOrNil(a.Info)
 		row.Launchers = marshalOrNil(a.Launchers)

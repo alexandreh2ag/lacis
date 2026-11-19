@@ -115,7 +115,7 @@ func (s *server) listApps(ctx context.Context, req *mcp.CallToolRequest, in List
 	}
 	for _, x := range indexes {
 		for _, a := range x.mergedApps(func(project, env string) bool { return in.keeps(x, project, env) }) {
-			if in.contains(append(append([]string{a.Name, a.Framework}, a.Domains...), a.Hosts...)...) {
+			if in.contains(append(append([]string{a.Name, a.Framework, a.Distribution}, a.Domains...), a.Hosts...)...) {
 				out.Apps = append(out.Apps, a)
 			}
 		}

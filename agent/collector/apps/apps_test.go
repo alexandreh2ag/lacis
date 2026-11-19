@@ -670,6 +670,47 @@ func TestFrameworks(t *testing.T) {
 	assert.Len(t, all, len(declared)+len(builtinDetectors)-1)
 }
 
+func TestDistributions(t *testing.T) {
+	f := fakefs.New()
+	f.Files(t, map[string]string{
+		"/sulu/composer.lock":   `{"packages": [{"name": "symfony/framework-bundle", "version": "v6.4.12"}, {"name": "sulu/sulu", "version": "2.6.4"}]}`,
+		"/akeneo/composer.lock": `{"packages": [{"name": "akeneo/pim-community-dev", "version": "v7.0.42"}]}`,
+		"/akeneo-ee/composer.lock": `{"packages": [{"name": "akeneo/pim-community-dev", "version": "v7.0.40"},
+			{"name": "akeneo/pim-enterprise-dev", "version": "v7.0.41"}]}`,
+		"/statamic/composer.lock": `{"packages": [{"name": "statamic/cms", "version": "v5.10.0"}]}`,
+		"/marker/.shop":           "",
+	})
+	declared := []config.DistributionDetector{
+		{Name: "statamic", Framework: "laravel", Detect: config.FrameworkDetect{ComposerPackage: "statamic/cms"}},
+		{Name: "shop", Detect: config.FrameworkDetect{File: ".shop"}},
+		{Name: "akeneo", Framework: "symfony", Detect: config.FrameworkDetect{File: "pim.lock"}},
+	}
+	all := distributionDetectors(nil)
+	symfony := &snapshot.Framework{Name: "symfony", Version: "6.4.12"}
+	laravel := &snapshot.Framework{Name: "laravel", Version: "11.9.0"}
+	tests := []struct {
+		root      string
+		framework *snapshot.Framework
+		detectors []distributionDetector
+		want      *snapshot.Distribution
+	}{
+		{root: "/sulu", framework: symfony, detectors: all, want: &snapshot.Distribution{Name: "sulu", Version: "2.6.4"}},
+		{root: "/akeneo", framework: symfony, detectors: all, want: &snapshot.Distribution{Name: "akeneo", Version: "7.0.42"}},
+		{root: "/akeneo-ee", framework: symfony, detectors: all, want: &snapshot.Distribution{Name: "akeneo", Version: "7.0.41"}},
+		{root: "/sulu", framework: laravel, detectors: all, want: nil},
+		{root: "/sulu", framework: nil, detectors: all, want: nil},
+		{root: "/statamic", framework: laravel, detectors: distributionDetectors(declared), want: &snapshot.Distribution{Name: "statamic", Version: "5.10.0"}},
+		{root: "/statamic", framework: symfony, detectors: distributionDetectors(declared), want: nil},
+		{root: "/marker", framework: nil, detectors: distributionDetectors(declared), want: &snapshot.Distribution{Name: "shop"}},
+		{root: "/akeneo", framework: symfony, detectors: distributionDetectors(declared), want: nil},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, distribution(f, tt.root, tt.framework, tt.detectors), tt.root)
+	}
+	withDeclared := distributionDetectors(declared)
+	assert.Len(t, withDeclared, len(declared)+len(builtinDistributions)-1, "a declared detector replaces the built-in one")
+}
+
 func TestNewer(t *testing.T) {
 	assert.True(t, newer("20.11.1", "20.9.0"))
 	assert.False(t, newer("20.9.0", "20.11.1"))

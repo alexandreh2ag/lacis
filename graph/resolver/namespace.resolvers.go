@@ -160,8 +160,11 @@ func (r *namespaceResolver) Apps(ctx context.Context, obj *model.Namespace, filt
 	for _, a := range x.inv.Apps {
 		rtType, rtVersion := appRuntime(&a)
 		framework := strings.TrimSpace(deref(a.Framework) + " " + deref(a.FrameworkVersion))
-		if x.inScope(a.ProjectID, a.EnvironmentID, f.Projects, f.Envs) && matches(f.Search, a.Name, a.Path, codeVersion(&a), framework, x.hosts[a.HostID].Hostname) &&
-			satisfies(deref(a.Framework), deref(a.FrameworkVersion), f.Framework) && satisfies(rtType, rtVersion, f.Runtime) {
+		distribution := strings.TrimSpace(deref(a.Distribution) + " " + deref(a.DistributionVersion))
+		if x.inScope(a.ProjectID, a.EnvironmentID, f.Projects, f.Envs) &&
+			matches(f.Search, a.Name, a.Path, codeVersion(&a), framework, distribution, x.hosts[a.HostID].Hostname) &&
+			satisfies(deref(a.Framework), deref(a.FrameworkVersion), f.Framework) &&
+			satisfies(deref(a.Distribution), deref(a.DistributionVersion), f.Distribution) && satisfies(rtType, rtVersion, f.Runtime) {
 			apps = append(apps, a)
 		}
 	}

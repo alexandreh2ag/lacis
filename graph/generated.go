@@ -114,28 +114,30 @@ type ComplexityRoot struct {
 	}
 
 	App struct {
-		Code             func(childComplexity int) int
-		Dependencies     func(childComplexity int) int
-		Dependents       func(childComplexity int) int
-		Deployments      func(childComplexity int) int
-		Environment      func(childComplexity int) int
-		FirstSeenAt      func(childComplexity int) int
-		Framework        func(childComplexity int) int
-		FrameworkVersion func(childComplexity int) int
-		Host             func(childComplexity int) int
-		ID               func(childComplexity int) int
-		Info             func(childComplexity int) int
-		Launchers        func(childComplexity int) int
-		Links            func(childComplexity int) int
-		Name             func(childComplexity int) int
-		Path             func(childComplexity int) int
-		Project          func(childComplexity int) int
-		ResolvedPath     func(childComplexity int) int
-		Role             func(childComplexity int) int
-		Runtime          func(childComplexity int) int
-		UsedBy           func(childComplexity int) int
-		Uses             func(childComplexity int) int
-		Vhosts           func(childComplexity int) int
+		Code                func(childComplexity int) int
+		Dependencies        func(childComplexity int) int
+		Dependents          func(childComplexity int) int
+		Deployments         func(childComplexity int) int
+		Distribution        func(childComplexity int) int
+		DistributionVersion func(childComplexity int) int
+		Environment         func(childComplexity int) int
+		FirstSeenAt         func(childComplexity int) int
+		Framework           func(childComplexity int) int
+		FrameworkVersion    func(childComplexity int) int
+		Host                func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		Info                func(childComplexity int) int
+		Launchers           func(childComplexity int) int
+		Links               func(childComplexity int) int
+		Name                func(childComplexity int) int
+		Path                func(childComplexity int) int
+		Project             func(childComplexity int) int
+		ResolvedPath        func(childComplexity int) int
+		Role                func(childComplexity int) int
+		Runtime             func(childComplexity int) int
+		UsedBy              func(childComplexity int) int
+		Uses                func(childComplexity int) int
+		Vhosts              func(childComplexity int) int
 	}
 
 	AppCode struct {
@@ -273,6 +275,7 @@ type ComplexityRoot struct {
 
 	Facets struct {
 		Components     func(childComplexity int) int
+		Distributions  func(childComplexity int) int
 		Frameworks     func(childComplexity int) int
 		Runtimes       func(childComplexity int) int
 		ServiceTypes   func(childComplexity int) int
@@ -1078,6 +1081,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.App.Deployments(childComplexity), true
+	case "App.distribution":
+		if e.complexity.App.Distribution == nil {
+			break
+		}
+
+		return e.complexity.App.Distribution(childComplexity), true
+	case "App.distributionVersion":
+		if e.complexity.App.DistributionVersion == nil {
+			break
+		}
+
+		return e.complexity.App.DistributionVersion(childComplexity), true
 	case "App.environment":
 		if e.complexity.App.Environment == nil {
 			break
@@ -1719,6 +1734,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Facets.Components(childComplexity), true
+	case "Facets.distributions":
+		if e.complexity.Facets.Distributions == nil {
+			break
+		}
+
+		return e.complexity.Facets.Distributions(childComplexity), true
 	case "Facets.frameworks":
 		if e.complexity.Facets.Frameworks == nil {
 			break
@@ -5841,6 +5862,64 @@ func (ec *executionContext) fieldContext_App_frameworkVersion(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _App_distribution(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_App_distribution,
+		func(ctx context.Context) (any, error) {
+			return obj.Distribution, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_App_distribution(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "App",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _App_distributionVersion(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_App_distributionVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.DistributionVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_App_distributionVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "App",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _App_runtime(ctx context.Context, field graphql.CollectedField, obj *model.App) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6315,6 +6394,10 @@ func (ec *executionContext) fieldContext_App_deployments(_ context.Context, fiel
 				return ec.fieldContext_App_framework(ctx, field)
 			case "frameworkVersion":
 				return ec.fieldContext_App_frameworkVersion(ctx, field)
+			case "distribution":
+				return ec.fieldContext_App_distribution(ctx, field)
+			case "distributionVersion":
+				return ec.fieldContext_App_distributionVersion(ctx, field)
 			case "runtime":
 				return ec.fieldContext_App_runtime(ctx, field)
 			case "code":
@@ -7043,6 +7126,10 @@ func (ec *executionContext) fieldContext_AppList_items(_ context.Context, field 
 				return ec.fieldContext_App_framework(ctx, field)
 			case "frameworkVersion":
 				return ec.fieldContext_App_frameworkVersion(ctx, field)
+			case "distribution":
+				return ec.fieldContext_App_distribution(ctx, field)
+			case "distributionVersion":
+				return ec.fieldContext_App_distributionVersion(ctx, field)
 			case "runtime":
 				return ec.fieldContext_App_runtime(ctx, field)
 			case "code":
@@ -9036,6 +9123,41 @@ func (ec *executionContext) _Facets_frameworks(ctx context.Context, field graphq
 }
 
 func (ec *executionContext) fieldContext_Facets_frameworks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Facets",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_VersionFacet_name(ctx, field)
+			case "versions":
+				return ec.fieldContext_VersionFacet_versions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type VersionFacet", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Facets_distributions(ctx context.Context, field graphql.CollectedField, obj *Facets) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Facets_distributions,
+		func(ctx context.Context) (any, error) {
+			return obj.Distributions, nil
+		},
+		nil,
+		ec.marshalNVersionFacet2ᚕgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐVersionFacetᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Facets_distributions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Facets",
 		Field:      field,
@@ -11455,6 +11577,10 @@ func (ec *executionContext) fieldContext_Host_apps(_ context.Context, field grap
 				return ec.fieldContext_App_framework(ctx, field)
 			case "frameworkVersion":
 				return ec.fieldContext_App_frameworkVersion(ctx, field)
+			case "distribution":
+				return ec.fieldContext_App_distribution(ctx, field)
+			case "distributionVersion":
+				return ec.fieldContext_App_distributionVersion(ctx, field)
 			case "runtime":
 				return ec.fieldContext_App_runtime(ctx, field)
 			case "code":
@@ -14570,6 +14696,8 @@ func (ec *executionContext) fieldContext_Namespace_facets(_ context.Context, fie
 			switch field.Name {
 			case "frameworks":
 				return ec.fieldContext_Facets_frameworks(ctx, field)
+			case "distributions":
+				return ec.fieldContext_Facets_distributions(ctx, field)
 			case "runtimes":
 				return ec.fieldContext_Facets_runtimes(ctx, field)
 			case "serviceTypes":
@@ -14946,6 +15074,10 @@ func (ec *executionContext) fieldContext_Namespace_app(ctx context.Context, fiel
 				return ec.fieldContext_App_framework(ctx, field)
 			case "frameworkVersion":
 				return ec.fieldContext_App_frameworkVersion(ctx, field)
+			case "distribution":
+				return ec.fieldContext_App_distribution(ctx, field)
+			case "distributionVersion":
+				return ec.fieldContext_App_distributionVersion(ctx, field)
 			case "runtime":
 				return ec.fieldContext_App_runtime(ctx, field)
 			case "code":
@@ -22206,7 +22338,7 @@ func (ec *executionContext) unmarshalInputAppFilter(ctx context.Context, obj any
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projects", "envs", "search", "framework", "runtime"}
+	fieldsInOrder := [...]string{"projects", "envs", "search", "framework", "distribution", "runtime"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22241,6 +22373,13 @@ func (ec *executionContext) unmarshalInputAppFilter(ctx context.Context, obj any
 				return it, err
 			}
 			it.Framework = data
+		case "distribution":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("distribution"))
+			data, err := ec.unmarshalOVersionConstraint2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐVersionConstraint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Distribution = data
 		case "runtime":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runtime"))
 			data, err := ec.unmarshalOVersionConstraint2ᚖgithubᚗcomᚋalexandreh2agᚋlacisᚋgraphᚐVersionConstraint(ctx, v)
@@ -23826,6 +23965,10 @@ func (ec *executionContext) _App(ctx context.Context, sel ast.SelectionSet, obj 
 			out.Values[i] = ec._App_framework(ctx, field, obj)
 		case "frameworkVersion":
 			out.Values[i] = ec._App_frameworkVersion(ctx, field, obj)
+		case "distribution":
+			out.Values[i] = ec._App_distribution(ctx, field, obj)
+		case "distributionVersion":
+			out.Values[i] = ec._App_distributionVersion(ctx, field, obj)
 		case "runtime":
 			field := field
 
@@ -25405,6 +25548,11 @@ func (ec *executionContext) _Facets(ctx context.Context, sel ast.SelectionSet, o
 			out.Values[i] = graphql.MarshalString("Facets")
 		case "frameworks":
 			out.Values[i] = ec._Facets_frameworks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "distributions":
+			out.Values[i] = ec._Facets_distributions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

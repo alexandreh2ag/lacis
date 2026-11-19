@@ -155,7 +155,10 @@ func (*Collector) Collect(stdCtx stdContext.Context, ctx *context.Context, sys *
 		}
 	}
 
-	detectors := detectors(ctx.Config.Collectors.Apps.Frameworks)
+	detectors := detection{
+		frameworks:    detectors(ctx.Config.Collectors.Apps.Frameworks),
+		distributions: distributionDetectors(ctx.Config.Collectors.Apps.Distributions),
+	}
 	for _, key := range c.order {
 		out.Apps = append(out.Apps, c.build(c.apps[key], detectors))
 	}
@@ -451,7 +454,7 @@ func within(p, dir string) bool {
 }
 
 // build describes an app.
-func (c *collection) build(a *app, detectors []detector) snapshot.App {
+func (c *collection) build(a *app, detectors detection) snapshot.App {
 	fsys := c.ctx.Fs
 	labels := c.ctx.Config.Labels
 	out := snapshot.App{
@@ -460,9 +463,10 @@ func (c *collection) build(a *app, detectors []detector) snapshot.App {
 		Role:         snapshot.AppRoleWorker,
 		Project:      labels.Project,
 		Env:          labels.Env,
-		Framework:    framework(fsys, a.resolved, detectors),
+		Framework:    framework(fsys, a.resolved, detectors.frameworks),
 		Dependencies: []snapshot.Dependency{},
 	}
+	out.Distribution = distribution(fsys, a.resolved, out.Framework, detectors.distributions)
 	if a.resolved != a.path {
 		out.ResolvedPath = a.resolved
 	}

@@ -15,6 +15,7 @@ export const pages: Messages['pages'] = {
     app: 'App',
     version: 'Version',
     framework: 'Framework',
+    distribution: 'Distribution',
     runtime: 'Runtime',
     packageVersion: 'package',
     packageVersionHint: "Version of the system package, revision included: the patches of an end-of-life version only show there.",
@@ -253,7 +254,7 @@ export const pages: Messages['pages'] = {
   },
   inventory: {
     appsTitle: 'Apps',
-    searchApps: 'Search an app, a path, a version, a framework, a host',
+    searchApps: 'Search an app, a path, a version, a framework, a distribution, a host',
     servicesTitle: 'Services',
     searchServices: 'Search a type, a version, a host, a domain',
     chooseType: 'Choose a type',

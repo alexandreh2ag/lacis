@@ -11,7 +11,7 @@ import (
 	"github.com/alexandreh2ag/lacis/techversion"
 )
 
-// satisfies tells whether a framework or a runtime meets the constraint.
+// satisfies tells whether a framework, a distribution or a runtime meets the constraint.
 func satisfies(name, version string, c *graph.VersionConstraint) bool {
 	if c == nil {
 		return true
@@ -67,10 +67,11 @@ func (v versions) facets() []graph.VersionFacet {
 
 // facets are what the inventory holds, to filter by.
 func facets(inv *model.Inventory) *graph.Facets {
-	frameworks, runtimes := versions{}, versions{}
+	frameworks, distributions, runtimes := versions{}, versions{}, versions{}
 	for i := range inv.Apps {
 		a := &inv.Apps[i]
 		frameworks.add(deref(a.Framework), deref(a.FrameworkVersion))
+		distributions.add(deref(a.Distribution), deref(a.DistributionVersion))
 		runtimes.add(appRuntime(a))
 	}
 	components := versions{}
@@ -80,7 +81,7 @@ func facets(inv *model.Inventory) *graph.Facets {
 	for _, w := range inv.Webservers {
 		components.add(w.Type, deref(w.Version))
 	}
-	out := &graph.Facets{Frameworks: frameworks.facets(), Runtimes: runtimes.facets(), Components: components.facets(), ServiceTypes: []string{}, WebserverTypes: []string{}}
+	out := &graph.Facets{Frameworks: frameworks.facets(), Distributions: distributions.facets(), Runtimes: runtimes.facets(), Components: components.facets(), ServiceTypes: []string{}, WebserverTypes: []string{}}
 	for _, s := range inv.Services {
 		if !slices.Contains(out.ServiceTypes, s.Type) {
 			out.ServiceTypes = append(out.ServiceTypes, s.Type)

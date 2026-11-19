@@ -19,7 +19,7 @@ type TechIconRepository interface {
 	Delete(ctx context.Context, tech string) error
 	// FindTechnologies returns the technologies the inventory holds, sorted:
 	// the types of the services, webservers and runtimes, and the
-	// frameworks of the apps, removed ones left out.
+	// frameworks and distributions of the apps, removed ones left out.
 	FindTechnologies(ctx context.Context) ([]string, error)
 }
 
@@ -59,6 +59,7 @@ func (r *techIconRepository) FindTechnologies(ctx context.Context) ([]string, er
 		union select lower(type) from webservers where removed_at is null
 		union select lower(type) from runtimes where removed_at is null
 		union select lower(framework) from apps where removed_at is null and framework is not null and framework <> ''
+		union select lower(distribution) from apps where removed_at is null and distribution is not null and distribution <> ''
 		order by 1`).Scan(&techs).Error
 	return techs, err
 }

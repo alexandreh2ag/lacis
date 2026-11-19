@@ -88,6 +88,11 @@ collectors:
             format: env
           - path: "config/*.yaml"
             format: yaml
+    distributions:
+      - name: statamic
+        framework: laravel
+        detect:
+          composer_package: statamic/cms
     extra_config:
       - app: "/var/www/*/current"
         config:
@@ -202,6 +207,7 @@ See [Collectors](../collectors.md) for what each one does.
 | `collectors.apps.app_root_links` | list | `[current]` | Names of the links the scan takes as an app root: a directory holding one is a deployment, the link is its app and its releases are not apps. A name, without `/`. Add `www` for `/var/www/site/staging/www -> /home/web/builds/site/staging`. |
 | `collectors.apps.trusted_link_targets` | list | `[]` | Directories an app root link may point into whoever owns the link, such as `/home/web/builds`; absolute paths, compared to the resolved target. A link to anywhere else is followed only when the link and its target have the same owner. |
 | `collectors.apps.frameworks`   | list | `[]`         | Declarative framework detectors, see below. |
+| `collectors.apps.distributions` | list | `[]`        | Declarative distribution detectors, see below. |
 | `collectors.apps.extra_config` | list | `[]`         | Configuration files added to some apps, see below. |
 
 An `exclude` entry holding a `/` is not anchored: `var/cache` excludes
@@ -228,6 +234,18 @@ The first `detect` key set is used, in the order of the table. See
 [structured sources](../collectors.md#structured-sources) for how a `php`, `ini`,
 `yaml` or `json` file is read: PHP is parsed, never run, and Symfony `%env(X)%`
 references are followed.
+
+A distribution detector recognizes the product an app is built on, over its
+framework: the app keeps its framework and its version (and the files its loader
+reads), and gets a distribution with its own version, whose logo it shows. The
+first detector that matches wins. A detector named like a built-in one (`sulu`,
+`akeneo`, both on `symfony`) replaces it.
+
+| Key                       | Description |
+| ------------------------- | ----------- |
+| `name`                    | Distribution name. Required. |
+| `framework`               | Framework the app must have, such as `symfony` or `laravel`; any app, framework or not, when empty. |
+| `detect.composer_package`, `detect.npm_package`, `detect.file` | As for a framework detector; the version of the package becomes the distribution version. |
 
 #### `collectors.apps.extra_config`
 
