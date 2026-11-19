@@ -167,8 +167,21 @@ Applications deployed on the host. App roots are found from:
 - the scan paths (`collectors.apps.scan_paths`, `/var/www` by default).
 
 A directory is an app root when it holds `composer.json`, `package.json`, `.git` or
-a version file. A directory with a `current` symlink is a deployment: only
-`current` is an app. Directories under a hidden directory or one of
+a version file. A directory holding a link named in `collectors.apps.app_root_links`
+(`current` by default) is a deployment: only the link is an app, its releases are
+not. The scan follows such a link only when its target has the owner of the link,
+or lies under one of `collectors.apps.trusted_link_targets`: the agent runs as
+root, a user must not lead it to the files of another one. A link refused is
+reported as a warning in the collector errors. The scan follows no other link;
+the vhosts, the supervisor programs and the processes give their paths through
+links as they are.
+
+When several sources give the same app, its path is one reaching it through a
+link, such as the directory of a supervisor program, rather than the working
+directory of its process, which is always the target: the app keeps the path it
+is deployed at, with its target as resolved path.
+
+Directories under a hidden directory or one of
 `collectors.apps.exclude` are not apps. An entry of `exclude` is a run of whole
 directory names found anywhere in the path: `vendor` excludes
 `/var/www/shop/vendor/acme`, `var/cache` excludes `/var/www/shop/var/cache/prod` but

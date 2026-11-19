@@ -75,6 +75,8 @@ collectors:
     commands: path
     exclude: [vendor, node_modules, var/cache, var/log, log, logs, media, uploads,
               public/media, public/uploads, storage, .git/objects]
+    app_root_links: [current]
+    trusted_link_targets: []
     frameworks:
       - name: remix
         detect:
@@ -197,6 +199,8 @@ See [Collectors](../collectors.md) for what each one does.
 | `collectors.apps.git_max_depth` | int | `0`          | Parent directories of the resolved app root searched for its `.git` when the root holds none, as for an app in a subdirectory of its repository: `1` searches the parent too. `0` searches the root only. |
 | `collectors.apps.commands`     | string | `path`     | What is sent of a supervisor program command: `path`, the program alone (`argv[0]`); `full`, the whole command, arguments included (and any password in them, such as `mysqldump -pSECRET`). With `full`, the commands of the gtask scheduled tasks are sent too. |
 | `collectors.apps.exclude`      | list | see example  | Directories never searched, nor accepted as part of an app root. An entry is a directory name (`vendor`) or a run of them (`var/cache`), matched as whole names anywhere in the path. Hidden directories are always skipped. |
+| `collectors.apps.app_root_links` | list | `[current]` | Names of the links the scan takes as an app root: a directory holding one is a deployment, the link is its app and its releases are not apps. A name, without `/`. Add `www` for `/var/www/site/staging/www -> /home/web/builds/site/staging`. |
+| `collectors.apps.trusted_link_targets` | list | `[]` | Directories an app root link may point into whoever owns the link, such as `/home/web/builds`; absolute paths, compared to the resolved target. A link to anywhere else is followed only when the link and its target have the same owner. |
 | `collectors.apps.frameworks`   | list | `[]`         | Declarative framework detectors, see below. |
 | `collectors.apps.extra_config` | list | `[]`         | Configuration files added to some apps, see below. |
 

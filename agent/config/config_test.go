@@ -48,6 +48,8 @@ collectors:
     git_max_depth: 2
     max_files: 100
     exclude: [vendor]
+    app_root_links: [current, www]
+    trusted_link_targets: [/home/web/builds]
     frameworks:
       - name: laravel
         detect:
@@ -148,6 +150,8 @@ func TestLoad_File(t *testing.T) {
 	assert.Equal(t, "/var/run/docker.sock", cfg.Collectors.Docker.Socket)
 	assert.Equal(t, CommandPath, cfg.Collectors.Apps.Commands, "only the program path by default")
 	assert.Equal(t, 2, cfg.Collectors.Apps.GitMaxDepth)
+	assert.Equal(t, []string{"current", "www"}, cfg.Collectors.Apps.AppRootLinks)
+	assert.Equal(t, []string{"/home/web/builds"}, cfg.Collectors.Apps.TrustedLinkTargets)
 	assert.NoError(t, cfg.Validate(newValidator()))
 }
 
@@ -237,6 +241,12 @@ func TestConfig_Validate(t *testing.T) {
 		{name: "invalid hostname", mutate: func(c *Config) { c.Hostname = "not a host" }, want: []string{"Config.Hostname"}},
 		{name: "missing label", mutate: func(c *Config) { c.Labels.Project = "" }, want: []string{"labels: project: label is required"}},
 		{name: "negative git max depth", mutate: func(c *Config) { c.Collectors.Apps.GitMaxDepth = -1 }, want: []string{"Config.Collectors.Apps.GitMaxDepth", `"min"`}},
+		{name: "app root link with a slash", mutate: func(c *Config) { c.Collectors.Apps.AppRootLinks = []string{"current", "staging/www"} },
+			want: []string{"Config.Collectors.Apps.AppRootLinks[1]", `"excludes"`}},
+		{name: "empty app root link", mutate: func(c *Config) { c.Collectors.Apps.AppRootLinks = []string{""} },
+			want: []string{"Config.Collectors.Apps.AppRootLinks[0]", `"required"`}},
+		{name: "relative trusted link target", mutate: func(c *Config) { c.Collectors.Apps.TrustedLinkTargets = []string{"/home/web/builds", "builds"} },
+			want: []string{"Config.Collectors.Apps.TrustedLinkTargets[1]", `"startswith"`}},
 		{name: "full commands", mutate: func(c *Config) { c.Collectors.Apps.Commands = CommandFull }},
 		{name: "force keys", mutate: func(c *Config) { c.Collectors.Envfiles.ForceKeys = []string{"OAUTH_ISSUER_URL"} }},
 		{name: "force key pattern", mutate: func(c *Config) { c.Collectors.Envfiles.ForceKeys = []string{"OK", "*_URL", ""} },

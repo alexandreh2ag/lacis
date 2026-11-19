@@ -34,3 +34,35 @@ func TestFS_OpenFileNoFollow(t *testing.T) {
 	_, err = f.OpenFile("/app/.env", os.O_RDONLY, 0)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
+
+func TestFS_Owners(t *testing.T) {
+	f := New()
+	f.Files(t, map[string]string{"/builds/app/composer.json": "{}", "/etc/hostname": "h"})
+	f.Link("/var/www/app", "/builds/app")
+	f.Own("/var/www/app", 1000)
+	f.Own("/builds/app", 33)
+
+	fi, isLstat, err := f.LstatIfPossible("/var/www/app")
+	require.NoError(t, err)
+	assert.True(t, isLstat)
+	assert.Equal(t, "app", fi.Name())
+	assert.True(t, fi.Mode()&os.ModeSymlink != 0)
+	assert.False(t, fi.IsDir())
+	assert.Equal(t, uint32(1000), fi.Sys().(*syscall.Stat_t).Uid)
+
+	fi, err = f.Stat("/builds/app")
+	require.NoError(t, err)
+	assert.True(t, fi.IsDir())
+	assert.Equal(t, uint32(33), fi.Sys().(*syscall.Stat_t).Uid)
+	fi, _, err = f.LstatIfPossible("/builds/app")
+	require.NoError(t, err)
+	assert.Equal(t, uint32(33), fi.Sys().(*syscall.Stat_t).Uid)
+
+	// A path nobody owns tells no owner.
+	fi, err = f.Stat("/etc/hostname")
+	require.NoError(t, err)
+	_, owned := fi.Sys().(*syscall.Stat_t)
+	assert.False(t, owned)
+	_, err = f.Stat("/missing")
+	assert.ErrorIs(t, err, fs.ErrNotExist)
+}

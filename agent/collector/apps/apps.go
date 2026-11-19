@@ -235,6 +235,12 @@ func (c *collection) add(dir string) *app {
 		return nil
 	}
 	if a, ok := c.apps[resolved]; ok {
+		// A process gives the target of its working directory, never the
+		// links to it: a source reaching the root through a link, such as
+		// a supervisor directory, gives the path the app is deployed at.
+		if a.path == a.resolved && literal != resolved {
+			a.path = literal
+		}
 		return a
 	}
 	a := &app{path: literal, resolved: resolved}
@@ -335,9 +341,10 @@ func hasMarker(fsys afero.Fs, dir string) bool {
 }
 
 // scan looks for app roots under dir, down to collectors.apps.max_depth. A
-// directory with a "current" link is a deployment: only current is an app,
-// its releases are not. It returns false once the directory entries read
-// under the scan path reach collectors.apps.max_files: the scan stops there.
+// directory with an app root link, such as "current", is a deployment: only
+// the link is an app, its releases are not. It returns false once the
+// directory entries read under the scan path reach collectors.apps.max_files:
+// the scan stops there.
 func (c *collection) scan(dir string, depth int) bool {
 	apps := c.ctx.Config.Collectors.Apps
 	if depth > apps.MaxDepth {
@@ -351,8 +358,7 @@ func (c *collection) scan(dir string, depth int) bool {
 		c.add(dir)
 		return true
 	}
-	if _, err := c.sys.Readlink(path.Join(dir, "current")); err == nil {
-		c.add(path.Join(dir, "current"))
+	if c.rootLinks(dir) {
 		return true
 	}
 	entries, err := afero.ReadDir(c.ctx.Fs, dir)
@@ -369,6 +375,49 @@ func (c *collection) scan(dir string, depth int) bool {
 		}
 	}
 	return true
+}
+
+// rootLinks adds the apps of the links of dir named in
+// collectors.apps.app_root_links that may be followed; true when dir holds
+// one, followed or not. A link to nothing gives no app, silently.
+func (c *collection) rootLinks(dir string) bool {
+	found := false
+	for _, name := range c.ctx.Config.Collectors.Apps.AppRootLinks {
+		link := path.Join(dir, name)
+		if _, err := c.sys.Readlink(link); err != nil {
+			continue
+		}
+		found = true
+		target, err := c.sys.Resolve(link)
+		if err != nil {
+			c.errs = append(c.errs, collector.Warn(fmt.Errorf("link %s not followed: %w", link, err)))
+			continue
+		}
+		if _, err := c.ctx.Fs.Stat(target); err != nil {
+			continue
+		}
+		if !c.followable(link, target) {
+			c.errs = append(c.errs, collector.Warn(fmt.Errorf("link %s not followed: its target %s has another owner and is not under collectors.apps.trusted_link_targets", link, target)))
+			continue
+		}
+		c.add(link)
+	}
+	return found
+}
+
+// followable tells whether the scan may follow an app root link to its
+// target: under collectors.apps.trusted_link_targets, or with the owner of
+// the link. The agent runs as root: a user must not lead it, through a
+// link, to read the files of another one.
+func (c *collection) followable(link, target string) bool {
+	return slices.ContainsFunc(c.ctx.Config.Collectors.Apps.TrustedLinkTargets, func(dir string) bool { return within(target, dir) }) ||
+		c.sys.SameOwner(link, target)
+}
+
+// within tells whether p is dir or under it.
+func within(p, dir string) bool {
+	p, dir = path.Clean(p), path.Clean(dir)
+	return p == dir || dir == "/" || strings.HasPrefix(p, dir+"/")
 }
 
 // build describes an app.

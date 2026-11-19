@@ -128,6 +128,9 @@ collectors:                           # optional, defaults shown
     max_depth: 4                      # directories walked down a scan path
     max_files: 5000                   # entries read per scan path: the scan stops there, with a warning
     git_max_depth: 0                  # parent directories of an app root searched for its .git (0: the root only)
+    app_root_links: [current]         # names of the links the scan takes as an app root
+    trusted_link_targets: []          # directories those links may point into whoever owns them;
+                                      # elsewhere, the link and its target must have the same owner
     commands: path                    # path: only the program of a launcher command (argv[0]) is sent;
                                       # full: the whole command, arguments (and any password in them) included
     frameworks:                       # declarative detectors; a name of a built-in one replaces it

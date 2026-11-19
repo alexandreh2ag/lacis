@@ -159,6 +159,14 @@ type AppsConfig struct {
 	// the root only.
 	GitMaxDepth int      `mapstructure:"git_max_depth" validate:"min=0"`
 	Exclude     []string `mapstructure:"exclude"`
+	// AppRootLinks are the names of the links the scan takes as an app
+	// root, such as "current": the directory holding one is a deployment,
+	// its releases are not apps.
+	AppRootLinks []string `mapstructure:"app_root_links" validate:"dive,required,excludes=/"`
+	// TrustedLinkTargets are the directories an app root link may point
+	// into whoever owns it. A link to anywhere else is followed only when
+	// its owner owns its target too.
+	TrustedLinkTargets []string `mapstructure:"trusted_link_targets" validate:"dive,startswith=/"`
 	// ExtraConfig adds configuration files to the apps of a path, read
 	// after those of their framework.
 	ExtraConfig []ExtraConfig       `mapstructure:"extra_config" validate:"dive"`
@@ -257,8 +265,10 @@ func DefaultConfig() *Config {
 					"vendor", "node_modules", "var/cache", "var/log", "log", "logs", "media", "uploads",
 					"public/media", "public/uploads", "storage", ".git/objects",
 				},
-				ExtraConfig: []ExtraConfig{},
-				Frameworks:  []FrameworkDetector{},
+				AppRootLinks:       []string{"current"},
+				TrustedLinkTargets: []string{},
+				ExtraConfig:        []ExtraConfig{},
+				Frameworks:         []FrameworkDetector{},
 			},
 			Envfiles: EnvfilesConfig{
 				AllowKeys: []string{"*_URL", "*_DSN", "*_HOST", "*_PORT", "APP_ENV", "NODE_ENV"},

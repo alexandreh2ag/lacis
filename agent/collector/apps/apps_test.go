@@ -4,10 +4,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/netip"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/alexandreh2ag/lacis/agent/collector"
 	"github.com/alexandreh2ag/lacis/agent/config"
 	"github.com/alexandreh2ag/lacis/agent/context"
 	"github.com/alexandreh2ag/lacis/agent/fakefs"
@@ -134,6 +136,9 @@ func TestCollect(t *testing.T) {
 	})
 	h.fs.Link("/var/www/client/current", "releases/42")
 	h.fs.Link("/srv/apps/deploy/current", "releases/3")
+	// The scan follows a link whose owner owns the target.
+	h.fs.Own("/srv/apps/deploy/current", 1000)
+	h.fs.Own("/srv/apps/deploy/releases/3", 1000)
 	h.fs.Link("/usr/bin/php", "/usr/bin/php8.2")
 	// The front runs under supervisor: its server through bash, and gtask.
 	h.process(1100, "/usr/bin/python3.11", "/", "/usr/bin/python3", "/usr/bin/supervisord", "-n")
@@ -281,6 +286,115 @@ func TestCollect_FPMWorkerCwd(t *testing.T) {
 		"/home/web/var/www/sites/production/cg/www": {"comptoirdesfers.com"},
 		"/home/web/var/www/sites/production/ns/www": {"nicodeme-aubade.fr"},
 	}, got, "the directory of an FPM worker gives no app: each site keeps its path and its names")
+}
+
+func TestCollect_AppRootLinks(t *testing.T) {
+	const (
+		link   = "/home/web/var/www/simulateurs/sdb/staging/www"
+		target = "/home/web/builds/sdb/staging"
+	)
+	tests := []struct {
+		name        string
+		links       []string
+		trusted     []string
+		linkOwner   int // -1: unknown
+		targetOwner int
+		dangling    bool
+		wantApp     bool
+		wantWarning bool
+	}{
+		{name: "www is no app root link by default", links: []string{"current"}, linkOwner: 1000, targetOwner: 1000},
+		{name: "same owner", links: []string{"current", "www"}, linkOwner: 1000, targetOwner: 1000, wantApp: true},
+		{name: "other owner", links: []string{"current", "www"}, linkOwner: 1000, targetOwner: 0, wantWarning: true},
+		{name: "owners unknown", links: []string{"www"}, linkOwner: -1, targetOwner: -1, wantWarning: true},
+		{name: "other owner, trusted target", links: []string{"www"}, trusted: []string{"/home/web/builds"}, linkOwner: 1000, targetOwner: 0, wantApp: true},
+		{name: "trusted directory is the target", links: []string{"www"}, trusted: []string{target + "/"}, linkOwner: -1, targetOwner: -1, wantApp: true},
+		{name: "trusted prefix is no directory", links: []string{"www"}, trusted: []string{"/home/web/build"}, linkOwner: 1000, targetOwner: 0, wantWarning: true},
+		{name: "link to nothing", links: []string{"www"}, linkOwner: 1000, targetOwner: -1, dangling: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHost(t)
+			if !tt.dangling {
+				h.fs.Files(t, map[string]string{target + "/composer.json": "{}"})
+			}
+			require.NoError(t, h.fs.MkdirAll(path.Dir(link), 0o755))
+			h.fs.Link(link, target)
+			if tt.linkOwner >= 0 {
+				h.fs.Own(link, uint32(tt.linkOwner))
+			}
+			if tt.targetOwner >= 0 {
+				h.fs.Own(target, uint32(tt.targetOwner))
+			}
+			h.configure = func(c *config.Config) {
+				c.Collectors.Apps.AppRootLinks = tt.links
+				c.Collectors.Apps.TrustedLinkTargets = tt.trusted
+			}
+			out := &snapshot.Snapshot{}
+			err := h.collect(out, "/home/web/var/www")
+
+			var paths []string
+			for _, a := range out.Apps {
+				paths = append(paths, a.Path+" -> "+a.ResolvedPath)
+			}
+			if tt.wantApp {
+				assert.Equal(t, []string{link + " -> " + target}, paths)
+			} else {
+				assert.Empty(t, paths)
+			}
+			if tt.wantWarning {
+				var w *collector.Warning
+				require.ErrorAs(t, err, &w)
+				assert.ErrorContains(t, err, "link "+link+" not followed")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCollect_LinkedPathKept(t *testing.T) {
+	// A Next.js app behind a proxy, run by supervisor from the link of its
+	// deployment: the process, reached first through the vhost, sits in
+	// the target of the link.
+	const (
+		link   = "/home/web/var/www/simulateurs/clim/staging/www"
+		target = "/home/web/builds/clim/staging/www"
+	)
+	h := newHost(t)
+	h.fs.Files(t, map[string]string{
+		target + "/package.json":        "{}",
+		"/etc/supervisor/conf.d/w.conf": "[program:clim]\ncommand=node server.js\ndirectory=" + link + "\n",
+	})
+	h.fs.Link(link, target)
+	h.process(3000, "/usr/bin/node", target, "node", "server.js")
+	h.listen(3000, "127.0.0.1:3101")
+	out := &snapshot.Snapshot{Webservers: []snapshot.Webserver{{Type: "nginx", Vhosts: []snapshot.Vhost{
+		{ServerNames: []string{"staging.example.com"}, Upstreams: []string{"http://127.0.0.1:3101"}},
+	}}}}
+	require.NoError(t, h.collect(out))
+	require.Len(t, out.Apps, 1)
+	assert.Equal(t, link, out.Apps[0].Path, "the path through the link is kept")
+	assert.Equal(t, target, out.Apps[0].ResolvedPath)
+	assert.Equal(t, []string{"staging.example.com"}, out.Apps[0].Vhosts)
+	require.Len(t, out.Apps[0].Launchers, 1)
+}
+
+func TestWithin(t *testing.T) {
+	tests := []struct {
+		p, dir string
+		want   bool
+	}{
+		{"/home/web/builds/x", "/home/web/builds", true},
+		{"/home/web/builds/x", "/home/web/builds/", true},
+		{"/home/web/builds", "/home/web/builds", true},
+		{"/home/web/builds2/x", "/home/web/builds", false},
+		{"/etc", "/home/web/builds", false},
+		{"/etc", "/", true},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, within(tt.p, tt.dir), tt.p+" in "+tt.dir)
+	}
 }
 
 func TestNormalizeAddr(t *testing.T) {
