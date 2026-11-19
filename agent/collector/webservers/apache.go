@@ -362,13 +362,13 @@ func apacheVhost(section directive) snapshot.Vhost {
 						}
 					}
 					v.Upstreams = appendUnique(v.Upstreams, apacheTarget(target))
-					v.AddLocation(passedPath(at, isFastCGI(target)), apacheTarget(target))
+					v.AddLocation(passedPath(at, "", isFastCGI(target)), apacheTarget(target))
 				}
 			case "sethandler":
 				if len(d.Args) > 0 && strings.HasPrefix(d.Args[0], "proxy:") {
 					target := strings.TrimPrefix(d.Args[0], "proxy:")
 					v.Upstreams = appendUnique(v.Upstreams, apacheTarget(target))
-					v.AddLocation(passedPath(path, isFastCGI(target)), apacheTarget(target))
+					v.AddLocation(passedPath(path, "", isFastCGI(target)), apacheTarget(target))
 				}
 			}
 		}

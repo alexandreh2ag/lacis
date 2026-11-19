@@ -226,14 +226,31 @@ type Vhost struct {
 	ConfigFile string     `json:"config_file,omitempty"`
 }
 
-// Location is a path of a vhost passed to backends: an nginx location, an
-// Apache ProxyPass or <Location>.
+// Location is a path of a vhost passed to backends or served from a
+// directory of its own: an nginx location, an Apache ProxyPass or
+// <Location>.
 type Location struct {
 	// Path is written as an nginx location: "/api" a prefix, "=/health" an
 	// exact path, "~^/(a|b)" a regexp; empty for any path, as a FastCGI
 	// backend running the app of the vhost.
 	Path      string   `json:"path,omitempty"`
 	Upstreams []string `json:"upstreams"`
+	// Root is the directory the path is served from when it is not the
+	// root of the vhost: an nginx alias, or a root of the location.
+	Root string `json:"root,omitempty"`
+}
+
+// SetLocationRoot sets the directory a path is served from, once.
+func (v *Vhost) SetLocationRoot(path, root string) {
+	for i := range v.Locations {
+		if v.Locations[i].Path == path {
+			if v.Locations[i].Root == "" {
+				v.Locations[i].Root = root
+			}
+			return
+		}
+	}
+	v.Locations = append(v.Locations, Location{Path: path, Upstreams: []string{}, Root: root})
 }
 
 // AddLocation adds an upstream passed on a path, once.

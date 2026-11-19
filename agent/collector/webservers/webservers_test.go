@@ -136,9 +136,10 @@ func TestLocationPath(t *testing.T) {
 }
 
 func TestPassedPath(t *testing.T) {
-	assert.Equal(t, "", passedPath(`~\.php$`, true), "FastCGI under a regexp: any path")
-	assert.Equal(t, "/legacy/", passedPath("/legacy/", true), "FastCGI under a prefix keeps it")
-	assert.Equal(t, `~^/(a|b)`, passedPath(`~^/(a|b)`, false))
+	assert.Equal(t, "", passedPath(`~\.php$`, "", true), "FastCGI under a regexp: any path")
+	assert.Equal(t, "/sdb/", passedPath(`~^/sdb/(.+\.php)$`, "/sdb/", true), "FastCGI under a regexp in a prefix: the prefix")
+	assert.Equal(t, "/legacy/", passedPath("/legacy/", "/legacy/", true), "FastCGI under a prefix keeps it")
+	assert.Equal(t, `~^/(a|b)`, passedPath(`~^/(a|b)`, "/x", false))
 }
 
 func TestNginxMainConfig(t *testing.T) {
@@ -219,6 +220,76 @@ func TestCollect_NginxIncludes(t *testing.T) {
 	assert.ErrorContains(t, err, "include /etc/nginx/missing.conf not found")
 	assert.ErrorIs(t, err, fsutil.ErrTooLarge)
 	assert.Equal(t, []snapshot.Vhost{{Listen: []string{"0.0.0.0:81"}, ConfigFile: "/etc/nginx/conf.d/a.conf"}}, out.Webservers[0].Vhosts)
+}
+
+// corporateFront is a site on FPM serving another app under a path from an
+// alias, with its own FPM pool, as on ea-corporate-staging-1.
+const corporateFront = `http { server {
+    listen 443 ssl;
+    server_name staging.espace-aubade.fr;
+    root /home/web/var/www/siteweb-2018/staging/www/public_html;
+    location / { try_files $uri /index.php$is_args$args; }
+    location ~ \.php$ { fastcgi_pass 127.0.0.1:9070; }
+    location /simulateur-prix-climatisation { proxy_pass http://127.0.0.1:3101; }
+    location ^~ /simulateur-salle-de-bains/ {
+        alias /home/web/var/www/simulateurs/sdb/staging/www/public/;
+        try_files $uri $uri/ @simu_sdb;
+        location ~ ^/simulateur-salle-de-bains/(?<sdb_script>.+?\.php)(?<sdb_path>/.*)?$ {
+  include fastcgi_params;
+  fastcgi_param SCRIPT_FILENAME /home/web/var/www/simulateurs/sdb/staging/www/public/$sdb_script;
+  fastcgi_param PATH_INFO       $sdb_path;
+  fastcgi_pass 127.0.0.1:9074;
+}
+    }
+    location @simu_sdb {
+        rewrite ^/simulateur-salle-de-bains/(.*)$ /simulateur-salle-de-bains/index.php/$1 last;
+    }
+    location /docs/ { root html; }
+    location ~ ^/files/(.*)$ { alias /srv/files/$1; }
+} }
+`
+
+func TestCollect_NginxAlias(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmdline string
+		binary  string // content of /usr/sbin/nginx; empty: missing
+		docs    string
+	}{
+		{name: "prefix compiled in the binary", cmdline: "nginx: master process /usr/sbin/nginx",
+			binary: "\x7fELF...-p prefix     : set prefix path (default: /usr/share/nginx/)\n...", docs: "/usr/share/nginx/html"},
+		{name: "prefix given", cmdline: "nginx: master process /usr/sbin/nginx -p /opt/nginx/ -c /etc/nginx/nginx.conf",
+			binary: "set prefix path (default: /usr/share/nginx/)", docs: "/opt/nginx/html"},
+		{name: "prefix unknown", cmdline: "nginx: master process /usr/sbin/nginx", docs: "html"},
+		{name: "prefix not absolute", cmdline: "nginx: master process /usr/sbin/nginx", binary: "set prefix path (default: nginx/)", docs: "html"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := newContext(t, map[int][]string{1: {"/usr/sbin/nginx", tt.cmdline}}, nil, "")
+			f := ctx.Fs.(*fakefs.FS)
+			f.Files(t, map[string]string{NginxConfig: corporateFront, "/etc/nginx/fastcgi_params": "fastcgi_param QUERY_STRING $query_string;\n"})
+			if tt.binary != "" {
+				f.Write(t, "/usr/sbin/nginx", tt.binary)
+			}
+
+			out, _, err := collect(t, ctx)
+			require.NoError(t, err)
+			require.Len(t, out.Webservers[0].Vhosts, 1)
+			v := out.Webservers[0].Vhosts[0]
+			assert.Equal(t, "/home/web/var/www/siteweb-2018/staging/www/public_html", v.Root)
+			assert.Equal(t, []string{"127.0.0.1:9070", "http://127.0.0.1:3101", "127.0.0.1:9074"}, v.Upstreams)
+			assert.Equal(t, []snapshot.Location{
+				{Upstreams: []string{"127.0.0.1:9070"}},
+				{Path: "/simulateur-prix-climatisation", Upstreams: []string{"http://127.0.0.1:3101"}},
+				// The FastCGI of the regexp nested in the alias location runs
+				// the app of the alias, not that of the vhost.
+				{Path: "/simulateur-salle-de-bains/", Upstreams: []string{"127.0.0.1:9074"}, Root: "/home/web/var/www/simulateurs/sdb/staging/www/public/"},
+				// A relative root is relative to the prefix; an alias made of
+				// a capture is unknown.
+				{Path: "/docs/", Upstreams: []string{}, Root: tt.docs},
+			}, v.Locations)
+		})
+	}
 }
 
 func TestApplicable(t *testing.T) {

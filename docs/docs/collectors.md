@@ -149,7 +149,7 @@ domains and ports) and a source (its roots, FastCGI and proxy targets).
 
 | Type    | Read from |
 | ------- | --------- |
-| nginx   | Its files: the `-c` of the master (relative to its `-p` prefix), else `conf/nginx.conf` of its prefix, else `/etc/nginx/nginx.conf`, with their includes. Server blocks (names, listen, root, `fastcgi_pass`/`proxy_pass`/`uwsgi_pass`/`scgi_pass`/`grpc_pass` targets, by the `location` passing them) and upstream blocks. |
+| nginx   | Its files: the `-c` of the master (relative to its `-p` prefix), else `conf/nginx.conf` of its prefix, else `/etc/nginx/nginx.conf`, with their includes. Server blocks (names, listen, root, `fastcgi_pass`/`proxy_pass`/`uwsgi_pass`/`scgi_pass`/`grpc_pass` targets, by the `location` passing them, the `alias` or `root` of a `location` by path) and upstream blocks. A FastCGI target under a regexp location belongs to the location by prefix holding it, else to the vhost. A relative `root` or `alias` is relative to the prefix: the `-p` of the master, else the default prefix compiled in its binary, read from the file, never by running it. |
 | Apache  | Its configuration files (`/etc/apache2/apache2.conf`, `/etc/httpd/conf/httpd.conf`, or `-f`/`-d` of the process) with their includes, `Define` and `-D` variables substituted, negative conditional sections left out: virtual hosts, `DocumentRoot`, `ProxyPass` and FastCGI targets, by the path passing them (`ProxyPass /api`, `<Location>`, `<LocationMatch>`). |
 | HAProxy | `/etc/haproxy/haproxy.cfg`, or each `-f` of the process: frontends (binds, backends) and backends (servers). |
 | Traefik | Its API (`collectors.traefik.api_url`, basic auth and TLS options available): routers (rule, entrypoints, TLS), services (servers) and entrypoints (the addresses it listens on). Works for a Traefik running in a container. |
@@ -160,7 +160,10 @@ The version comes from the package, when there is one.
 
 Applications deployed on the host. App roots are found from:
 
-- the roots of the vhosts, and the local processes their proxies reach;
+- the roots of the vhosts, the directories their locations serve (an nginx
+  `alias`, or a `root` in a `location` by path), and the local processes their
+  proxies reach. An app served by a location runs on the PHP-FPM pool of that
+  location, the app of the vhost root on those of the other locations;
 - the supervisor programs (`supervisord.conf` and its `[include]` files): their
   directory or the first app path in their command;
 - the Node and PHP processes, from their working directory;

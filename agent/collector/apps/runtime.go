@@ -29,7 +29,7 @@ func (c *collection) runtime(a *app) *snapshot.AppRuntime {
 		if ref.proxied {
 			continue
 		}
-		for _, target := range expandUpstreams(ref.ws, ref.vhost.Upstreams) {
+		for _, target := range expandUpstreams(ref.ws, ref.upstreams()) {
 			if r := c.fpmRuntime(target); r != nil {
 				return r
 			}

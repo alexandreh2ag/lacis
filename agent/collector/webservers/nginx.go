@@ -8,8 +8,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/alexandreh2ag/lacis/agent/context"
+	"github.com/alexandreh2ag/lacis/agent/fsutil"
 	"github.com/alexandreh2ag/lacis/agent/netaddr"
 	"github.com/alexandreh2ag/lacis/agent/system"
 	"github.com/alexandreh2ag/lacis/common/snapshot"
@@ -37,6 +39,16 @@ func readNginx(stdCtx stdContext.Context, ctx *context.Context, sys *system.Syst
 	}
 	ws.Version, _ = packages.Version(NginxPackages...)
 
+	prefix := sync.OnceValue(func() string { return nginxPrefix(ctx.Fs, p) })
+	abs := func(dir string) string {
+		if dir == "" || path.IsAbs(dir) || strings.Contains(dir, "$") {
+			return dir
+		}
+		if pre := prefix(); pre != "" {
+			return path.Join(pre, dir)
+		}
+		return dir
+	}
 	main := nginxMainConfig(ctx.Fs, p)
 	r := &nginxReader{
 		read:    func(file string) ([]byte, error) { return sys.ReadAs(stdCtx, p, file) },
@@ -51,7 +63,7 @@ func readNginx(stdCtx stdContext.Context, ctx *context.Context, sys *system.Syst
 		for _, d := range http.Block {
 			switch d.Name {
 			case "server":
-				ws.Vhosts = append(ws.Vhosts, nginxVhost(d))
+				ws.Vhosts = append(ws.Vhosts, nginxVhost(d, abs))
 			case "upstream":
 				if len(d.Args) == 1 {
 					ws.Upstreams = append(ws.Upstreams, nginxUpstream(d))
@@ -115,7 +127,9 @@ func blocks(directives []directive, name string) []directive {
 	return out
 }
 
-func nginxVhost(server directive) snapshot.Vhost {
+// nginxVhost reads a server block; abs makes a relative root or alias
+// absolute.
+func nginxVhost(server directive, abs func(string) string) snapshot.Vhost {
 	v := snapshot.Vhost{ConfigFile: server.File}
 	for _, d := range server.Block {
 		switch d.Name {
@@ -131,7 +145,7 @@ func nginxVhost(server directive) snapshot.Vhost {
 			}
 		case "root":
 			if len(d.Args) == 1 {
-				v.Root = d.Args[0]
+				v.Root = abs(d.Args[0])
 			}
 		}
 	}
@@ -139,37 +153,77 @@ func nginxVhost(server directive) snapshot.Vhost {
 		v.Listen = []string{"0.0.0.0:80"}
 	}
 	vars := setVariables(server.Block)
-	var visit func(directives []directive, path string, inLocation bool)
-	visit = func(directives []directive, path string, inLocation bool) {
+	// path is that of the location being read; prefix that of the nearest
+	// location by prefix or exact path holding it, empty for any path.
+	var visit func(directives []directive, path, prefix string, inLocation bool)
+	visit = func(directives []directive, path, prefix string, inLocation bool) {
 		for _, d := range directives {
 			switch {
 			case d.Name == "location" && d.Block != nil:
-				visit(d.Block, locationPath(d.Args), true)
+				inner := locationPath(d.Args)
+				innerPrefix := prefix
+				if inner != "" && !strings.HasPrefix(inner, "~") {
+					innerPrefix = inner
+				}
+				visit(d.Block, inner, innerPrefix, true)
 			case d.Name == "if" && d.Block != nil:
-				visit(d.Block, path, inLocation)
+				visit(d.Block, path, prefix, inLocation)
 			case slices.Contains(passDirectives, d.Name) && len(d.Args) > 0:
 				target := passTarget(d.Name, expand(d.Args[0], vars))
 				v.Upstreams = appendUnique(v.Upstreams, target)
 				fpm := d.Name != "proxy_pass" && d.Name != "grpc_pass"
-				v.AddLocation(passedPath(path, fpm), target)
-			case d.Name == "root" && v.Root == "" && len(d.Args) == 1 && inLocation:
-				v.Root = d.Args[0] // only in a location
+				v.AddLocation(passedPath(path, prefix, fpm), target)
+			case (d.Name == "root" || d.Name == "alias") && len(d.Args) == 1 && inLocation:
+				dir := abs(expand(d.Args[0], vars))
+				switch {
+				case strings.Contains(dir, "$"):
+					// A capture of a regexp location: unknown without a request.
+				case prefix != "":
+					v.SetLocationRoot(prefix, dir)
+				case v.Root == "":
+					v.Root = dir // only in a location serving any path
+				}
 			}
 		}
 	}
-	visit(server.Block, "", false)
+	visit(server.Block, "", "", false)
 	return v
 }
 
 // passedPath is the path a backend is passed: a FastCGI backend under a
-// regexp (~ \.php$) runs the app of the vhost whatever the path called,
-// try_files rewriting it.
-func passedPath(path string, fpm bool) string {
+// regexp (~ \.php$) runs the app of the location by prefix holding it, that
+// of the vhost at the top, whatever the path called, try_files rewriting
+// it.
+func passedPath(path, prefix string, fpm bool) string {
 	if fpm && strings.HasPrefix(path, "~") {
-		return ""
+		return prefix
 	}
 	return path
 }
+
+// nginxPrefix returns the prefix of the master p, which relative paths
+// are relative to: its -p, else the default prefix compiled in its binary,
+// read from the help text of its -p option ("set prefix path (default:
+// /usr/share/nginx/)"), never by running it. Empty when unknown.
+func nginxPrefix(fsys afero.Fs, p system.Process) string {
+	if prefix := flagValue(p.Cmdline, "-p"); prefix != "" {
+		return prefix
+	}
+	if p.Exe == "" {
+		return ""
+	}
+	value, ok := fsutil.FindInRegular(fsys, p.Exe, maxNginxBinary, prefixMarker, ')')
+	if !ok || !path.IsAbs(value) {
+		return ""
+	}
+	return path.Clean(value)
+}
+
+// prefixMarker precedes the compiled prefix in the nginx binary.
+const prefixMarker = "set prefix path (default: "
+
+// maxNginxBinary bounds the read of the nginx binary.
+const maxNginxBinary = 256 << 20
 
 // locationPath writes the arguments of an nginx location as a path
 // matcher: "/api", "=/health", "~^/(a|b)", "~(?i)\.jpg$" for ~*; a named

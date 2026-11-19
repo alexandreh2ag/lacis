@@ -5,6 +5,7 @@
 package fsutil
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -126,6 +127,47 @@ func read(fsys afero.Fs, name string, max int64, flag int) ([]byte, error) {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: ErrTooLarge}
 	}
 	return b, nil
+}
+
+// maxFound bounds the value FindInRegular returns.
+const maxFound = 4096
+
+// FindInRegular streams the regular file name, following a link, through
+// its first max bytes, and returns what follows the first marker up to the
+// byte end, excluded, as the compiled-in strings of a binary; false when
+// the marker or the end is missing, or the value exceeds 4 KiB. The file is
+// never held whole in memory.
+func FindInRegular(fsys afero.Fs, name string, max int64, marker string, end byte) (string, bool) {
+	f, err := fsys.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return "", false
+	}
+	defer func() { _ = f.Close() }()
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return "", false
+	}
+	r := io.LimitReader(f, max)
+	buf := make([]byte, 0, 64<<10)
+	chunk := make([]byte, 64<<10)
+	for {
+		n, err := r.Read(chunk)
+		buf = append(buf, chunk[:n]...)
+		if i := bytes.Index(buf, []byte(marker)); i >= 0 {
+			rest := buf[i+len(marker):]
+			if j := bytes.IndexByte(rest, end); j >= 0 && j <= maxFound {
+				return string(rest[:j]), true
+			}
+			if len(rest) > maxFound {
+				return "", false
+			}
+		} else if keep := len(marker) - 1; len(buf) > keep {
+			// Only the tail may hold the start of a marker.
+			buf = append(buf[:0], buf[len(buf)-keep:]...)
+		}
+		if err != nil {
+			return "", false
+		}
+	}
 }
 
 // Exit codes of "lacis-agent internal read", so that the agent knows why

@@ -380,6 +380,65 @@ func TestCollect_LinkedPathKept(t *testing.T) {
 	require.Len(t, out.Apps[0].Launchers, 1)
 }
 
+func TestCollect_LocationRoot(t *testing.T) {
+	// A Zend site on FPM 7.0 serving, under a path, a Laravel app from an
+	// alias, on FPM 7.4, as on ea-corporate-staging-1.
+	const (
+		site   = "/home/web/var/www/siteweb-2018/staging/www"
+		link   = "/home/web/var/www/simulateurs/sdb/staging/www"
+		target = "/home/web/builds/sdb/staging"
+	)
+	h := newHost(t)
+	h.fs.Files(t, map[string]string{
+		site + "/composer.json":                "{}",
+		site + "/public_html/index.php":        "",
+		target + "/composer.json":              "{}",
+		target + "/public/index.php":           "",
+		"/home/web/builds/static/package.json": "{}",
+	})
+	h.fs.Link(link, target)
+	out := &snapshot.Snapshot{
+		Services: []snapshot.Service{
+			{Type: "php-fpm", Version: "7.0.33", Pools: []snapshot.FPMPool{{Name: "www", Listen: "127.0.0.1:9070"}}},
+			{Type: "php-fpm", Version: "7.4.33", Pools: []snapshot.FPMPool{{Name: "www", Listen: "127.0.0.1:9074"}}},
+		},
+		Webservers: []snapshot.Webserver{{Type: "nginx", Vhosts: []snapshot.Vhost{{
+			ServerNames: []string{"staging.espace-aubade.fr"},
+			Root:        site + "/public_html",
+			Upstreams:   []string{"127.0.0.1:9074", "127.0.0.1:9070"},
+			Locations: []snapshot.Location{
+				// Listed first: the vhost root still gets the pool of its own
+				// locations.
+				{Path: "/simulateur-salle-de-bains/", Upstreams: []string{"127.0.0.1:9074"}, Root: link + "/public/"},
+				{Upstreams: []string{"127.0.0.1:9070"}},
+				{Path: "/static/", Upstreams: []string{}, Root: "/home/web/builds/static"},
+				// A relative root, its prefix unknown, is no app.
+				{Path: "/docs/", Upstreams: []string{}, Root: "html"},
+			},
+		}}}},
+	}
+	require.NoError(t, h.collect(out))
+
+	byPath := map[string]snapshot.App{}
+	for _, a := range out.Apps {
+		byPath[a.Path] = a
+	}
+	require.Len(t, byPath, 3)
+	sdb := byPath[link]
+	assert.Equal(t, target, sdb.ResolvedPath)
+	assert.Equal(t, snapshot.AppRoleWeb, sdb.Role)
+	assert.Equal(t, []string{"staging.espace-aubade.fr"}, sdb.Vhosts)
+	assert.Equal(t, &snapshot.AppRuntime{Type: "php", Version: "7.4.33", Source: RuntimeSourceFPMPool}, sdb.Runtime)
+
+	zend := byPath[site]
+	assert.Equal(t, snapshot.AppRoleWeb, zend.Role)
+	assert.Equal(t, &snapshot.AppRuntime{Type: "php", Version: "7.0.33", Source: RuntimeSourceFPMPool}, zend.Runtime)
+
+	static := byPath["/home/web/builds/static"]
+	assert.Equal(t, snapshot.AppRoleWeb, static.Role)
+	assert.Nil(t, static.Runtime, "no backend")
+}
+
 func TestWithin(t *testing.T) {
 	tests := []struct {
 		p, dir string

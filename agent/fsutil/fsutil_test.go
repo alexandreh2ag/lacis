@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -205,4 +206,40 @@ func TestReadRegularLinks_Os(t *testing.T) {
 	assert.ErrorContains(t, err, "more than 5")
 	_, err = ReadRegularLinks(osFs, filepath.Join(dir, "missing"), 10, MaxLinkHops)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestFindInRegular(t *testing.T) {
+	const marker = "set prefix path (default: "
+	chunk := 64 << 10
+	tests := []struct {
+		name    string
+		content string
+		max     int64
+		want    string
+		wantOK  bool
+	}{
+		{name: "found", content: "\x7fELF\x00" + marker + "/usr/share/nginx/)\x00", max: 1 << 20, want: "/usr/share/nginx/", wantOK: true},
+		{name: "marker across two reads", content: strings.Repeat("x", chunk-10) + marker + "/etc/nginx/)", max: 1 << 20, want: "/etc/nginx/", wantOK: true},
+		{name: "value across two reads", content: strings.Repeat("x", chunk-len(marker)-3) + marker + "/usr/local/nginx/)", max: 1 << 20, want: "/usr/local/nginx/", wantOK: true},
+		{name: "no marker", content: strings.Repeat("x", 3*chunk), max: 1 << 20},
+		{name: "no end", content: marker + "/usr/share/nginx/", max: 1 << 20},
+		{name: "value too long", content: marker + strings.Repeat("a", 5000) + ")", max: 1 << 20},
+		{name: "beyond max", content: strings.Repeat("x", 100) + marker + "/a)", max: 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := afero.NewMemMapFs()
+			require.NoError(t, afero.WriteFile(fsys, "/usr/sbin/nginx", []byte(tt.content), 0o755))
+			got, ok := FindInRegular(fsys, "/usr/sbin/nginx", tt.max, marker, ')')
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	fsys := afero.NewMemMapFs()
+	_, ok := FindInRegular(fsys, "/missing", 1<<20, marker, ')')
+	assert.False(t, ok, "a missing file")
+	require.NoError(t, fsys.MkdirAll("/usr/sbin/nginx", 0o755))
+	_, ok = FindInRegular(fsys, "/usr/sbin/nginx", 1<<20, marker, ')')
+	assert.False(t, ok, "a directory")
 }

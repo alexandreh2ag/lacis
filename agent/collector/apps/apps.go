@@ -66,6 +66,28 @@ type vhostRef struct {
 	// vhost reaches: the other targets of the vhost, such as the FastCGI of
 	// its root, belong to other apps.
 	proxied bool
+	// location is set when the app is the directory a location of the
+	// vhost serves, such as an nginx alias: its upstreams are its own.
+	location *snapshot.Location
+}
+
+// upstreams are the backends the vhost sends to the app: those of its
+// location, else those of the locations served from the root of the
+// vhost.
+func (r vhostRef) upstreams() []string {
+	if r.location != nil {
+		return r.location.Upstreams
+	}
+	if len(r.vhost.Locations) == 0 {
+		return r.vhost.Upstreams // a webserver without locations
+	}
+	var out []string
+	for _, l := range r.vhost.Locations {
+		if l.Root == "" {
+			out = append(out, l.Upstreams...)
+		}
+	}
+	return out
 }
 
 type collection struct {
@@ -141,13 +163,21 @@ func (*Collector) Collect(stdCtx stdContext.Context, ctx *context.Context, sys *
 	return errors.Join(c.errs...)
 }
 
-// fromVhost adds the app of a vhost root, and the apps of the local
-// processes it proxies to.
+// fromVhost adds the app of a vhost root, those of the directories its
+// locations serve (nginx alias), and the apps of the local processes it
+// proxies to.
 func (c *collection) fromVhost(ws *snapshot.Webserver, v *snapshot.Vhost) {
 	ref := vhostRef{ws: ws, vhost: v}
 	if v.Root != "" {
 		if a := c.add(v.Root); a != nil {
 			a.vhosts = append(a.vhosts, ref)
+		}
+	}
+	for i := range v.Locations {
+		if loc := &v.Locations[i]; loc.Root != "" && path.IsAbs(loc.Root) {
+			if a := c.add(loc.Root); a != nil {
+				a.vhosts = append(a.vhosts, vhostRef{ws: ws, vhost: v, location: loc})
+			}
 		}
 	}
 	for _, target := range expandUpstreams(ws, v.Upstreams) {
